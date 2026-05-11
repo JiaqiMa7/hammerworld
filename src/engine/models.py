@@ -98,11 +98,9 @@ class AIAnalysis:
     model_version: str
     inference_hash: str
 
-    @property
     def is_high_score(self, threshold: float = 8.0) -> bool:
         return any(s.score >= threshold for s in self.scores)
 
-    @property
     def high_dimensions(self, threshold: float = 8.0) -> list[EvalDimension]:
         return [s.dimension for s in self.scores if s.score >= threshold]
 

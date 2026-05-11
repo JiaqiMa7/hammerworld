@@ -62,17 +62,22 @@ class LeaderboardDB:
     def __init__(self, db_path: str = "data/leaderboard.db"):
         os.makedirs(os.path.dirname(db_path) or ".", exist_ok=True)
         self.db_path = db_path
+        self._persistent_conn = None  # Keep alive for :memory: shared-cache
         self._init_db()
 
     def _connect(self) -> sqlite3.Connection:
-        conn = sqlite3.connect(self.db_path)
+        # Use shared-cache URI for :memory: so multiple connections see the same DB
+        if self.db_path == ":memory:":
+            conn = sqlite3.connect("file::memory:?cache=shared", uri=True)
+        else:
+            conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA journal_mode=WAL")
         return conn
 
     def _init_db(self):
-        with self._connect() as conn:
-            conn.executescript("""
+        conn = self._connect()
+        conn.executescript("""
                 CREATE TABLE IF NOT EXISTS combinations (
                     combo_id TEXT PRIMARY KEY,
                     method_name TEXT NOT NULL,
@@ -111,6 +116,10 @@ class LeaderboardDB:
                 CREATE INDEX IF NOT EXISTS idx_problem_domain ON combinations(problem_domain);
                 CREATE INDEX IF NOT EXISTS idx_method_domain ON combinations(method_domain);
             """)
+        if self.db_path == ":memory:":
+            self._persistent_conn = conn
+        else:
+            conn.close()
 
     def insert(self, combo: Combination, miner_addr: str = "") -> LeaderboardEntry:
         """Insert or update a combination in the leaderboard."""
