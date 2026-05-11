@@ -1,3 +1,5 @@
+from __future__ import annotations
+
 """TRIZ Contradiction Matrix: 39x39 engineering parameters → recommended principles.
 
 The matrix maps (improving_parameter_id, worsening_parameter_id) to a list of

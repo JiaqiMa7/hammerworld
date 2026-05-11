@@ -1,5 +1,7 @@
 """TRIZ knowledge base: 39 parameters and 40 inventive principles."""
 
+from __future__ import annotations
+
 from src.triz.models import EngineeringParameter, InventivePrinciple
 
 ENGINEERING_PARAMETERS: dict[int, EngineeringParameter] = {
