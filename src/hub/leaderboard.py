@@ -62,13 +62,17 @@ class LeaderboardDB:
     def __init__(self, db_path: str = "data/leaderboard.db"):
         os.makedirs(os.path.dirname(db_path) or ".", exist_ok=True)
         self.db_path = db_path
-        self._persistent_conn = None  # Keep alive for :memory: shared-cache
+        self._persistent_conn = None  # Keep alive for :memory:
+        # Each :memory: instance gets a unique URI so they don't share data
+        if db_path == ":memory:":
+            self._memory_uri = f"file:mem_{id(self):x}?mode=memory&cache=shared"
+        else:
+            self._memory_uri = None
         self._init_db()
 
     def _connect(self) -> sqlite3.Connection:
-        # Use shared-cache URI for :memory: so multiple connections see the same DB
-        if self.db_path == ":memory:":
-            conn = sqlite3.connect("file::memory:?cache=shared", uri=True)
+        if self._memory_uri:
+            conn = sqlite3.connect(self._memory_uri, uri=True)
         else:
             conn = sqlite3.connect(self.db_path)
         conn.row_factory = sqlite3.Row
@@ -171,6 +175,50 @@ class LeaderboardDB:
             ))
 
         return entry
+
+    def insert_from_sync(self, entry: LeaderboardEntry) -> bool:
+        """Insert or update an entry received from a remote peer. Returns True if new."""
+        existing = self._get_by_id(entry.combo_id)
+        if existing and existing.created_at >= entry.created_at:
+            return False  # already have same or newer
+
+        with self._connect() as conn:
+            conn.execute("""
+                INSERT OR REPLACE INTO combinations
+                (combo_id, method_name, method_domain, method_level,
+                 problem_title, problem_domain, best_dim, best_score,
+                 elegance, weirdness, human_feasibility, ai_feasibility,
+                 novelty, analogy_distance, scaling_potential, side_effects,
+                 miner_addr, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """, (
+                entry.combo_id, entry.method_name, entry.method_domain,
+                entry.method_level, entry.problem_title, entry.problem_domain,
+                entry.best_dimension, entry.best_score,
+                entry.elegance, entry.weirdness, entry.human_feasibility,
+                entry.ai_feasibility, entry.novelty, entry.analogy_distance,
+                entry.scaling_potential, entry.side_effects,
+                entry.miner_address, entry.created_at,
+            ))
+        return True
+
+    def _get_by_id(self, combo_id: str) -> Optional[LeaderboardEntry]:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM combinations WHERE combo_id = ?", (combo_id,)
+            ).fetchone()
+            if row:
+                return self._row_to_entry(0, row)
+            return None
+
+    def get_since(self, since: float, limit: int = 100) -> list[LeaderboardEntry]:
+        """Get entries with created_at > since, for incremental sync."""
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM combinations WHERE created_at > ? ORDER BY created_at ASC LIMIT ?",
+                (since, limit),
+            ).fetchall()
+        return [self._row_to_entry(0, row) for row in rows]
 
     def get_top(
         self,

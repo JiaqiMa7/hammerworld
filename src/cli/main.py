@@ -1,6 +1,7 @@
 """CLI tools for the Idea Mining Network."""
 
 import argparse
+import signal
 import sys
 from pathlib import Path
 
@@ -74,6 +75,42 @@ def cmd_random(args):
         print(f"  [{e.best_dimension}={e.best_score:.1f}] {e.method_name} × {e.problem_title}")
 
 
+def cmd_hub(args):
+    """Start a P2P hub server."""
+    from src.hub.leaderboard import LeaderboardDB
+    from src.hub.peer import PeerConfig
+    from src.hub.server import HubServer
+
+    db = LeaderboardDB(args.db)
+    config = PeerConfig(
+        port=args.port,
+        bootstrap=args.bootstrap or [],
+        gossip_interval=args.gossip_interval,
+        peer_timeout=args.peer_timeout,
+        max_peers=args.max_peers,
+    )
+    server = HubServer(db, config)
+
+    def _shutdown(signum, frame):
+        print("\nShutting down hub...")
+        server.stop()
+        sys.exit(0)
+
+    signal.signal(signal.SIGINT, _shutdown)
+    signal.signal(signal.SIGTERM, _shutdown)
+
+    print(f"Hub started on port {args.port} (peer_id: {server.peer_manager.peer_id})")
+    print(f"Database: {args.db}")
+    if args.bootstrap:
+        print(f"Bootstrap peers: {args.bootstrap}")
+    print("Press Ctrl+C to stop.\n")
+
+    try:
+        server.start()
+    except KeyboardInterrupt:
+        server.stop()
+
+
 def main():
     parser = argparse.ArgumentParser(description="Idea Mining Network CLI")
     sub = parser.add_subparsers(dest="command")
@@ -104,6 +141,17 @@ def main():
     p_random.add_argument("--address", default="0xVIEWER")
     p_random.add_argument("--db", default="data/leaderboard.db")
 
+    p_hub = sub.add_parser("hub", help="Start a P2P hub server")
+    p_hub.add_argument("--port", type=int, default=8765, help="HTTP port (default 8765)")
+    p_hub.add_argument("--bootstrap", action="append", default=None,
+                       help="Bootstrap peer address (host:port), repeatable")
+    p_hub.add_argument("--db", default="data/leaderboard.db", help="SQLite database path")
+    p_hub.add_argument("--gossip-interval", type=float, default=30.0,
+                       help="Gossip interval in seconds")
+    p_hub.add_argument("--peer-timeout", type=float, default=300.0,
+                       help="Peer timeout in seconds")
+    p_hub.add_argument("--max-peers", type=int, default=50, help="Maximum peers")
+
     args = parser.parse_args()
     if args.command == "mine":
         cmd_mine(args)
@@ -113,6 +161,8 @@ def main():
         cmd_search(args)
     elif args.command == "random":
         cmd_random(args)
+    elif args.command == "hub":
+        cmd_hub(args)
     else:
         parser.print_help()
 
