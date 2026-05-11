@@ -1,0 +1,197 @@
+{
+  "problems": [
+    {
+      "id": "problem_medicine_001",
+      "title": "Antibiotic Resistance",
+      "domain": "medicine",
+      "description": "Bacteria evolve resistance to antibiotics faster than new drugs are developed. Current antibiotics become ineffective, leading to untreatable infections. Over 1.2 million deaths annually are directly attributed to drug-resistant infections.",
+      "constraint_types": ["time", "complexity"],
+      "maturity": 2,
+      "triz_standardized": {
+        "contradiction": {
+          "improving": "Elimination of bacteria",
+          "worsening": "Adaptation speed of bacteria"
+        },
+        "ifr": "Bacteria cannot develop resistance while being eliminated",
+        "triz_params": [31, 35],
+        "functional_model": {
+          "actors": ["Bacteria", "Antibiotics", "Human immune system", "Environment"],
+          "useful_functions": [{"subject": "Antibiotics", "action": "kills", "object": "Bacteria"}],
+          "harmful_functions": [{"subject": "Antibiotics", "action": "selects for resistance in", "object": "Bacteria"}]
+        }
+      }
+    },
+    {
+      "id": "problem_medicine_002",
+      "title": "Cancer Metastasis Prevention",
+      "domain": "medicine",
+      "description": "Cancer's lethality comes primarily from metastasis - tumor cells detaching, traveling through the bloodstream, and colonizing distant organs. Current therapies mainly target the primary tumor but fail to prevent metastatic spread.",
+      "constraint_types": ["complexity", "physical_limit"],
+      "maturity": 2
+    },
+    {
+      "id": "problem_medicine_003",
+      "title": "Alzheimer's Disease",
+      "domain": "medicine",
+      "description": "Progressive neurodegenerative disorder with no disease-modifying treatment. Amyloid-beta plaques and tau tangles accumulate, but causal mechanisms remain debated. All clinical trials targeting amyloid have failed to show meaningful cognitive benefit.",
+      "constraint_types": ["complexity", "time"],
+      "maturity": 2
+    },
+    {
+      "id": "problem_medicine_004",
+      "title": "Autoimmune Disease Specificity",
+      "domain": "medicine",
+      "description": "Current treatments for autoimmune diseases (rheumatoid arthritis, lupus, MS) broadly suppress the immune system, leaving patients vulnerable to infections. The challenge is to suppress only the self-targeting immune cells while preserving normal immune function.",
+      "constraint_types": ["complexity"],
+      "maturity": 2
+    },
+    {
+      "id": "problem_energy_001",
+      "title": "Nuclear Fusion Containment",
+      "domain": "energy",
+      "description": "Sustaining a controlled nuclear fusion reaction requires confining plasma at temperatures hotter than the sun's core (~150 million C) long enough for net energy gain. Magnetic confinement (tokamaks) and inertial confinement both face plasma instability challenges.",
+      "constraint_types": ["physical_limit", "complexity"],
+      "maturity": 3
+    },
+    {
+      "id": "problem_energy_002",
+      "title": "Long-Duration Energy Storage",
+      "domain": "energy",
+      "description": "Renewable energy (solar, wind) is intermittent. Li-ion batteries are too expensive for multi-day storage. Need cost-effective storage for 10-100+ hours to enable 100% renewable grids.",
+      "constraint_types": ["resource", "physical_limit"],
+      "maturity": 3
+    },
+    {
+      "id": "problem_energy_003",
+      "title": "Hydrogen Transport and Storage",
+      "domain": "energy",
+      "description": "Hydrogen is a promising clean fuel but is the smallest molecule, making it extremely difficult to contain. It embrittles metals, leaks through most materials, and requires either extreme compression (700 bar) or cryogenic temperatures (-253C) for practical density.",
+      "constraint_types": ["physical_limit", "resource"],
+      "maturity": 3
+    },
+    {
+      "id": "problem_energy_004",
+      "title": "Electric Aircraft Propulsion",
+      "domain": "energy",
+      "description": "Current battery energy density (~250 Wh/kg) is about 50x lower than jet fuel (~12,000 Wh/kg). Even accounting for electric motor efficiency, batteries need at least 5-10x improvement for commercial aviation to become feasible.",
+      "constraint_types": ["physical_limit"],
+      "maturity": 2
+    },
+
+    {
+      "id": "problem_environment_001",
+      "title": "Plastic Degradation",
+      "domain": "environment",
+      "description": "Over 400 million tons of plastic are produced annually. Most plastics take 400+ years to degrade naturally. Microplastics now contaminate oceans, soil, food, and human blood. Recycling rates remain below 10% globally.",
+      "constraint_types": ["time", "physical_limit"],
+      "maturity": 2
+    },
+    {
+      "id": "problem_environment_002",
+      "title": "Carbon Capture at Scale",
+      "domain": "environment",
+      "description": "To limit warming to 1.5C, we need to remove 10+ billion tons of CO2 annually by 2050 in addition to emissions reductions. Current direct air capture costs $250-600/ton and captures only ~10,000 tons/year globally. Need 1,000,000x scale-up at 10x lower cost.",
+      "constraint_types": ["resource", "time"],
+      "maturity": 3
+    },
+    {
+      "id": "problem_environment_003",
+      "title": "Ocean Acidification",
+      "domain": "environment",
+      "description": "Oceans have absorbed ~30% of anthropogenic CO2, causing pH to drop 0.1 units (30% increase in acidity). This dissolves shells of marine organisms, disrupts food webs, and threatens coral reefs that support 25% of marine life.",
+      "constraint_types": ["time", "complexity"],
+      "maturity": 1
+    },
+
+    {
+      "id": "problem_information_001",
+      "title": "AI Alignment",
+      "domain": "information",
+      "description": "As AI systems become more capable, ensuring they reliably pursue human-intended goals becomes critical. Current methods (RLHF, constitutional AI) fail to prevent reward hacking, specification gaming, and goal misgeneralization in novel situations.",
+      "constraint_types": ["complexity", "ethical"],
+      "maturity": 2
+    },
+    {
+      "id": "problem_information_002",
+      "title": "Privacy-Preserving Computation",
+      "domain": "information",
+      "description": "Need to compute on sensitive data (medical records, financial data) without exposing the underlying data. Fully homomorphic encryption is theoretically possible but 1,000,000x slower than plaintext computation.",
+      "constraint_types": ["resource", "complexity"],
+      "maturity": 3
+    },
+    {
+      "id": "problem_information_003",
+      "title": "Von Neumann Bottleneck",
+      "domain": "information",
+      "description": "The separation of memory and processing units creates a data transfer bottleneck that limits computing performance and energy efficiency. Moving data consumes 100-1000x more energy than computing on it. Need in-memory or neuromorphic computing breakthroughs.",
+      "constraint_types": ["physical_limit", "resource"],
+      "maturity": 3
+    },
+    {
+      "id": "problem_information_004",
+      "title": "Software Verification at Scale",
+      "domain": "information",
+      "description": "Critical software systems (avionics, medical devices, autonomous vehicles) need formal guarantees of correctness. Current formal verification methods don't scale to millions of lines of code, and AI-generated code has no correctness guarantees.",
+      "constraint_types": ["complexity", "time"],
+      "maturity": 2
+    },
+
+    {
+      "id": "problem_materials_001",
+      "title": "Room Temperature Superconductivity",
+      "domain": "materials",
+      "description": "A material that superconducts at room temperature and ambient pressure would revolutionize power transmission, computing, transportation (maglev), and medical imaging. Claims (LK-99) have not replicated. Current record is ~-70C at extremely high pressure.",
+      "constraint_types": ["physical_limit"],
+      "maturity": 1
+    },
+    {
+      "id": "problem_materials_002",
+      "title": "Self-Healing Infrastructure Materials",
+      "domain": "materials",
+      "description": "Concrete and asphalt crack over time, requiring expensive maintenance and causing ~8% of global CO2 from cement production for repairs. Need materials that can autonomously detect and repair damage, especially in hard-to-access locations (bridges, undersea structures).",
+      "constraint_types": ["time", "resource"],
+      "maturity": 2
+    },
+    {
+      "id": "problem_materials_003",
+      "title": "Efficient Water Desalination Membranes",
+      "domain": "materials",
+      "description": "2+ billion people lack access to clean water. Reverse osmosis membranes require high pressure (50-70 bar) and foul over time. Need membranes with higher selectivity, lower energy requirements, and resistance to fouling.",
+      "constraint_types": ["resource", "physical_limit"],
+      "maturity": 3
+    },
+
+    {
+      "id": "problem_society_001",
+      "title": "Information Echo Chambers",
+      "domain": "society",
+      "description": "Algorithmic content curation maximizes engagement by showing users what they already agree with, leading to political polarization, conspiracy theory spread, and erosion of shared factual understanding across society.",
+      "constraint_types": ["ethical", "complexity"],
+      "maturity": 2
+    },
+    {
+      "id": "problem_society_002",
+      "title": "Wealth Inequality Feedback Loop",
+      "domain": "society",
+      "description": "Capital returns consistently exceed economic growth rates (r > g), causing wealth to concentrate. Wealth buys political influence, which shapes rules to further favor capital over labor, creating a self-reinforcing cycle that resists reform.",
+      "constraint_types": ["ethical", "complexity"],
+      "maturity": 2
+    },
+    {
+      "id": "problem_society_003",
+      "title": "Global Coordination Failures",
+      "domain": "society",
+      "description": "Problems like climate change, pandemic preparedness, and AI safety require global cooperation, but the current international system creates incentives for free-riding. Each nation rationally defects while collectively everyone loses (tragedy of the commons at planetary scale).",
+      "constraint_types": ["ethical", "complexity", "time"],
+      "maturity": 2
+    },
+    {
+      "id": "problem_society_004",
+      "title": "Scientific Reproducibility Crisis",
+      "domain": "society",
+      "description": "Many published research findings fail to replicate, especially in psychology, medicine, and social sciences. Perverse incentives (publish-or-perish, positive results bias) systematically reward flashy false positives over careful incremental truth-finding.",
+      "constraint_types": ["ethical", "complexity"],
+      "maturity": 3
+    }
+  ]
+}

@@ -1,5 +1,7 @@
 """TRIZ-specific data models: 39 parameters, 40 principles, contradictions."""
 
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 
 

@@ -1,5 +1,7 @@
 """Core data models for the Idea Mining Network."""
 
+from __future__ import annotations
+
 from dataclasses import dataclass, field
 from enum import Enum
 from typing import Optional

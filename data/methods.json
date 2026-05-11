@@ -1,0 +1,397 @@
+{
+  "methods": [
+    {
+      "id": "method_heuristic_001",
+      "name": "Trial & Error",
+      "domain": "Heuristics",
+      "level": 1,
+      "description": "Systematically try different solutions and learn from failures. The most fundamental problem-solving method in nature and science.",
+      "trigger_conditions": ["Solution space is small", "Cost of failure is low", "No prior knowledge available"],
+      "examples": ["Edison's lightbulb filament experiments", "Drug screening", "Hyperparameter tuning"],
+      "prerequisites": [],
+      "compatible_with": ["method_triz_023", "method_ml_001"]
+    },
+    {
+      "id": "method_heuristic_002",
+      "name": "Brainstorming",
+      "domain": "Heuristics",
+      "level": 1,
+      "description": "Generate a large quantity of ideas in a group setting without immediate criticism or judgment.",
+      "trigger_conditions": ["Need diverse perspectives", "Stuck in conventional thinking", "Early stage exploration"],
+      "examples": ["Design sprints", "Hackathon ideation", "Product feature generation"],
+      "prerequisites": [],
+      "compatible_with": ["method_struct_003", "method_triz_001"]
+    },
+    {
+      "id": "method_heuristic_003",
+      "name": "Analogical Reasoning",
+      "domain": "Heuristics",
+      "level": 1,
+      "description": "Transfer knowledge from a source domain to a target domain by identifying structural similarities.",
+      "trigger_conditions": ["Domain-specific solutions exhausted", "Cross-domain insight needed", "Structural similarity suspected"],
+      "examples": ["Velcro inspired by burdock burrs", "Neural networks inspired by neurons", "Swarm robotics from ant colonies"],
+      "prerequisites": [],
+      "compatible_with": ["method_bio_002", "method_ml_002"]
+    },
+    {
+      "id": "method_heuristic_004",
+      "name": "Inversion",
+      "domain": "Heuristics",
+      "level": 1,
+      "description": "Flip the problem statement or assumed direction of causality to reveal new solutions.",
+      "trigger_conditions": ["Stuck in one direction of thinking", "Assumptions need challenging", "Seeking disruptive solution"],
+      "examples": ["Instead of 'how to catch mice', 'how to get mice to leave'", "Pull vs push manufacturing", "Inversion of control in frameworks"],
+      "prerequisites": [],
+      "compatible_with": ["method_triz_013", "method_physics_003"]
+    },
+    {
+      "id": "method_heuristic_005",
+      "name": "Extreme Scenario",
+      "domain": "Heuristics",
+      "level": 1,
+      "description": "Push parameters to their extreme values to understand system behavior and find breaking points.",
+      "trigger_conditions": ["System boundaries unclear", "Need to understand failure modes", "Seeking robust design"],
+      "examples": ["Stress testing", "Adversarial examples in ML", "Edge case analysis"],
+      "prerequisites": [],
+      "compatible_with": ["method_ml_001", "method_physics_001"]
+    },
+
+    {
+      "id": "method_triz_001",
+      "name": "40 Inventive Principles (TRIZ)",
+      "domain": "TRIZ",
+      "level": 2,
+      "description": "Systematically apply 40 proven patterns of invention derived from analysis of millions of patents. Each principle represents a category of solutions that have repeatedly solved problems across domains.",
+      "trigger_conditions": ["Technical contradiction identified", "Engineering problem", "Seeking non-compromise solution"],
+      "examples": ["Segmentation → modular smartphone", "Nesting → telescopic lens", "Composite → carbon fiber"],
+      "prerequisites": ["method_triz_contradiction"],
+      "compatible_with": ["method_ml_005", "method_bio_003", "method_chem_002"]
+    },
+    {
+      "id": "method_triz_002",
+      "name": "76 Standard Solutions (TRIZ)",
+      "domain": "TRIZ",
+      "level": 2,
+      "description": "Apply 76 standard solutions organized into 5 classes for solving substance-field (Su-Field) model problems.",
+      "trigger_conditions": ["System can be modeled as substances and fields", "Interaction problems between components"],
+      "examples": ["Adding a field to complete a Su-Field model", "Introducing ferromagnetic particles for control"],
+      "prerequisites": ["method_triz_sufield"],
+      "compatible_with": ["method_triz_001", "method_physics_002"]
+    },
+    {
+      "id": "method_triz_003",
+      "name": "Morphological Box",
+      "domain": "Structured",
+      "level": 2,
+      "description": "Decompose a system into independent parameters and enumerate all possible combinations to find novel configurations.",
+      "trigger_conditions": ["System has multiple independent parameters", "Combinatorial exploration needed"],
+      "examples": ["New product configurations", "Chemical compound screening space", "Architecture design space"],
+      "prerequisites": [],
+      "compatible_with": ["method_triz_001", "method_math_001"]
+    },
+    {
+      "id": "method_struct_004",
+      "name": "Six Thinking Hats",
+      "domain": "Structured",
+      "level": 2,
+      "description": "Parallel thinking method: deliberately switch between six modes (facts, emotions, caution, optimism, creativity, process) to examine a problem from all angles.",
+      "trigger_conditions": ["Group decision making", "Confirmation bias suspected", "Need systematic exploration"],
+      "examples": ["Strategic planning sessions", "Risk assessment", "Innovation workshops"],
+      "prerequisites": [],
+      "compatible_with": ["method_heuristic_002"]
+    },
+    {
+      "id": "method_struct_005",
+      "name": "Design Thinking",
+      "domain": "Structured",
+      "level": 2,
+      "description": "Human-centered innovation process: empathize, define, ideate, prototype, test. Iterate rapidly with user feedback.",
+      "trigger_conditions": ["User-facing problem", "Requirements unclear", "Need rapid validation"],
+      "examples": ["Product design", "Service design", "UX redesign"],
+      "prerequisites": [],
+      "compatible_with": ["method_heuristic_002", "method_triz_001"]
+    },
+    {
+      "id": "method_struct_006",
+      "name": "First Principles Thinking",
+      "domain": "Structured",
+      "level": 2,
+      "description": "Break down a problem to its most fundamental truths and rebuild from there, ignoring assumptions and analogies.",
+      "trigger_conditions": ["Industry assumptions need challenging", "Seeking fundamental breakthrough", "Current solutions all make the same tradeoff"],
+      "examples": ["SpaceX reusable rockets (from raw material cost, not rocket price)", "Tesla battery cost reduction"],
+      "prerequisites": [],
+      "compatible_with": ["method_physics_003", "method_math_002"]
+    },
+    {
+      "id": "method_struct_007",
+      "name": "5 Whys",
+      "domain": "Structured",
+      "level": 2,
+      "description": "Iteratively ask 'why' to drill down from surface symptoms to root cause.",
+      "trigger_conditions": ["Root cause unclear", "Recurring problem", "Symptom vs cause confusion"],
+      "examples": ["Toyota production system", "Incident post-mortems", "Bug root cause analysis"],
+      "prerequisites": [],
+      "compatible_with": ["method_triz_contradiction"]
+    },
+
+    {
+      "id": "method_ml_001",
+      "name": "Gradient Descent",
+      "domain": "Machine Learning",
+      "level": 3,
+      "description": "Iteratively move in the direction of steepest improvement. Applicable metaphorically to any optimization problem: take small steps, measure, adjust direction.",
+      "trigger_conditions": ["Continuous improvement possible", "Feedback signal available", "Local optima acceptable"],
+      "examples": ["A/B testing (hill climbing)", "Continuous delivery", "Personal skill development"],
+      "prerequisites": [],
+      "compatible_with": ["method_math_001", "method_struct_006"]
+    },
+    {
+      "id": "method_ml_002",
+      "name": "Ensemble Learning",
+      "domain": "Machine Learning",
+      "level": 3,
+      "description": "Combine multiple weak models to create a strong one. Diversity of approaches reduces overall error through voting, averaging, or stacking.",
+      "trigger_conditions": ["Single approach insufficient", "Diverse strategies available", "Error tolerance needed"],
+      "examples": ["Random forests", "Ensemble of drug candidates", "Diversified investment portfolio"],
+      "prerequisites": [],
+      "compatible_with": ["method_bio_001", "method_econ_002"]
+    },
+    {
+      "id": "method_ml_003",
+      "name": "Transfer Learning",
+      "domain": "Machine Learning",
+      "level": 3,
+      "description": "Apply knowledge learned in one domain to a different but related domain, dramatically reducing the need for new data.",
+      "trigger_conditions": ["Source domain has abundant data", "Target domain has scarce data", "Domains share structure"],
+      "examples": ["Pre-trained vision models for medical imaging", "Language model fine-tuning", "Cross-industry best practices"],
+      "prerequisites": [],
+      "compatible_with": ["method_heuristic_003", "method_bio_002"]
+    },
+    {
+      "id": "method_ml_004",
+      "name": "Adversarial Generation (GAN)",
+      "domain": "Machine Learning",
+      "level": 3,
+      "description": "Pit two systems against each other (generator vs discriminator) to drive continuous improvement through competition.",
+      "trigger_conditions": ["Need to generate novel solutions", "Quality assessment possible", "Competitive dynamic beneficial"],
+      "examples": ["Adversarial training for robustness", "Red team / blue team security", "Competitive evolution"],
+      "prerequisites": [],
+      "compatible_with": ["method_bio_001", "method_econ_001"]
+    },
+    {
+      "id": "method_ml_005",
+      "name": "Attention Mechanism",
+      "domain": "Machine Learning",
+      "level": 3,
+      "description": "Dynamically focus computational resources on the most relevant parts of the input, ignoring irrelevant information.",
+      "trigger_conditions": ["Information overload", "Relevance varies across input", "Need to prioritize"],
+      "examples": ["Transformer models", "Triage systems", "Resource allocation under constraints"],
+      "prerequisites": [],
+      "compatible_with": ["method_triz_002", "method_math_003"]
+    },
+
+    {
+      "id": "method_bio_001",
+      "name": "Evolutionary Algorithm",
+      "domain": "Biology",
+      "level": 3,
+      "description": "Mimic natural selection: generate population of solutions, select best, mutate and recombine, repeat. Escapes local optima through population diversity.",
+      "trigger_conditions": ["Large solution space", "Fitness function definable", "Local optima are traps"],
+      "examples": ["Neural architecture search", "Drug molecule optimization", "Antenna design (NASA ST5)"],
+      "prerequisites": [],
+      "compatible_with": ["method_ml_001", "method_math_001"]
+    },
+    {
+      "id": "method_bio_002",
+      "name": "Ant Colony Optimization",
+      "domain": "Biology",
+      "level": 3,
+      "description": "Use emergent swarm intelligence: simple agents following local rules with pheromone-like positive feedback find globally optimal paths.",
+      "trigger_conditions": ["Path/network optimization", "Decentralized solution needed", "Dynamic environment"],
+      "examples": ["Routing protocols", "Supply chain optimization", "Robot swarm coordination"],
+      "prerequisites": [],
+      "compatible_with": ["method_econ_002", "method_ml_002"]
+    },
+    {
+      "id": "method_bio_003",
+      "name": "Immune System Strategy",
+      "domain": "Biology",
+      "level": 3,
+      "description": "Learn to detect and neutralize novel threats by maintaining a diverse repertoire of detectors that adapts over time.",
+      "trigger_conditions": ["Novel threat detection", "Adaptive defense needed", "Self/non-self discrimination"],
+      "examples": ["Computer virus detection", "Anomaly detection systems", "Fraud detection"],
+      "prerequisites": [],
+      "compatible_with": ["method_ml_004", "method_triz_011"]
+    },
+
+    {
+      "id": "method_physics_001",
+      "name": "Entropy Maximization",
+      "domain": "Physics",
+      "level": 3,
+      "description": "Systems naturally evolve toward maximum entropy (disorder). Harness or counteract this tendency: either work with entropy or actively pump against it.",
+      "trigger_conditions": ["System tends toward disorder", "Information/order preservation needed", "Energy dispersal problem"],
+      "examples": ["Error-correcting codes (fighting entropy)", "Maximum entropy models in NLP", "Heat dissipation design"],
+      "prerequisites": [],
+      "compatible_with": ["method_math_003", "method_triz_035"]
+    },
+    {
+      "id": "method_physics_002",
+      "name": "Quantum Superposition",
+      "domain": "Physics",
+      "level": 3,
+      "description": "Maintain multiple states simultaneously until measurement collapses the system. Metaphorically: explore multiple solutions in parallel before committing.",
+      "trigger_conditions": ["Premature convergence risk", "Multiple plausible solutions", "Commitment cost is high"],
+      "examples": ["Option pricing (keeping options open)", "Parallel prototyping", "Bayesian model averaging"],
+      "prerequisites": [],
+      "compatible_with": ["method_ml_002", "method_econ_003"]
+    },
+    {
+      "id": "method_physics_003",
+      "name": "Principle of Least Action",
+      "domain": "Physics",
+      "level": 3,
+      "description": "Nature always chooses the path that minimizes action. Design systems to follow paths of least resistance rather than forcing unnatural behavior.",
+      "trigger_conditions": ["System resists desired behavior", "Energy/effort minimization desired", "Natural tendencies identified"],
+      "examples": ["Passive cooling design", "Desire paths in urban planning", "Default settings that guide toward best practice"],
+      "prerequisites": [],
+      "compatible_with": ["method_struct_006", "method_triz_012"]
+    },
+
+    {
+      "id": "method_chem_001",
+      "name": "Catalysis",
+      "domain": "Chemistry",
+      "level": 3,
+      "description": "Introduce a substance that dramatically accelerates a reaction without being consumed. Metaphorically: find the small intervention that unlocks large-scale change.",
+      "trigger_conditions": ["Change is too slow", "Direct intervention too costly", "Need a multiplier effect"],
+      "examples": ["Platform businesses (catalyze buyers and sellers)", "Viral marketing (catalysts of information spread)", "Open source maintainers"],
+      "prerequisites": [],
+      "compatible_with": ["method_econ_002", "method_triz_024"]
+    },
+    {
+      "id": "method_chem_002",
+      "name": "Self-Assembly",
+      "domain": "Chemistry",
+      "level": 3,
+      "description": "Design components so they spontaneously organize into desired structures through local interactions, without centralized control.",
+      "trigger_conditions": ["Centralized assembly too costly", "Bottom-up formation desired", "Scale required"],
+      "examples": ["Blockchain consensus", "Flocking/swarming behavior", "Emergent urban development"],
+      "prerequisites": [],
+      "compatible_with": ["method_bio_002", "method_econ_002"]
+    },
+
+    {
+      "id": "method_math_001",
+      "name": "Topological Transformation",
+      "domain": "Mathematics",
+      "level": 3,
+      "description": "Change the shape or connectivity of a problem while preserving its essential structure. A donut and coffee cup are topologically identical.",
+      "trigger_conditions": ["Problem seems geometrically constrained", "Connectivity matters more than shape", "Need to reframe the problem space"],
+      "examples": ["Graph algorithms (isomorphism)", "Circular economy (linear→circular flow)", "Network topology optimization"],
+      "prerequisites": [],
+      "compatible_with": ["method_triz_017", "method_physics_002"]
+    },
+    {
+      "id": "method_math_002",
+      "name": "Fixed Point Theorem",
+      "domain": "Mathematics",
+      "level": 3,
+      "description": "Under certain conditions, a function will always have a point that maps to itself. Find the equilibrium where forces balance rather than fighting them.",
+      "trigger_conditions": ["System has feedback loops", "Seeking equilibrium/stable state", "Iterative process converging"],
+      "examples": ["Nash equilibrium in games", "Market clearing prices", "PageRank algorithm"],
+      "prerequisites": [],
+      "compatible_with": ["method_econ_001", "method_ml_001"]
+    },
+    {
+      "id": "method_math_003",
+      "name": "Information Entropy",
+      "domain": "Mathematics",
+      "level": 3,
+      "description": "Quantify uncertainty and information content. Maximize information where it's valuable, minimize where it's noise.",
+      "trigger_conditions": ["Information overload", "Uncertainty quantification needed", "Signal/noise separation"],
+      "examples": ["Decision tree splitting criteria", "Data compression", "Feature selection"],
+      "prerequisites": [],
+      "compatible_with": ["method_physics_001", "method_ml_005"]
+    },
+
+    {
+      "id": "method_econ_001",
+      "name": "Incentive Design",
+      "domain": "Economics",
+      "level": 3,
+      "description": "Design reward structures so that self-interested agents collectively produce desired outcomes. Align individual incentives with system goals.",
+      "trigger_conditions": ["Multiple independent agents", "Behavior change needed", "Central control impossible"],
+      "examples": ["Carbon pricing", "Bug bounty programs", "Token economics in crypto"],
+      "prerequisites": [],
+      "compatible_with": ["method_math_002", "method_ml_004"]
+    },
+    {
+      "id": "method_econ_002",
+      "name": "Market Mechanism",
+      "domain": "Economics",
+      "level": 3,
+      "description": "Use price signals and decentralized exchange to allocate scarce resources efficiently without central planning.",
+      "trigger_conditions": ["Resource allocation problem", "Decentralized information", "Diverse preferences"],
+      "examples": ["Prediction markets", "Ad auctions", "Spectrum allocation"],
+      "prerequisites": [],
+      "compatible_with": ["method_econ_001", "method_bio_001"]
+    },
+    {
+      "id": "method_econ_003",
+      "name": "Option Thinking",
+      "domain": "Economics",
+      "level": 3,
+      "description": "Value and create flexibility: delay irreversible decisions, create the right (but not obligation) to act later when more information is available.",
+      "trigger_conditions": ["High uncertainty", "Irreversible decisions", "Information arriving over time"],
+      "examples": ["Real options in R&D investment", "Feature flags (dark launches)", "Modular architecture for future flexibility"],
+      "prerequisites": [],
+      "compatible_with": ["method_physics_002", "method_triz_015"]
+    },
+
+    {
+      "id": "method_composite_001",
+      "name": "Neuroevolution",
+      "domain": "Biology+AI",
+      "level": 4,
+      "description": "Combine evolutionary algorithms (population search) with neural networks (function approximation) to evolve both structure and weights.",
+      "trigger_conditions": ["Architecture and parameters both unknown", "Need to escape local optima", "Fitness landscape is rugged"],
+      "examples": ["NEAT algorithm", "Evolved robot controllers", "Automated ML pipeline design"],
+      "prerequisites": ["method_bio_001", "method_ml_001"],
+      "compatible_with": ["method_ml_004"]
+    },
+    {
+      "id": "method_composite_002",
+      "name": "Simulated Annealing",
+      "domain": "Physics+Optimization",
+      "level": 4,
+      "description": "Start with high 'temperature' allowing exploration (accept worse solutions), then gradually cool to converge on optimum. Balance exploration vs exploitation.",
+      "trigger_conditions": ["Global optimum needed", "Rugged landscape", "Can accept temporary regression"],
+      "examples": ["VLSI circuit layout", "Timetable scheduling", "Training schedules (learning rate annealing)"],
+      "prerequisites": ["method_physics_001", "method_ml_001"],
+      "compatible_with": ["method_bio_001"]
+    },
+    {
+      "id": "method_composite_003",
+      "name": "Mechanism Design + Feedback",
+      "domain": "Economics+Control",
+      "level": 4,
+      "description": "Design rules of the game (mechanism) so rational agents' equilibrium behavior produces desired outcomes, then add feedback loops to adjust rules dynamically.",
+      "trigger_conditions": ["Strategic agents", "Outcome-dependent rules", "Adaptive system needed"],
+      "examples": ["Dynamic pricing (Uber surge)", "Automated market makers (DeFi)", "Adaptive traffic light control"],
+      "prerequisites": ["method_econ_001", "method_triz_023"],
+      "compatible_with": ["method_econ_002"]
+    },
+    {
+      "id": "method_composite_004",
+      "name": "Molecular Computing",
+      "domain": "Chemistry+Information",
+      "level": 4,
+      "description": "Encode information and computation in molecular structures and reactions, achieving massive parallelism through chemistry rather than electronics.",
+      "trigger_conditions": ["Massive parallelism needed", "Energy efficiency critical", "Information can be molecularly encoded"],
+      "examples": ["DNA computing (Adleman's TSP)", "Molecular logic gates", "Chemical reaction networks for computation"],
+      "prerequisites": ["method_chem_002", "method_math_003"],
+      "compatible_with": ["method_physics_002"]
+    }
+  ]
+}
