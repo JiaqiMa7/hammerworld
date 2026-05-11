@@ -223,8 +223,13 @@ class HubServer:
         _HubHandler.db = self.db
         _HubHandler.peer_manager = self.peer_manager
         self._http = _ThreadingHTTPServer(("0.0.0.0", self.config.port), _HubHandler)
-        self._http.serve_forever()
+        # Run server in daemon thread so shutdown() works from signal handler
+        import threading
+        self._server_thread = threading.Thread(target=self._http.serve_forever, daemon=True)
+        self._server_thread.start()
+        self._server_thread.join()
 
     def stop(self):
         self.peer_manager.stop()
         self._http.shutdown()
+        self._http.server_close()
