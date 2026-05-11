@@ -167,3 +167,22 @@ Hub A 剛啟動                     Hub B (已運行)
 - 鏈上簽名身份驗證
 - 速率限制 + IP 黑名單
 - 防 Sybil 攻擊（多假節點泛洪）
+
+## Web UI
+
+啟動 Hub 後可通過瀏覽器訪問 Web 界面：
+
+```bash
+# 啟動帶 Web UI 的 Hub
+python3 -m src.cli.main web --port 8765
+
+# 瀏覽器打開
+# http://localhost:8765/                  → Dashboard
+# http://localhost:8765/web/leaderboard   → 排行榜（支援 ?dim=&domain=&limit=&offset=）
+# http://localhost:8765/web/search?q=xxx  → 搜索
+# http://localhost:8765/web/random        → 隨機抽取
+# http://localhost:8765/web/peers         → Peer 列表
+# http://localhost:8765/web/entry/<id>    → 條目詳情
+```
+
+Web UI 為服務器端渲染（SSR），零 JavaScript，支援移動端響應式佈局。

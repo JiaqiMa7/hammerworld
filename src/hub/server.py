@@ -21,9 +21,19 @@ class _HubHandler(BaseHTTPRequestHandler):
 
     # Set by HubServer before starting
     api: Optional[HubAPI] = None
+    db: Optional[LeaderboardDB] = None
+    peer_manager: Optional[PeerManager] = None
 
     def log_message(self, format, *args):
         pass  # Suppress default logging
+
+    def _send_html(self, html: str, status: int = 200):
+        body = html.encode()
+        self.send_response(status)
+        self.send_header("Content-Type", "text/html; charset=utf-8")
+        self.send_header("Content-Length", str(len(body)))
+        self.end_headers()
+        self.wfile.write(body)
 
     def _send_json(self, data: dict | list, status: int = 200):
         body = json.dumps(data, ensure_ascii=False).encode()
@@ -41,6 +51,9 @@ class _HubHandler(BaseHTTPRequestHandler):
 
     def do_GET(self):
         assert self.api is not None
+        path = self.path.split("?", 1)[0]
+
+        # P2P API endpoints
         if self.path == "/health":
             self._send_json(self.api.handle_health())
         elif self.path == "/stats":
@@ -49,8 +62,40 @@ class _HubHandler(BaseHTTPRequestHandler):
             self._send_json(self.api.handle_get_peers())
         elif self.path.startswith("/combinations"):
             self._send_json(self.api.handle_get_combinations(self.path))
+        # Web UI endpoints
+        elif self.path == "/" or path == "/web":
+            self._serve_web("dashboard")
+        elif path.startswith("/web/"):
+            self._serve_web(path)
         else:
             self._send_json({"error": "not found"}, 404)
+
+    def _serve_web(self, path: str):
+        from src.hub.web import (
+            render_dashboard, render_leaderboard, render_search,
+            render_random, render_peers, render_entry,
+        )
+        db = self.db
+        pm = self.peer_manager
+        assert db is not None and pm is not None
+
+        if path in ("/", "/web", "dashboard"):
+            html = render_dashboard(db, pm)
+        elif path.startswith("/web/leaderboard"):
+            html = render_leaderboard(db, self.path)
+        elif path.startswith("/web/search"):
+            html = render_search(db, self.path)
+        elif path.startswith("/web/random"):
+            html = render_random(db, self.path)
+        elif path.startswith("/web/peers"):
+            html = render_peers(pm)
+        elif path.startswith("/web/entry/"):
+            combo_id = path.split("/web/entry/", 1)[1]
+            html = render_entry(db, combo_id)
+        else:
+            self._send_json({"error": "not found"}, 404)
+            return
+        self._send_html(html)
 
     def do_POST(self):
         assert self.api is not None
@@ -175,6 +220,8 @@ class HubServer:
     def start(self):
         self.peer_manager.start()
         _HubHandler.api = self.api
+        _HubHandler.db = self.db
+        _HubHandler.peer_manager = self.peer_manager
         self._http = _ThreadingHTTPServer(("0.0.0.0", self.config.port), _HubHandler)
         self._http.serve_forever()
 

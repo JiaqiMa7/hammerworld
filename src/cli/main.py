@@ -99,6 +99,10 @@ def cmd_hub(args):
     signal.signal(signal.SIGINT, _shutdown)
     signal.signal(signal.SIGTERM, _shutdown)
 
+    is_web = getattr(args, "web", False)
+    if is_web:
+        print(f"Web UI: http://localhost:{args.port}/")
+        print(f"API:    http://localhost:{args.port}/health")
     print(f"Hub started on port {args.port} (peer_id: {server.peer_manager.peer_id})")
     print(f"Database: {args.db}")
     if args.bootstrap:
@@ -152,6 +156,17 @@ def main():
                        help="Peer timeout in seconds")
     p_hub.add_argument("--max-peers", type=int, default=50, help="Maximum peers")
 
+    p_web = sub.add_parser("web", help="Start a hub with Web UI")
+    p_web.add_argument("--port", type=int, default=8765, help="HTTP port (default 8765)")
+    p_web.add_argument("--bootstrap", action="append", default=None,
+                       help="Bootstrap peer address (host:port), repeatable")
+    p_web.add_argument("--db", default="data/leaderboard.db", help="SQLite database path")
+    p_web.add_argument("--gossip-interval", type=float, default=30.0,
+                       help="Gossip interval in seconds")
+    p_web.add_argument("--peer-timeout", type=float, default=300.0,
+                       help="Peer timeout in seconds")
+    p_web.add_argument("--max-peers", type=int, default=50, help="Maximum peers")
+
     args = parser.parse_args()
     if args.command == "mine":
         cmd_mine(args)
@@ -162,6 +177,9 @@ def main():
     elif args.command == "random":
         cmd_random(args)
     elif args.command == "hub":
+        cmd_hub(args)
+    elif args.command == "web":
+        args.web = True
         cmd_hub(args)
     else:
         parser.print_help()
