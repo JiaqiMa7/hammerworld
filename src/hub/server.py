@@ -23,6 +23,8 @@ class _HubHandler(BaseHTTPRequestHandler):
     api: Optional[HubAPI] = None
     db: Optional[LeaderboardDB] = None
     peer_manager: Optional[PeerManager] = None
+    buffer_zone = None
+    token_gate = None
 
     def log_message(self, format, *args):
         pass  # Suppress default logging
@@ -82,25 +84,31 @@ class _HubHandler(BaseHTTPRequestHandler):
             render_buffer_dashboard, render_buffer_pending,
             render_buffer_classify, render_buffer_submissions,
             render_buffer_submission_detail, render_buffer_tokens,
-            render_buffer_leaderboard, _parse_query,
+            render_buffer_leaderboard, render_token_dashboard, _parse_query,
         )
         db = self.db
         pm = self.peer_manager
+        tg = self.token_gate
         assert db is not None and pm is not None
+
+        params = _parse_query(self.path)
+        viewer = params.get("viewer", "")
 
         if path in ("/", "/web", "dashboard"):
             html = render_dashboard(db, pm)
         elif path.startswith("/web/leaderboard"):
-            html = render_leaderboard(db, self.path)
+            html = render_leaderboard(db, self.path, viewer_addr=viewer, token_gate=tg)
         elif path.startswith("/web/search"):
             html = render_search(db, self.path)
         elif path.startswith("/web/random"):
-            html = render_random(db, self.path)
+            html = render_random(db, self.path, viewer_addr=viewer, token_gate=tg)
         elif path.startswith("/web/peers"):
             html = render_peers(pm)
         elif path.startswith("/web/entry/"):
             combo_id = path.split("/web/entry/", 1)[1]
-            html = render_entry(db, combo_id)
+            html = render_entry(db, combo_id, viewer_addr=viewer, token_gate=tg)
+        elif path == "/web/tokens":
+            html = render_token_dashboard(db, token_gate=tg, viewer_addr=viewer)
         elif path == "/web/submit":
             html = render_submit_home()
         elif path == "/web/submit/method":
@@ -417,6 +425,91 @@ class _HubHandler(BaseHTTPRequestHandler):
         self.send_header("Location", f"/web/math/{pid}/{mid}?user_address={user_address}")
         self.end_headers()
 
+    def _handle_pay_view(self, combo_id: str, body: bytes):
+        """Handle POST to pay for viewing a combo."""
+        from urllib.parse import parse_qs
+        decoded = parse_qs(body.decode())
+        data = {k: v[0] if len(v) == 1 else v for k, v in decoded.items()}
+        viewer_addr = data.get("viewer_addr_input", data.get("viewer_addr", "")).strip()
+        redirect = data.get("redirect", f"/web/entry/{combo_id}")
+
+        tg = self.token_gate
+        if tg and viewer_addr:
+            tg.pay_for_view(viewer_addr, combo_id)
+
+        self.send_response(302)
+        self.send_header("Location", f"{redirect}&viewer={viewer_addr}" if "?" in redirect else f"{redirect}?viewer={viewer_addr}")
+        self.end_headers()
+
+    def _handle_pay_leaderboard(self, board_name: str, body: bytes):
+        """Handle POST to pay for leaderboard unlock."""
+        from urllib.parse import parse_qs
+        decoded = parse_qs(body.decode())
+        data = {k: v[0] if len(v) == 1 else v for k, v in decoded.items()}
+        viewer_addr = data.get("viewer_addr_input", data.get("viewer_addr", "")).strip()
+        redirect = data.get("redirect", "/web/leaderboard")
+
+        tg = self.token_gate
+        if tg and viewer_addr:
+            tg.pay_for_leaderboard(viewer_addr, board_name)
+
+        self.send_response(302)
+        self.send_header("Location", f"{redirect}&viewer={viewer_addr}" if "?" in redirect else f"{redirect}?viewer={viewer_addr}")
+        self.end_headers()
+
+    def _handle_pay_draw(self, body: bytes):
+        """Handle POST to pay for random draw."""
+        from urllib.parse import parse_qs
+        decoded = parse_qs(body.decode())
+        data = {k: v[0] if len(v) == 1 else v for k, v in decoded.items()}
+        viewer_addr = data.get("viewer_addr_input", data.get("viewer_addr", "")).strip()
+        redirect = data.get("redirect", "/web/random")
+
+        tg = self.token_gate
+        if tg and viewer_addr:
+            tg.pay_for_random_draw(viewer_addr)
+
+        self.send_response(302)
+        self.send_header("Location", f"{redirect}&viewer={viewer_addr}" if "?" in redirect else f"{redirect}?viewer={viewer_addr}")
+        self.end_headers()
+
+    def _handle_rate(self, combo_id: str, body: bytes):
+        """Handle POST to rate a combo."""
+        from urllib.parse import parse_qs
+        decoded = parse_qs(body.decode())
+        data = {k: v[0] if len(v) == 1 else v for k, v in decoded.items()}
+        viewer_addr = data.get("viewer_addr", "").strip()
+        redirect = data.get("redirect", f"/web/entry/{combo_id}")
+        rating_str = data.get("rating", "")
+        comment = data.get("comment", "").strip()
+
+        tg = self.token_gate
+        if tg and viewer_addr and rating_str:
+            try:
+                tg.rate_analysis(viewer_addr, combo_id, int(rating_str), comment)
+            except (ValueError, TypeError):
+                pass
+
+        self.send_response(302)
+        self.send_header("Location", f"{redirect}&viewer={viewer_addr}" if "?" in redirect else f"{redirect}?viewer={viewer_addr}")
+        self.end_headers()
+
+    def _handle_faucet(self, body: bytes):
+        """Handle POST to trigger faucet."""
+        from urllib.parse import parse_qs
+        decoded = parse_qs(body.decode())
+        data = {k: v[0] if len(v) == 1 else v for k, v in decoded.items()}
+        viewer_addr = data.get("viewer_addr", "").strip()
+        redirect = data.get("redirect", "/web/tokens")
+
+        tg = self.token_gate
+        if tg and viewer_addr:
+            tg.token.faucet(viewer_addr, tg.FAUCET_AMOUNT)
+
+        self.send_response(302)
+        self.send_header("Location", f"{redirect}&viewer={viewer_addr}" if "?" in redirect else f"{redirect}?viewer={viewer_addr}")
+        self.end_headers()
+
     def _handle_buffer_classify(self, sub_id: str, body: bytes):
         """Handle POST to classify a buffer submission."""
         from urllib.parse import parse_qs
@@ -491,6 +584,19 @@ class _HubHandler(BaseHTTPRequestHandler):
         elif _match_buffer_classify(self.path):
             sub_id = _parse_buffer_classify(self.path)
             self._handle_buffer_classify(sub_id, body)
+        elif _match_pay_view(self.path):
+            combo_id = _parse_pay_view(self.path)
+            self._handle_pay_view(combo_id, body)
+        elif _match_pay_leaderboard(self.path):
+            board = _parse_pay_leaderboard(self.path)
+            self._handle_pay_leaderboard(board, body)
+        elif self.path == "/web/pay/draw":
+            self._handle_pay_draw(body)
+        elif _match_rate_post(self.path):
+            combo_id = _parse_rate_post(self.path)
+            self._handle_rate(combo_id, body)
+        elif self.path == "/web/faucet":
+            self._handle_faucet(body)
         else:
             self._send_json({"error": "not found"}, 404)
 
@@ -655,6 +761,36 @@ def _parse_buffer_detail(path: str) -> str:
     if "?" in rest:
         rest = rest.split("?")[0]
     return rest
+
+
+def _match_pay_view(path: str) -> bool:
+    """Check if path matches /web/pay/view/{combo_id}."""
+    return path.startswith("/web/pay/view/")
+
+
+def _parse_pay_view(path: str) -> str:
+    """Extract combo_id from pay view path."""
+    return path.split("/web/pay/view/", 1)[1]
+
+
+def _match_pay_leaderboard(path: str) -> bool:
+    """Check if path matches /web/pay/leaderboard/{board_name}."""
+    return path.startswith("/web/pay/leaderboard/")
+
+
+def _parse_pay_leaderboard(path: str) -> str:
+    """Extract board_name from pay leaderboard path."""
+    return path.split("/web/pay/leaderboard/", 1)[1]
+
+
+def _match_rate_post(path: str) -> bool:
+    """Check if path matches /web/rate/{combo_id}."""
+    return path.startswith("/web/rate/")
+
+
+def _parse_rate_post(path: str) -> str:
+    """Extract combo_id from rate path."""
+    return path.split("/web/rate/", 1)[1]
 
 
 class HubAPI:
@@ -845,6 +981,8 @@ class HubServer:
         self.token = SimulatedToken(db)
         self.staking = StakingContract(db, self.token)
         self.buffer_zone = BufferZone(db, self.token, self.staking)
+        from src.hub.token_layer import TokenGate
+        self.token_gate = TokenGate(db, self.token)
 
     def start(self):
         self.peer_manager.start()
@@ -852,6 +990,7 @@ class HubServer:
         _HubHandler.db = self.db
         _HubHandler.peer_manager = self.peer_manager
         _HubHandler.buffer_zone = self.buffer_zone
+        _HubHandler.token_gate = self.token_gate
         self._http = _ThreadingHTTPServer(("0.0.0.0", self.config.port), _HubHandler)
         # Run server in daemon thread so shutdown() works from signal handler
         import threading

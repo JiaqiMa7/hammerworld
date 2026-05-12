@@ -543,3 +543,66 @@ python3 -m src.cli.main buffer-tokens --address 0xBOB
 4 個新表：`buffer_submissions`, `buffer_classifications`, `token_accounts`, `stake_records`
 
 詳見 `src/hub/leaderboard.py` `_init_db()` 和 `# --- Blockchain Buffer Zone ---` 區塊。
+
+---
+
+## 7. `src/hub/token_layer.py` — 付費支付層（TokenGate）
+
+連接 SimulatedToken 與應用層經濟流：**付費查看 AI 分析、排行榜解鎖、隨機抽取付費**。
+
+### TokenGate 類
+
+```python
+class TokenGate:
+    VIEW_FEE_N = 10        # 查看一個 AI 分析
+    LEADERBOARD_FEE_P = 20  # 解鎖排行榜 24h
+    DRAW_FEE_Q = 5          # 隨機抽取一次
+    FAUCET_AMOUNT = 100     # 新用戶自動獲得（不同於緩衝區的 1000）
+
+    def pay_for_view(viewer_addr, combo_id) -> dict
+    def check_view_access(viewer_addr, combo_id) -> str  # "own"|"paid"|"no_access"
+    def pay_for_leaderboard(viewer_addr, board_name) -> dict
+    def check_leaderboard_access(viewer_addr, board_name) -> bool
+    def pay_for_random_draw(viewer_addr) -> dict
+    def rate_analysis(viewer_addr, combo_id, rating, comment="") -> dict
+    def get_viewer_summary(viewer_addr) -> dict
+```
+
+### 費用分配（80/10/10）
+
+```
+VIEW_FEE_N (10) → 80% = 8 → 分析者 (miner)
+                   10% = 1 → 發現者 (MVP: 也給 miner)
+                   10% = 1 → 協議費 (0xPROTOCOL)
+```
+
+### 新增數據庫表
+
+- `leaderboard_access(viewer_addr, board_name, paid_at, expires_at)` — 排行榜 24h 解鎖
+- `viewer_ratings(id, viewer_addr, combo_id, rating, comment, created_at)` — 付費用戶評分
+- `paid_views` 新增列：`paid_amount`, `analyzer_addr`, `protocol_addr`
+
+### CLI 命令
+
+```bash
+# 支付查看分析
+python3 -m src.cli.main pay-view --combo-id COMBO --address 0xALICE
+
+# 解鎖排行榜
+python3 -m src.cli.main pay-leaderboard --dimension elegance --domain medicine --address 0xALICE
+
+# 付費隨機抽取
+python3 -m src.cli.main pay-draw --dimension elegance --count 10 --address 0xALICE
+
+# 查看餘額
+python3 -m src.cli.main token-balance --address 0xALICE
+```
+
+### Web 路由
+
+- `GET /web/tokens` — Token 儀表板（餘額、支付歷史）
+- `POST /web/pay/view/{combo_id}` — 支付並解鎖分析
+- `POST /web/pay/leaderboard/{board}` — 支付解鎖排行榜
+- `POST /web/pay/draw` — 支付後觸發隨機抽取
+- `POST /web/rate/{combo_id}` — 評分
+- `POST /web/faucet` — 手動水龍頭

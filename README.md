@@ -22,9 +22,10 @@ hammerworld/
 │   ├── evaluation/      # AI 評估：8 維度評分流水線
 │   ├── hub/             # P2P 聯邦排行榜：leaderboard, peer, server, web
 │   ├── blockchain/      # 區塊鏈緩衝區：token, staking, buffer zone
-│   └── cli/             # CLI：mine / top / search / random / hub / buffer-submit / buffer-classify / ...
+│   ├── hub/             # P2P 聯邦排行榜 + 付費支付層：leaderboard, peer, server, web, token_layer
+│   └── cli/             # CLI：mine / top / search / random / hub / buffer-submit / buffer-classify / pay-view / pay-leaderboard / pay-draw / token-balance
 ├── data/                # methods.json (35 條) + problems.json (22 條)
-├── tests/               # 298 單元測試
+├── tests/               # 329 單元測試
 ├── readme/              # 詳細文檔
 ├── DESIGN.md            # 完整系統設計
 └── CLAUDE.md            # Claude Code 指引

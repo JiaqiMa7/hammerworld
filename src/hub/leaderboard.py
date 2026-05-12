@@ -263,6 +263,33 @@ class LeaderboardDB:
             conn.execute("ALTER TABLE combinations ADD COLUMN analysis_text TEXT DEFAULT ''")
         except sqlite3.OperationalError:
             pass  # column already exists
+        # Migration: token layer columns on paid_views
+        for col, col_type in [("paid_amount", "INTEGER DEFAULT 0"),
+                               ("analyzer_addr", "TEXT DEFAULT ''"),
+                               ("protocol_addr", "TEXT DEFAULT ''")]:
+            try:
+                conn.execute(f"ALTER TABLE paid_views ADD COLUMN {col} {col_type}")
+            except sqlite3.OperationalError:
+                pass
+        # Migration: leaderboard_access and viewer_ratings
+        conn.executescript("""
+            CREATE TABLE IF NOT EXISTS leaderboard_access (
+                viewer_addr TEXT NOT NULL,
+                board_name TEXT NOT NULL,
+                paid_at REAL DEFAULT 0,
+                expires_at REAL DEFAULT 0,
+                PRIMARY KEY (viewer_addr, board_name)
+            );
+            CREATE TABLE IF NOT EXISTS viewer_ratings (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                viewer_addr TEXT NOT NULL,
+                combo_id TEXT NOT NULL,
+                rating INTEGER NOT NULL CHECK(rating >= 1 AND rating <= 5),
+                comment TEXT DEFAULT '',
+                created_at REAL DEFAULT 0,
+                UNIQUE(viewer_addr, combo_id)
+            );
+        """)
         if self.db_path == ":memory:":
             self._persistent_conn = conn
         else:
@@ -492,13 +519,84 @@ class LeaderboardDB:
             ).fetchone()
             return row is not None
 
-    def record_payment(self, viewer_addr: str, combo_id: str):
+    def record_payment(self, viewer_addr: str, combo_id: str,
+                       paid_amount: int = 0, analyzer_addr: str = "",
+                       protocol_addr: str = ""):
         """Record that a viewer paid to view an analysis."""
         with self._connect() as conn:
             conn.execute(
-                "INSERT OR IGNORE INTO paid_views (viewer_addr, combo_id, paid_at) VALUES (?, ?, ?)",
-                (viewer_addr, combo_id, time.time()),
+                "INSERT OR IGNORE INTO paid_views "
+                "(viewer_addr, combo_id, paid_at, paid_amount, analyzer_addr, protocol_addr) "
+                "VALUES (?, ?, ?, ?, ?, ?)",
+                (viewer_addr, combo_id, time.time(), paid_amount,
+                 analyzer_addr, protocol_addr),
             )
+
+    def get_viewer_payments(self, viewer_addr: str) -> list[dict]:
+        """Get all payment records for a viewer."""
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM paid_views WHERE viewer_addr = ? ORDER BY paid_at DESC",
+                (viewer_addr,),
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    def has_leaderboard_access(self, viewer_addr: str, board_name: str) -> bool:
+        """Check if a viewer has active leaderboard access (24h window)."""
+        now = time.time()
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT 1 FROM leaderboard_access "
+                "WHERE viewer_addr = ? AND board_name = ? AND expires_at > ?",
+                (viewer_addr, board_name, now),
+            ).fetchone()
+            return row is not None
+
+    def grant_leaderboard_access(self, viewer_addr: str, board_name: str,
+                                 paid_amount: int = 0,
+                                 duration_seconds: int = 86400) -> None:
+        """Grant leaderboard access for 24h (or custom duration)."""
+        now = time.time()
+        with self._connect() as conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO leaderboard_access "
+                "(viewer_addr, board_name, paid_at, expires_at) "
+                "VALUES (?, ?, ?, ?)",
+                (viewer_addr, board_name, now, now + duration_seconds),
+            )
+
+    def record_rating(self, viewer_addr: str, combo_id: str,
+                      rating: int, comment: str = "") -> bool:
+        """Record a viewer rating. Returns True if inserted, False if already rated."""
+        now = time.time()
+        with self._connect() as conn:
+            try:
+                conn.execute(
+                    "INSERT INTO viewer_ratings (viewer_addr, combo_id, rating, comment, created_at) "
+                    "VALUES (?, ?, ?, ?, ?)",
+                    (viewer_addr, combo_id, rating, comment, now),
+                )
+                return True
+            except sqlite3.IntegrityError:
+                return False
+
+    def get_ratings_for_combo(self, combo_id: str) -> list[dict]:
+        """Get all ratings for a combination."""
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM viewer_ratings WHERE combo_id = ? ORDER BY created_at DESC",
+                (combo_id,),
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    def get_avg_rating_for_combo(self, combo_id: str) -> float:
+        """Get the average rating for a combination."""
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT AVG(rating) FROM viewer_ratings WHERE combo_id = ?",
+                (combo_id,),
+            ).fetchone()
+            return round(row[0], 1) if row and row[0] else 0.0
 
     def total_entries(self, domain: Optional[Domain] = None) -> int:
         with self._connect() as conn:

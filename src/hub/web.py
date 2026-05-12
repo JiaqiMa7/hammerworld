@@ -90,6 +90,7 @@ def _base_page(title: str, content: str, active_nav: str = "") -> str:
         ("/web/search", "Search", "search"),
         ("/web/random", "Random Draw", "random"),
         ("/web/peers", "Peers", "peers"),
+        ("/web/tokens", "Tokens", "tokens"),
         ("/web/math", "Math Zone", "math"),
         ("/web/collections", "Collections", "collections"),
         ("/web/buffer", "Buffer Zone", "buffer"),
@@ -213,13 +214,19 @@ def render_dashboard(db: LeaderboardDB, pm: PeerManager) -> str:
     return _base_page("Dashboard", content, "dashboard")
 
 
-def render_leaderboard(db: LeaderboardDB, path: str) -> str:
+def render_leaderboard(db: LeaderboardDB, path: str,
+                       viewer_addr: str = "", token_gate=None) -> str:
     params = _parse_query(path)
     dim = EvalDimension(params["dim"]) if params.get("dim") else None
     dom = Domain(params["domain"]) if params.get("domain") else None
     lvl = MethodLevel(int(params["level"])) if params.get("level") else None
     limit = min(int(params.get("limit", 50)), 200)
     offset = int(params.get("offset", 0))
+
+    board_name = f"{(dim.value if dim else 'best')}_{(dom.value if dom else 'all')}"
+    has_access = True
+    if token_gate and viewer_addr:
+        has_access = token_gate.check_leaderboard_access(viewer_addr, board_name)
 
     entries = db.get_top(dimension=dim, domain=dom, method_level=lvl, limit=limit, offset=offset)
 
@@ -265,19 +272,38 @@ def render_leaderboard(db: LeaderboardDB, path: str) -> str:
         next_offset = offset + limit
         next_link = f'<a href="{_filter_url(**{"offset": str(next_offset)})}">Next &rarr;</a>'
 
+    base_params = f"dim={dim.value if dim else ''}&domain={dom.value if dom else ''}&limit={limit}&offset={offset}&viewer={_esc(viewer_addr)}"
+
+    unlock_html = ""
+    if not has_access:
+        fee = token_gate.LEADERBOARD_FEE_P if token_gate else 20
+        unlock_html = f"""
+        <div class="card" style="text-align:center;padding:32px;margin-bottom:20px;">
+            <p style="font-size:16px;color:#555;margin-bottom:16px;">This leaderboard is locked.</p>
+            <form method="post" action="/web/pay/leaderboard/{board_name}">
+                <input type="hidden" name="viewer_addr" value="{_esc(viewer_addr)}">
+                <input type="hidden" name="redirect" value="/web/leaderboard?{base_params}">
+                <input type="text" name="viewer_addr_input" value="{_esc(viewer_addr)}" placeholder="Your address (0x...)" style="width:260px;margin-bottom:8px;display:block;margin-left:auto;margin-right:auto;">
+                <button type="submit" style="font-size:15px;padding:10px 32px;">Pay {fee} IDEA to Unlock (24h)</button>
+            </form>
+        </div>"""
+
     content = f"""
-    <p style="color:#777;margin-bottom:12px;">Showing: {filter_text} &mdash; {len(entries)} results (offset {offset})</p>
+    <p style="color:#777;margin-bottom:12px;">Showing: {filter_text} &mdash; {len(entries) if has_access else 0} results (offset {offset})</p>
 
     <form method="get" action="/web/leaderboard">
         <select name="dim"><option value="">All Dimensions</option>{dim_opts}</select>
         <select name="domain"><option value="">All Domains</option>{domain_opts}</select>
         <input type="number" name="limit" value="{limit}" min="10" max="200" style="width:80px;" placeholder="Limit">
+        <input type="hidden" name="viewer" value="{_esc(viewer_addr)}">
         <button type="submit">Filter</button>
     </form>
 
-    {_entry_table(entries, start_rank=offset + 1)}
+    {unlock_html}
 
-    <div class="pagination">{prev_link}{next_link}</div>
+    {_entry_table(entries, start_rank=offset + 1) if has_access else ''}
+
+    <div class="pagination">{prev_link if has_access else ''}{next_link if has_access else ''}</div>
     """
     return _base_page("Leaderboard", content, "leaderboard")
 
@@ -315,14 +341,14 @@ def render_search(db: LeaderboardDB, path: str) -> str:
     return _base_page("Search", content, "search")
 
 
-def render_random(db: LeaderboardDB, path: str) -> str:
+def render_random(db: LeaderboardDB, path: str,
+                   viewer_addr: str = "", token_gate=None) -> str:
     params = _parse_query(path)
     dim = EvalDimension(params["dim"]) if params.get("dim") else None
     dom = Domain(params["domain"]) if params.get("domain") else None
     count = min(int(params.get("count", 10)), 50)
-    viewer = params.get("viewer", "web_viewer")
-
-    draw = db.random_draw(dimension=dim, domain=dom, draw_count=count, viewer_addr=viewer)
+    viewer = params.get("viewer", viewer_addr or "web_viewer")
+    paid = params.get("paid", "")
 
     dim_opts = "".join(
         f'<option value="{d.value}" {"selected" if dim and dim.value == d.value else ""}>{d.value.title()}</option>'
@@ -333,39 +359,62 @@ def render_random(db: LeaderboardDB, path: str) -> str:
         for d in Domain
     )
 
-    cards = []
-    for e in draw.entries:
-        scores_html = "".join(
-            f'<span class="score-tag">{name}: {score:.1f}</span>'
-            for name, score in [
-                ("Elegance", e.elegance), ("Weirdness", e.weirdness),
-                ("Human Feas.", e.human_feasibility), ("AI Feas.", e.ai_feasibility),
-                ("Novelty", e.novelty), ("Analogy Dist.", e.analogy_distance),
-                ("Scale Pot.", e.scaling_potential), ("Side Effects", e.side_effects),
-            ]
-        )
-        cards.append(f"""
-        <div class="card">
-            <h3><a href="/web/entry/{e.combo_id}">{_esc(e.method_name)} &times; {_esc(e.problem_title)}</a></h3>
-            <p style="color:#777;font-size:13px;">Best: <b>{e.best_dimension}</b> = {_score_bar(e.best_score)} | Domain: {e.problem_domain} | Level: {e.method_level}</p>
-            <div class="scores">{scores_html}</div>
-        </div>""")
+    base_params = f"dim={dim.value if dim else ''}&domain={dom.value if dom else ''}&count={count}&viewer={_esc(viewer)}"
+
+    cards = ""
+    draw_info = ""
+    unpaid_html = ""
+
+    if token_gate and viewer_addr and not paid:
+        fee = token_gate.DRAW_FEE_Q
+        unpaid_html = f"""
+        <div class="card" style="text-align:center;padding:32px;margin-bottom:20px;">
+            <p style="font-size:16px;color:#555;margin-bottom:16px;">Random draw costs {fee} IDEA per use.</p>
+            <form method="post" action="/web/pay/draw">
+                <input type="hidden" name="viewer_addr" value="{_esc(viewer_addr)}">
+                <input type="hidden" name="redirect" value="/web/random?paid=1&{base_params}">
+                <input type="text" name="viewer_addr_input" value="{_esc(viewer_addr)}" placeholder="Your address (0x...)" style="width:260px;margin-bottom:8px;display:block;margin-left:auto;margin-right:auto;">
+                <button type="submit" style="font-size:15px;padding:10px 32px;">Pay {fee} IDEA to Draw</button>
+            </form>
+        </div>"""
+    else:
+        draw = db.random_draw(dimension=dim, domain=dom, draw_count=count, viewer_addr=viewer)
+        draw_info = f"""
+        <p style="color:#777;margin:12px 0;">
+            Board: <b>{draw.board_name}</b> &mdash;
+            Available: <b>{draw.total_in_board}</b> &mdash;
+            Seed: <b>{draw.draw_seed}</b>
+        </p>"""
+
+        for e in draw.entries:
+            scores_html = "".join(
+                f'<span class="score-tag">{name}: {score:.1f}</span>'
+                for name, score in [
+                    ("Elegance", e.elegance), ("Weirdness", e.weirdness),
+                    ("Human Feas.", e.human_feasibility), ("AI Feas.", e.ai_feasibility),
+                    ("Novelty", e.novelty), ("Analogy Dist.", e.analogy_distance),
+                    ("Scale Pot.", e.scaling_potential), ("Side Effects", e.side_effects),
+                ]
+            )
+            cards += f"""
+            <div class="card">
+                <h3><a href="/web/entry/{e.combo_id}">{_esc(e.method_name)} &times; {_esc(e.problem_title)}</a></h3>
+                <p style="color:#777;font-size:13px;">Best: <b>{e.best_dimension}</b> = {_score_bar(e.best_score)} | Domain: {e.problem_domain} | Level: {e.method_level}</p>
+                <div class="scores">{scores_html}</div>
+            </div>"""
 
     content = f"""
     <form method="get" action="/web/random">
         <select name="dim"><option value="">All Dimensions</option>{dim_opts}</select>
         <select name="domain"><option value="">All Domains</option>{domain_opts}</select>
         <input type="number" name="count" value="{count}" min="1" max="50" style="width:80px;" placeholder="Count">
+        <input type="hidden" name="viewer" value="{_esc(viewer)}">
         <button type="submit">Draw</button>
     </form>
 
-    <p style="color:#777;margin:12px 0;">
-        Board: <b>{draw.board_name}</b> &mdash;
-        Available: <b>{draw.total_in_board}</b> &mdash;
-        Seed: <b>{draw.draw_seed}</b>
-    </p>
-
-    {"".join(cards) if cards else '<div class="empty">No entries available for this board.</div>'}
+    {unpaid_html}
+    {draw_info}
+    {cards if cards else ('<div class="empty">No entries available for this board.</div>' if not unpaid_html else '')}
     """
     return _base_page("Random Draw", content, "random")
 
@@ -397,7 +446,8 @@ def render_peers(pm: PeerManager) -> str:
     return _base_page("Peers", content, "peers")
 
 
-def render_entry(db: LeaderboardDB, combo_id: str) -> str:
+def render_entry(db: LeaderboardDB, combo_id: str,
+                 viewer_addr: str = "", token_gate=None) -> str:
     entry = db._get_by_id(combo_id)
     if not entry:
         content = '<div class="empty">Entry not found.</div>'
@@ -419,6 +469,57 @@ def render_entry(db: LeaderboardDB, combo_id: str) -> str:
         for name, score in scores
     )
 
+    # ---- Payment gating ----
+    access = token_gate.check_view_access(viewer_addr, combo_id) if token_gate else "own"
+
+    if access in ("own", "paid"):
+        analysis_html = f"""
+        <div class="card" style="line-height:1.8;font-size:14px;">
+            <p>{_esc(entry.analysis_text) if entry.analysis_text else '<span class="empty" style="padding:0;">No analysis text available.</span>'}</p>
+        </div>"""
+    else:
+        fee = token_gate.VIEW_FEE_N if token_gate else 10
+        analysis_html = f"""
+        <div class="card" style="text-align:center;padding:32px;">
+            <p style="font-size:16px;color:#555;margin-bottom:16px;">AI analysis is paywalled.</p>
+            <form method="post" action="/web/pay/view/{combo_id}">
+                <input type="hidden" name="viewer_addr" value="{_esc(viewer_addr)}">
+                <input type="hidden" name="redirect" value="/web/entry/{combo_id}?viewer={_esc(viewer_addr)}">
+                <input type="text" name="viewer_addr_input" value="{_esc(viewer_addr)}" placeholder="Your address (0x...)" style="width:260px;margin-bottom:8px;display:block;margin-left:auto;margin-right:auto;">
+                <button type="submit" style="font-size:15px;padding:10px 32px;">Pay {fee} IDEA to View Analysis</button>
+            </form>
+        </div>"""
+
+    # ---- Ratings section ----
+    ratings = db.get_ratings_for_combo(combo_id)
+    avg_rating = db.get_avg_rating_for_combo(combo_id)
+    ratings_html = ""
+    if ratings:
+        stars = "&#x2605;" * int(avg_rating) + "&#x2606;" * (5 - int(avg_rating))
+        ratings_html = f'<p style="margin-bottom:8px;">Avg Rating: <b>{stars}</b> ({avg_rating}/5 from {len(ratings)} viewer(s))</p>'
+        for r in ratings[:10]:
+            r_stars = "&#x2605;" * r["rating"] + "&#x2606;" * (5 - r["rating"])
+            comment = _esc(r.get("comment", ""))
+            ratings_html += f'<p style="font-size:13px;color:#555;">{r_stars} — {_esc(r["viewer_addr"][:14])}… {comment}</p>'
+
+    rate_form = ""
+    if access in ("own", "paid") and viewer_addr:
+        rate_form = f"""
+        <form method="post" action="/web/rate/{combo_id}" style="margin-top:12px;">
+            <input type="hidden" name="viewer_addr" value="{_esc(viewer_addr)}">
+            <input type="hidden" name="redirect" value="/web/entry/{combo_id}?viewer={_esc(viewer_addr)}">
+            <select name="rating" style="width:auto;">
+                <option value="">Rate...</option>
+                <option value="5">5 — Excellent</option>
+                <option value="4">4 — Good</option>
+                <option value="3">3 — Average</option>
+                <option value="2">2 — Poor</option>
+                <option value="1">1 — Terrible</option>
+            </select>
+            <input type="text" name="comment" placeholder="Optional comment" style="width:200px;">
+            <button type="submit">Submit Rating</button>
+        </form>"""
+
     content = f"""
     <div class="card">
         <h3>{_esc(entry.method_name)} &times; {_esc(entry.problem_title)}</h3>
@@ -436,14 +537,76 @@ def render_entry(db: LeaderboardDB, combo_id: str) -> str:
     </div>
 
     <h2>AI Analysis</h2>
-    <div class="card" style="line-height:1.8;font-size:14px;">
-        <p>{_esc(entry.analysis_text) if entry.analysis_text else '<span class="empty" style="padding:0;">No analysis text available.</span>'}</p>
-    </div>
+    {analysis_html}
 
     <h2>Scores</h2>
     <table>{score_rows}</table>
+
+    <h2>Ratings</h2>
+    <div class="card">
+        {ratings_html if ratings_html else '<p style="color:#999;">No ratings yet.</p>'}
+        {rate_form}
+    </div>
     """
     return _base_page(f"{entry.method_name} × {entry.problem_title}", content)
+
+
+# ------------------------------------------------------------------
+# Token Dashboard page
+# ------------------------------------------------------------------
+
+def render_token_dashboard(db: LeaderboardDB, token_gate=None,
+                           viewer_addr: str = "") -> str:
+    summary = token_gate.get_viewer_summary(viewer_addr) if token_gate else {
+        "address": viewer_addr, "balance": 0, "staked": 0,
+        "total_earned": 0, "total_slashed": 0,
+        "total_payments": 0, "total_spent": 0, "payments": [],
+    }
+
+    payment_rows = ""
+    for p in summary.get("payments", []):
+        p_combo = _esc(p.get("combo_id", "")[:12])
+        p_amount = p.get("paid_amount", 0)
+        p_time = p.get("paid_at", 0)
+        p_analyzer = _esc(p.get("analyzer_addr", "")[:12])
+        payment_rows += f"""<tr>
+            <td>{p_combo}…</td>
+            <td>{p_amount}</td>
+            <td>{p_analyzer}…</td>
+            <td>{p_time}</td>
+        </tr>"""
+
+    content = f"""
+    <p style="color:#777;margin-bottom:16px;">Address: {_esc(summary['address'])}</p>
+
+    <div class="stats">
+        <div class="stat-card"><div class="num">{summary['balance']}</div><div class="label">Balance (IDEA)</div></div>
+        <div class="stat-card"><div class="num">{summary['staked']}</div><div class="label">Staked</div></div>
+        <div class="stat-card"><div class="num">{summary['total_earned']}</div><div class="label">Total Earned</div></div>
+        <div class="stat-card"><div class="num">{summary['total_slashed']}</div><div class="label">Slashed</div></div>
+        <div class="stat-card"><div class="num">{summary['total_spent']}</div><div class="label">Total Spent</div></div>
+        <div class="stat-card"><div class="num">{summary['total_payments']}</div><div class="label">Payments</div></div>
+    </div>
+
+    <form method="post" action="/web/faucet" style="margin-bottom:20px;">
+        <input type="hidden" name="viewer_addr" value="{_esc(viewer_addr)}">
+        <input type="hidden" name="redirect" value="/web/tokens?viewer={_esc(viewer_addr)}">
+        <button type="submit" style="background:#22c55e;">Get Free Tokens (Faucet)</button>
+        <span style="font-size:12px;color:#999;margin-left:8px;">+100 IDEA for new users</span>
+    </form>
+    """
+    if payment_rows:
+        content += f"""
+        <h2>Payment History</h2>
+        <table>
+        <thead><tr><th>Combo</th><th>Amount</th><th>Analyzer</th><th>Paid At</th></tr></thead>
+        <tbody>{payment_rows}</tbody>
+        </table>
+        """
+    else:
+        content += '<p style="color:#999;margin:16px 0;">No payments yet.</p>'
+
+    return _base_page("Tokens", content, "tokens")
 
 
 # ------------------------------------------------------------------

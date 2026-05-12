@@ -633,6 +633,102 @@ def cmd_buffer_tokens(args):
     print(f"  Streak: {stats['consecutive_correct']}")
 
 
+def cmd_pay_view(args):
+    """Pay to view an AI analysis."""
+    from src.hub.leaderboard import LeaderboardDB
+    from src.blockchain.contracts import SimulatedToken
+    from src.hub.token_layer import TokenGate
+
+    db = LeaderboardDB(args.db)
+    token = SimulatedToken(db)
+    tg = TokenGate(db, token)
+
+    result = tg.pay_for_view(args.address, args.combo_id)
+    if not result.get("ok"):
+        print(f"ERROR: {result.get('error', 'pay failed')}", file=sys.stderr)
+        sys.exit(1)
+    bal = token.balance_of(args.address)
+    print(f"Payment: {TokenGate.VIEW_FEE_N} IDEA")
+    print(f"  Status: {result.get('status', 'paid')}")
+    print(f"  Combo: {args.combo_id}")
+    print(f"  Remaining Balance: {bal} IDEA")
+
+
+def cmd_pay_leaderboard(args):
+    """Pay to unlock a leaderboard for 24h."""
+    from src.hub.leaderboard import LeaderboardDB
+    from src.blockchain.contracts import SimulatedToken
+    from src.hub.token_layer import TokenGate
+
+    db = LeaderboardDB(args.db)
+    token = SimulatedToken(db)
+    tg = TokenGate(db, token)
+
+    board_name = f"{args.dimension}_{args.domain}"
+    result = tg.pay_for_leaderboard(args.address, board_name)
+    if not result.get("ok"):
+        print(f"ERROR: {result.get('error', 'pay failed')}", file=sys.stderr)
+        sys.exit(1)
+    bal = token.balance_of(args.address)
+    print(f"Payment: {TokenGate.LEADERBOARD_FEE_P} IDEA")
+    print(f"  Board: {board_name}")
+    print(f"  Status: {result.get('status', 'unlocked')}")
+    print(f"  Duration: 24 hours")
+    print(f"  Remaining Balance: {bal} IDEA")
+
+
+def cmd_pay_draw(args):
+    """Pay for a random draw."""
+    from src.hub.leaderboard import LeaderboardDB
+    from src.blockchain.contracts import SimulatedToken
+    from src.hub.token_layer import TokenGate
+
+    db = LeaderboardDB(args.db)
+    token = SimulatedToken(db)
+    tg = TokenGate(db, token)
+
+    result = tg.pay_for_random_draw(args.address)
+    if not result.get("ok"):
+        print(f"ERROR: {result.get('error', 'pay failed')}", file=sys.stderr)
+        sys.exit(1)
+    bal = token.balance_of(args.address)
+    print(f"Payment: {TokenGate.DRAW_FEE_Q} IDEA")
+    print(f"  Status: {result.get('status', 'paid')}")
+    print(f"  Remaining Balance: {bal} IDEA")
+
+    # If a draw was also requested, run it now
+    if args.dimension or args.domain:
+        from src.engine.models import EvalDimension, Domain
+        dim = EvalDimension(args.dimension) if args.dimension else None
+        dom = Domain(args.domain) if args.domain else None
+        draw = db.random_draw(dimension=dim, domain=dom,
+                             draw_count=args.count, viewer_addr=args.address)
+        print(f"\nRandom draw from {draw.board_name} board ({draw.total_in_board} available):")
+        for e in draw.entries:
+            print(f"  [{e.best_dimension}={e.best_score:.1f}] {e.method_name} × {e.problem_title}")
+
+
+def cmd_token_balance(args):
+    """Check token balance and viewer summary."""
+    from src.hub.leaderboard import LeaderboardDB
+    from src.blockchain.contracts import SimulatedToken
+    from src.hub.token_layer import TokenGate
+
+    db = LeaderboardDB(args.db)
+    token = SimulatedToken(db)
+    tg = TokenGate(db, token)
+
+    summary = tg.get_viewer_summary(args.address)
+    print(f"Account: {args.address}")
+    print(f"  Token: {token.name} ({token.symbol})")
+    print(f"  Balance: {summary['balance']} {token.symbol}")
+    print(f"  Staked: {summary['staked']} {token.symbol}")
+    print(f"  Total Earned: {summary['total_earned']} {token.symbol}")
+    print(f"  Total Slashed: {summary['total_slashed']} {token.symbol}")
+    print(f"  Total Spent: {summary['total_spent']} {token.symbol}")
+    print(f"  Payments: {summary['total_payments']}")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Idea Mining Network CLI")
     sub = parser.add_subparsers(dest="command")
@@ -777,6 +873,28 @@ def main():
     p_buf_tokens.add_argument("--address", default="0xVIEWER", help="Address to query")
     p_buf_tokens.add_argument("--db", default="data/leaderboard.db")
 
+    p_pay_view = sub.add_parser("pay-view", help="Pay IDEA tokens to view an AI analysis")
+    p_pay_view.add_argument("--combo-id", required=True, help="Combo ID to view")
+    p_pay_view.add_argument("--address", required=True, help="Viewer address")
+    p_pay_view.add_argument("--db", default="data/leaderboard.db")
+
+    p_pay_leaderboard = sub.add_parser("pay-leaderboard", help="Pay IDEA tokens to unlock a leaderboard for 24h")
+    p_pay_leaderboard.add_argument("--dimension", default="elegance", help="Leaderboard dimension (default: elegance)")
+    p_pay_leaderboard.add_argument("--domain", default="medicine", help="Leaderboard domain (default: medicine)")
+    p_pay_leaderboard.add_argument("--address", required=True, help="Viewer address")
+    p_pay_leaderboard.add_argument("--db", default="data/leaderboard.db")
+
+    p_pay_draw = sub.add_parser("pay-draw", help="Pay IDEA tokens for a random draw")
+    p_pay_draw.add_argument("--dimension", default=None, help="Optional dimension filter")
+    p_pay_draw.add_argument("--domain", default=None, help="Optional domain filter")
+    p_pay_draw.add_argument("--count", type=int, default=10, help="Number of entries to draw (default: 10)")
+    p_pay_draw.add_argument("--address", required=True, help="Viewer address")
+    p_pay_draw.add_argument("--db", default="data/leaderboard.db")
+
+    p_token_balance = sub.add_parser("token-balance", help="Check token balance and viewer summary")
+    p_token_balance.add_argument("--address", default="0xVIEWER", help="Address to query")
+    p_token_balance.add_argument("--db", default="data/leaderboard.db")
+
     args = parser.parse_args()
     if args.command == "mine":
         cmd_mine(args)
@@ -809,6 +927,14 @@ def main():
         cmd_buffer_stake(args)
     elif args.command == "buffer-tokens":
         cmd_buffer_tokens(args)
+    elif args.command == "pay-view":
+        cmd_pay_view(args)
+    elif args.command == "pay-leaderboard":
+        cmd_pay_leaderboard(args)
+    elif args.command == "pay-draw":
+        cmd_pay_draw(args)
+    elif args.command == "token-balance":
+        cmd_token_balance(args)
     else:
         parser.print_help()
 

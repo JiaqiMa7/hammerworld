@@ -7,6 +7,8 @@ import uuid
 
 from src.engine.models import Combination
 
+PROTOCOL_ADDR = "0xPROTOCOL"
+
 
 class BufferZone:
     """Orchestrates the blockchain buffer zone pipeline."""
@@ -166,6 +168,7 @@ class BufferZone:
                 reward = -self.PENALTY_WRONG
                 self.db.update_classifier_stats(c["classifier_addr"], False)
                 self.db.update_token_slashed(c["classifier_addr"], self.PENALTY_WRONG)
+                self.token.transfer(c["classifier_addr"], PROTOCOL_ADDR, self.PENALTY_WRONG)
 
             self.db.set_classification_consensus_match(c["id"], matched, reward)
             rewards.append({"class_id": c["id"], "addr": c["classifier_addr"],
@@ -182,21 +185,7 @@ class BufferZone:
         entry = self.db.get_buffer_entry(submission_id)
         if entry is None or entry["status"] != "classified":
             return False
-        self.db.insert(
-            combo_id=combo.combo_id,
-            method_name=combo.method_name,
-            problem_name=combo.problem_title,
-            method_domain=combo.method_domain,
-            problem_domain=combo.problem_domain,
-            method_level=combo.method_level,
-            elegance=combo.elegance,
-            novelty=combo.novelty,
-            analogy_distance=combo.analogy_distance,
-            scaling_potential=combo.scaling_potential,
-            side_effects=combo.side_effects,
-            miner_addr=miner_addr,
-            analysis_text=combo.analysis_text,
-        )
+        self.db.insert(combo, miner_addr)
         self.db.update_buffer_status(submission_id, "published")
         return True
 
