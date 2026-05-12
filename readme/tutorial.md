@@ -162,7 +162,7 @@ Generate random method×problem combinations evaluated by AI across 8 dimensions
 python3 -m src.cli.main mine [options]
 ```
 
-| 參數 | Parameter | 默認值 | Default | 說明 | Description |
+| 參數 | Parameter | 默認值 | Default | 說明 / Description |
 |------|-----------|---------|----------|--------------|
 | `--batch` | | `10` | 挖掘組合數量 | Number of combos to mine |
 | `--parallel` | | `1` | 並行 API 請求數 | Parallel API workers |
@@ -202,7 +202,7 @@ python3 -m src.cli.main mine --batch 5 --methods-collection "Physics Methods" --
 python3 -m src.cli.main top [options]
 ```
 
-| 參數 | Parameter | 默認值 | Default | 說明 | Description |
+| 參數 | Parameter | 默認值 | Default | 說明 / Description |
 |------|-----------|---------|----------|--------------|
 | `--dimension` | | (all) | 篩選維度 | Filter by dimension |
 | `--domain` | | (all) | 篩選領域 | Filter by domain |
@@ -229,7 +229,7 @@ python3 -m src.cli.main top --level 4 --limit 10
 python3 -m src.cli.main search <query> [options]
 ```
 
-| 參數 | Parameter | 默認值 | Default | 說明 | Description |
+| 參數 | Parameter | 默認值 | Default | 說明 / Description |
 |------|-----------|---------|----------|--------------|
 | `query` | (required) | – | 搜索關鍵詞 | Search keyword |
 | `--dimension` | | (all) | 維度篩選 | Dimension filter |
@@ -251,7 +251,7 @@ python3 -m src.cli.main search "cancer" --dimension weirdness --limit 10
 python3 -m src.cli.main random [options]
 ```
 
-| 參數 | Parameter | 默認值 | Default | 說明 | Description |
+| 參數 | Parameter | 默認值 | Default | 說明 / Description |
 |------|-----------|---------|----------|--------------|
 | `--dimension` | | (all) | 維度篩選 | Dimension filter |
 | `--domain` | | (all) | 領域篩選 | Domain filter |
@@ -278,7 +278,7 @@ Start a headless P2P federation hub (no Web UI), API and gossip sync only.
 python3 -m src.cli.main hub [options]
 ```
 
-| 參數 | Parameter | 默認值 | Default | 說明 | Description |
+| 參數 | Parameter | 默認值 | Default | 說明 / Description |
 |------|-----------|---------|----------|--------------|
 | `--port` | | `8765` | HTTP 端口 | HTTP port |
 | `--bootstrap` | | (none) | 引導節點 (可重複) | Bootstrap peer (repeatable) |
@@ -330,7 +330,7 @@ Submit a new thinking method to the Matrix Marketplace.
 python3 -m src.cli.main submit-method [options]
 ```
 
-| 參數 | Parameter | 默認值 | Default | 說明 | Description |
+| 參數 | Parameter | 默認值 | Default | 說明 / Description |
 |------|-----------|---------|----------|--------------|
 | `--name` | (required) | – | 方法名稱 | Method name |
 | `--domain` | (required) | – | 方法領域 | Method domain |
@@ -366,7 +366,7 @@ Submit a new unsolved problem to the Matrix Marketplace.
 python3 -m src.cli.main submit-problem [options]
 ```
 
-| 參數 | Parameter | 默認值 | Default | 說明 | Description |
+| 參數 | Parameter | 默認值 | Default | 說明 / Description |
 |------|-----------|---------|----------|--------------|
 | `--title` | (required) | – | 問題標題 | Problem title |
 | `--domain` | (required) | – | 問題領域 | Problem domain |
@@ -402,7 +402,7 @@ Generate seed analysis to unlock a math problem zone.
 python3 -m src.cli.main math-mine [options]
 ```
 
-| 參數 | Parameter | 默認值 | Default | 說明 | Description |
+| 參數 | Parameter | 默認值 | Default | 說明 / Description |
 |------|-----------|---------|----------|--------------|
 | `--problem-id` | (required) | – | 數學問題 ID | Math problem ID |
 | `--methods-collection` | (required) | – | 方法集合名 | Method collection name |
@@ -429,7 +429,7 @@ python3 -m src.cli.main math-mine \
 python3 -m src.cli.main math-submit [options]
 ```
 
-| 參數 | Parameter | 默認值 | Default | 說明 | Description |
+| 參數 | Parameter | 默認值 | Default | 說明 / Description |
 |------|-----------|---------|----------|--------------|
 | `--problem-id` | (required) | – | 數學問題 ID | Math problem ID |
 | `--method-collection-id` | (required) | – | 方法集合 ID | Method collection ID |
@@ -465,7 +465,7 @@ Buffer pipeline: Submit AI analysis → community classifiers vote → consensus
 python3 -m src.cli.main buffer-submit [options]
 ```
 
-| 參數 | Parameter | 默認值 | Default | 說明 | Description |
+| 參數 | Parameter | 默認值 | Default | 說明 / Description |
 |------|-----------|---------|----------|--------------|
 | `--combo-id` | (required) | – | 組合 ID | Combination ID |
 | `--method-name` | | `""` | 方法名稱 | Method name |
@@ -496,7 +496,7 @@ python3 -m src.cli.main buffer-submit \
 python3 -m src.cli.main buffer-classify [options]
 ```
 
-| 參數 | Parameter | 默認值 | Default | 說明 | Description |
+| 參數 | Parameter | 默認值 | Default | 說明 / Description |
 |------|-----------|---------|----------|--------------|
 | `--submission-id` | (required) | – | 緩衝區提交 ID | Buffer submission ID |
 | `--domain` | (required) | – | 領域標籤 | Domain label |
@@ -524,7 +524,7 @@ python3 -m src.cli.main buffer-classify \
 python3 -m src.cli.main buffer-status [options]
 ```
 
-| 參數 | Parameter | 默認值 | Default | 說明 | Description |
+| 參數 | Parameter | 默認值 | Default | 說明 / Description |
 |------|-----------|---------|----------|--------------|
 | `--submission-id` | | (all) | 指定提交 ID | Specific submission ID |
 | `--address` | | (all) | 按提交者篩選 | Filter by submitter address |
@@ -544,7 +544,7 @@ python3 -m src.cli.main buffer-status --address "0xALICE"
 python3 -m src.cli.main buffer-stake [options]
 ```
 
-| 參數 | Parameter | 默認值 | Default | 說明 | Description |
+| 參數 | Parameter | 默認值 | Default | 說明 / Description |
 |------|-----------|---------|----------|--------------|
 | `--address` | (required) | – | 質押者地址 | Staker address |
 | `--amount` | | `100` | 質押/取回數量 | Amount to stake/unstake |
@@ -565,7 +565,7 @@ python3 -m src.cli.main buffer-stake --address "0xALICE" --amount 50 --action un
 python3 -m src.cli.main buffer-tokens [options]
 ```
 
-| 參數 | Parameter | 默認值 | Default | 說明 | Description |
+| 參數 | Parameter | 默認值 | Default | 說明 / Description |
 |------|-----------|---------|----------|--------------|
 | `--address` | | `0xVIEWER` | 查詢地址 | Address to query |
 | `--db` | | `data/leaderboard.db` | 數據庫路徑 | Database path |
@@ -590,7 +590,7 @@ Pay 10 IDEA to unlock viewing one AI analysis.
 python3 -m src.cli.main pay-view [options]
 ```
 
-| 參數 | Parameter | 默認值 | Default | 說明 | Description |
+| 參數 | Parameter | 默認值 | Default | 說明 / Description |
 |------|-----------|---------|----------|--------------|
 | `--combo-id` | (required) | – | 組合 ID | Combo ID to view |
 | `--address` | (required) | – | 查看者地址 | Viewer address |
@@ -618,7 +618,7 @@ Pay 20 IDEA to unlock a leaderboard for 24 hours.
 python3 -m src.cli.main pay-leaderboard [options]
 ```
 
-| 參數 | Parameter | 默認值 | Default | 說明 | Description |
+| 參數 | Parameter | 默認值 | Default | 說明 / Description |
 |------|-----------|---------|----------|--------------|
 | `--dimension` | | `elegance` | 排行榜維度 | Leaderboard dimension |
 | `--domain` | | `medicine` | 排行榜領域 | Leaderboard domain |
@@ -646,7 +646,7 @@ Pay 5 IDEA for one random draw.
 python3 -m src.cli.main pay-draw [options]
 ```
 
-| 參數 | Parameter | 默認值 | Default | 說明 | Description |
+| 參數 | Parameter | 默認值 | Default | 說明 / Description |
 |------|-----------|---------|----------|--------------|
 | `--dimension` | | (all) | 維度篩選 | Dimension filter |
 | `--domain` | | (all) | 領域篩選 | Domain filter |
@@ -671,7 +671,7 @@ python3 -m src.cli.main pay-draw \
 python3 -m src.cli.main token-balance [options]
 ```
 
-| 參數 | Parameter | 默認值 | Default | 說明 | Description |
+| 參數 | Parameter | 默認值 | Default | 說明 / Description |
 |------|-----------|---------|----------|--------------|
 | `--address` | | `0xVIEWER` | 查詢地址 | Address to query |
 | `--db` | | `data/leaderboard.db` | 數據庫路徑 | Database path |
@@ -794,9 +794,9 @@ After starting the web server, visit `http://localhost:8765/web` to access:
 
 **代幣經濟費用 | Token Economy Fees:**
 
-| 操作 | Operation | 費用 | Fee | 說明 | Note |
-|------|-----------|------|-----|------|------|
-| 查看 AI 分析 | View AI analysis | 10 IDEA | 80%→分析者, 10%→發現者, 10%→協議 |
+| 操作 | Operation | 費用 | Fee | 說明 / Note |
+|------|-----------|------|-----|--------------|
+| 查看 AI 分析 | View AI analysis | 10 IDEA | 80%→分析者 / 10%→發現者 / 10%→協議 | — |
 | 解鎖排行榜 | Unlock leaderboard | 20 IDEA | 24 小時有效 | Valid 24h |
 | 隨機抽取 | Random draw | 5 IDEA | 每次 | Per draw |
 | 新用戶 Faucet | New user faucet | +100 IDEA | 自動發放 | Auto-granted |
