@@ -286,6 +286,8 @@ python3 -m src.cli.main hub [options]
 | `--gossip-interval` | | `30.0` | Gossip 間隔 (秒) | Gossip interval in seconds |
 | `--peer-timeout` | | `300.0` | 節點超時 (秒) | Peer timeout in seconds |
 | `--max-peers` | | `50` | 最大節點數 | Maximum peers |
+| `--discovery-url` | | (none) | Discovery Server URL (可重複) | Discovery server URL (repeatable) |
+| `--identity` | | (none) | ed25519 身份密鑰文件路徑 | Path to ed25519 identity key file |
 
 **示例 | Examples:**
 
@@ -293,7 +295,13 @@ python3 -m src.cli.main hub [options]
 # 啟動獨立 Hub | Start standalone hub
 python3 -m src.cli.main hub --port 8765
 
-# 加入現有網絡 | Join existing network
+# 通過 Discovery Server 自動發現節點 | Auto-discover peers via Discovery Server
+python3 -m src.cli.main hub --port 8766 --discovery-url http://localhost:8765
+
+# 帶簽名身份的 Hub（防偽造）| Hub with signed identity (anti-spoofing)
+python3 -m src.cli.main hub --port 8766 --discovery-url http://localhost:8765 --identity /path/to/identity.key
+
+# 手動引導（不使用 Discovery）| Manual bootstrap (without Discovery)
 python3 -m src.cli.main hub --port 8766 --bootstrap localhost:8765
 ```
 
@@ -312,8 +320,15 @@ python3 -m src.cli.main web [options]
 參數同 `hub` 命令。| Same parameters as `hub`.
 
 ```bash
+# 啟動 Web UI | Start Web UI
 python3 -m src.cli.main web --port 8765
 # 打開瀏覽器 | Open: http://localhost:8765/web
+
+# 通過 Discovery Server 自動加入 P2P 網絡 | Auto-join P2P network via Discovery
+python3 -m src.cli.main web --port 8765 --discovery-url http://<DISCOVERY_IP>:8765
+
+# 帶身份簽名 | With signed identity
+python3 -m src.cli.main web --port 8765 --discovery-url http://<DISCOVERY_IP>:8765 --identity identity.key
 ```
 
 ---
@@ -387,6 +402,82 @@ python3 -m src.cli.main submit-problem \
   --maturity 2 \
   --submitter "0xBOB"
 ```
+
+---
+
+#### `triz-analyze` — TRIZ 標準化分析 | TRIZ Standardization Analysis
+
+使用 TRIZ 方法論分析問題描述，輸出矛盾矩陣、理想最終結果 (IFR)、工程參數、功能模型和推薦發明原理。
+
+Analyze a problem description using TRIZ methodology. Outputs contradiction matrix, IFR, engineering parameters, functional model, and recommended inventive principles.
+
+```bash
+python3 -m src.cli.main triz-analyze [options]
+```
+
+| 參數 | Parameter | 默認值 | Default | 說明 / Description |
+|------|-----------|---------|----------|--------------|
+| `--description` | (required) | – | 問題描述 | Problem description |
+| `--domain` | | `general` | 問題領域 | Problem domain |
+
+**示例 | Example:**
+
+```bash
+python3 -m src.cli.main triz-analyze \
+  --description "We need to increase engine power without increasing fuel consumption" \
+  --domain "mechanical"
+
+# 輸出示例 | Example output:
+# === TRIZ Standardization ===
+# Domain: mechanical
+# Contradictions:
+#   Improve: power (#21) — Worsen: fuel_consumption (#22)
+# Ideal Final Result (IFR):
+#   The engine increases power without consuming additional fuel
+# Recommended Principles:
+#   #10 Preliminary Action — Perform the required change ahead of time
+#   #35 Parameter Change — Change the physical state
+# Functional Model:
+#   engine → produces → power
+#   fuel → consumed_by → engine
+```
+
+當 API Key 可用時使用 AI 分析，否則使用基於 26 個關鍵詞的規則匹配。TRIZ 標準化也會自動應用於 `submit-problem` 提交的問題。
+
+Uses AI analysis when API key is available; falls back to 26-keyword rule-based matching otherwise. TRIZ standardization is also auto-applied to problems submitted via `submit-problem`.
+
+---
+
+#### `keygen` — 生成身份密鑰 | Generate Identity Key
+
+生成 ed25519 密鑰對用於 P2P 發現宣告的簽名驗證，防止節點偽造。
+
+Generate an ed25519 keypair for signing P2P discovery announcements. Prevents node impersonation.
+
+```bash
+python3 -m src.cli.main keygen [options]
+```
+
+| 參數 | Parameter | 默認值 | Default | 說明 / Description |
+|------|-----------|---------|----------|--------------|
+| `--output`, `-o` | | `identity.key` | 私鑰輸出路徑 | Private key output path |
+| `--force`, `-f` | | (flag) | 覆蓋已存在的文件 | Overwrite existing file |
+
+**示例 | Example:**
+
+```bash
+# 生成密鑰對 | Generate keypair
+python3 -m src.cli.main keygen -o ~/.hammerworld/identity.key
+
+# 使用該密鑰啟動 Hub | Start hub with this identity
+python3 -m src.cli.main hub --port 8766 \
+  --discovery-url http://<DISCOVERY_IP>:8765 \
+  --identity ~/.hammerworld/identity.key
+```
+
+需要 `cryptography` 庫（可選依賴）：`pip install cryptography`。未安裝時 Hub 以未驗證降級模式運行。
+
+Requires `cryptography` library (optional dependency): `pip install cryptography`. Hub runs in unverified degraded mode without it.
 
 ---
 
@@ -736,21 +827,41 @@ python3 -m src.cli.main pay-view \
 python3 -m src.cli.main token-balance --address "0xVIEWER"
 ```
 
-### 4.2 多樞紐 P2P 聯邦 | Multi-Hub P2P Federation
+### 4.2 多樞紐 P2P 聯邦（通過 Discovery Server）| Multi-Hub P2P Federation (via Discovery Server)
+
+使用 Discovery Server 實現零配置節點發現，無需手動 `--bootstrap`。
+
+Zero-config peer discovery via Discovery Server — no manual `--bootstrap` needed.
+
+```bash
+# 終端 1 | Terminal 1: 啟動 Discovery Hub（輕量 Tracker）
+python3 -m src.cli.main hub --port 8765 --db /tmp/discovery.db
+
+# 終端 2 | Terminal 2: 啟動 Worker Hub A（自動發現，帶身份簽名）
+python3 -m src.cli.main web --port 8766 --db /tmp/hub_a.db \
+  --discovery-url http://localhost:8765 \
+  --identity identity.key
+
+# 終端 3 | Terminal 3: 啟動 Worker Hub B（自動發現 Hub A）
+python3 -m src.cli.main web --port 8767 --db /tmp/hub_b.db \
+  --discovery-url http://localhost:8765
+
+# 終端 4 | Terminal 4: 向 Hub A 挖掘
+python3 -m src.cli.main mine --batch 5 --db /tmp/hub_a.db
+
+# Hub B 在加入時自動從 Hub A 拉取數據（即時同步）
+# Hub B auto-pulls data from Hub A on join (instant sync)
+curl -s "http://localhost:8767/combinations?since=0&limit=10" | python3 -m json.tool
+```
+
+**手動引導模式（無 Discovery Server）：| Manual bootstrap mode (no Discovery Server):**
 
 ```bash
 # 終端 1 | Terminal 1: 啟動 Hub A
 python3 -m src.cli.main web --port 8765 --db /tmp/hub_a.db
 
-# 終端 2 | Terminal 2: 啟動 Hub B，引導至 Hub A
+# 終端 2 | Terminal 2: 啟動 Hub B，手動引導至 Hub A
 python3 -m src.cli.main web --port 8766 --db /tmp/hub_b.db --bootstrap localhost:8765
-
-# 終端 3 | Terminal 3: 向 Hub A 挖掘
-python3 -m src.cli.main mine --batch 5 --db /tmp/hub_a.db
-
-# 等待 gossip 同步（約 30 秒），然後在 Hub B 查看
-# Wait for gossip sync (~30s), then check Hub B
-curl -s http://localhost:8766/web/leaderboard/elegance/medicine
 ```
 
 ### 4.3 Web UI 支付流程 | Web UI Payment Flow
@@ -789,6 +900,7 @@ After starting the web server, visit `http://localhost:8765/web` to access:
 | `/web/buffer/submissions` | | 所有提交 | All submissions |
 | `/web/buffer/tokens` | | 緩衝區代幣 | Buffer tokens |
 | `/web/peers` | | P2P 節點 | P2P peers |
+| `/discovery/peers` | | Discovery 節點列表 | Discovery peer list (JSON) |
 | `/web/marketplace` | | 方法/問題集市 | Method/problem marketplace |
 | `/web/math` | | 數學研究區 | Math research zone |
 
@@ -847,10 +959,22 @@ A: 任何 OpenAI 兼容接口的模型。已測試 DeepSeek (deepseek-v4-flash, 
 
 Any OpenAI-compatible API. Tested with DeepSeek (deepseek-v4-flash, deepseek-chat) and OpenAI (gpt-4o).
 
+### Q: 什麼是 Discovery Server？為什麼需要它？
+
+A: Discovery Server 是一個輕量級節點發現服務器（類似 BitTorrent Tracker）。它解決了 P2P 網絡中的核心問題：新節點如何找到其他節點而不需要手動配置 IP 地址。啟動一個 Hub 作為 Discovery Server，其他 Hub 通過 `--discovery-url` 自動宣告自己和發現其他節點。
+
+A lightweight peer discovery server (like a BitTorrent tracker). It solves the core P2P problem: how new nodes find others without manual IP configuration. Start one hub as Discovery Server; other hubs auto-announce and discover peers via `--discovery-url`.
+
+### Q: 如何保護 Discovery Server 不被攻擊？
+
+A: 內建 6 層安全防護：(1) ed25519 簽名身份驗證 — 防止節點偽造；(2) IP 反欺騙 — 服務器檢測真實來源 IP；(3) 速率限制 — 每 IP 60 請求/分鐘；(4) 隱私保護 — 節點列表隨機返回最多 30 個；(5) LRU 淘汰 — 防止內存耗盡；(6) NAT 感知 — 返回檢測到的公網 IP。
+
+Built-in 6-layer security: (1) ed25519 signed identity to prevent impersonation; (2) IP anti-spoofing via source IP detection; (3) rate limiting at 60 req/min per IP; (4) privacy via random subset (max 30 peers); (5) LRU eviction to prevent memory exhaustion; (6) NAT awareness returning detected public IP.
+
 ### Q: 如何運行測試？
 
 ```bash
-# 全部測試 | All tests (329 tests)
+# 全部測試 | All tests (361 tests)
 python3 -m unittest discover -s tests -p "test_*.py" -v
 
 # 單個模塊 | Single module

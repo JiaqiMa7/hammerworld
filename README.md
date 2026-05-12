@@ -10,7 +10,8 @@ Methods Matrix × Problems Matrix → Random Combination → Multi-Dimension AI 
 
 - Python 3.8+
 - 零強制依賴（核心模塊僅使用標準庫）
-- AI 功能由用戶自行提供 API Key
+- AI 功能由用戶自行提供 API Key（支持 OpenAI 兼容接口）
+- P2P 身份簽名可選安裝 `cryptography`（`pip install cryptography`）
 
 ## 項目結構
 
@@ -20,13 +21,12 @@ hammerworld/
 │   ├── engine/          # 核心引擎：models, combiner, loader
 │   ├── triz/            # TRIZ 理論：knowledge, matrix, agent, prompts
 │   ├── evaluation/      # AI 評估：8 維度評分流水線
-│   ├── hub/             # P2P 聯邦排行榜：leaderboard, peer, server, web
+│   ├── hub/             # P2P 聯邦：leaderboard, peer, server, web, discovery, identity, token_layer
 │   ├── blockchain/      # 區塊鏈緩衝區：token, staking, buffer zone
-│   ├── hub/             # P2P 聯邦排行榜 + 付費支付層：leaderboard, peer, server, web, token_layer
-│   └── cli/             # CLI：mine / top / search / random / hub / buffer-submit / buffer-classify / pay-view / pay-leaderboard / pay-draw / token-balance
+│   └── cli/             # CLI：21 個命令（mine/top/search/hub/web/keygen/triz-analyze/...）
 ├── data/                # methods.json (35 條) + problems.json (22 條)
-├── tests/               # 329 單元測試
-├── readme/              # 詳細文檔+教程文檔
+├── tests/               # 361 單元測試
+├── readme/              # 詳細文檔 + 教程
 ├── DESIGN.md            # 完整系統設計
 └── CLAUDE.md            # Claude Code 指引
 ```
@@ -53,17 +53,35 @@ python3 -m src.cli.main top --limit 10
 # 搜索
 python3 -m src.cli.main search "antibiotic"
 
+# TRIZ 問題分析
+python3 -m src.cli.main triz-analyze \
+  --description "We need to increase engine power without increasing fuel consumption"
+
 # 啟動 P2P Hub (含 Web UI)
 python3 -m src.cli.main web --port 8765
+
+# 多 Hub P2P 聯邦（通過 Discovery Server 自動發現）
+python3 -m src.cli.main hub --port 8765 --db /tmp/discovery.db                # Discovery Hub
+python3 -m src.cli.main web --port 8766 --discovery-url http://localhost:8765  # Worker A
+python3 -m src.cli.main web --port 8767 --discovery-url http://localhost:8765  # Worker B
+
+# 生成 ed25519 身份密鑰（防節點偽造）
+python3 -m src.cli.main keygen -o identity.key
+
+# 帶身份簽名啟動
+python3 -m src.cli.main web --port 8766 --discovery-url http://localhost:8765 --identity identity.key
 
 # Math Zone：解鎖數學問題區域
 python3 -m src.cli.main math-mine --problem-id 1 --methods-collection "Complex Analysis" --batch 3
 
 # Math Zone：提交解法
-python3 -m src.cli.main math-submit --problem-id 1 --method-collection-id 1 --steps-json '[{"step_num":1,"content":"define the problem","verified":true}]'
+python3 -m src.cli.main math-submit --problem-id 1 --method-collection-id 1 \
+  --steps-json '[{"step_num":1,"content":"define the problem","verified":true}]'
 
 # Buffer Zone：提交分析到區塊鏈緩衝區
-python3 -m src.cli.main buffer-submit --combo-id my_combo --method-id m1 --method-name "Test" --problem-id p1 --problem-title "Problem" --analysis-json '{"scores":[{"dim":"elegance","score":9.0}]}' --address 0xALICE
+python3 -m src.cli.main buffer-submit --combo-id my_combo --method-name "Test" \
+  --problem-title "Problem" --analysis-json '{"scores":[{"dim":"elegance","score":9.0}]}' \
+  --address 0xALICE
 
 # Buffer Zone：對待分類提交進行投票
 python3 -m src.cli.main buffer-classify --submission-id <ID> --domain medicine --address 0xBOB
@@ -75,13 +93,56 @@ python3 -m src.cli.main buffer-tokens --address 0xBOB
 python3 -m unittest discover tests/ -v
 ```
 
+## 所有 CLI 命令（21 個）
+
+### 核心命令 | Core
+| 命令 | Command | 說明 |
+|------|---------|------|
+| `mine` | | AI 挖掘方法×問題組合 |
+| `top` | | 排行榜 |
+| `search` | | 搜索 |
+| `random` | | 隨機抽取 |
+| `hub` | | P2P Hub 服務器 |
+| `web` | | P2P Hub + Web UI |
+| `keygen` | | 生成 ed25519 身份密鑰 |
+| `triz-analyze` | | TRIZ 標準化分析 |
+
+### Matrix Marketplace
+| 命令 | Command | 說明 |
+|------|---------|------|
+| `submit-method` | | 提交新方法 |
+| `submit-problem` | | 提交新問題 |
+
+### Math Research Zone
+| 命令 | Command | 說明 |
+|------|---------|------|
+| `math-mine` | | 數學問題挖掘解鎖 |
+| `math-submit` | | 提交數學解法 |
+
+### Buffer Zone
+| 命令 | Command | 說明 |
+|------|---------|------|
+| `buffer-submit` | | 提交分析到緩衝區 |
+| `buffer-classify` | | 分類投票 |
+| `buffer-status` | | 查看提交狀態 |
+| `buffer-stake` | | 管理質押 |
+| `buffer-tokens` | | 查看代幣/分類員統計 |
+
+### Token Economy
+| 命令 | Command | 說明 |
+|------|---------|------|
+| `pay-view` | | 支付查看 AI 分析 (10 IDEA) |
+| `pay-leaderboard` | | 支付解鎖排行榜 (20 IDEA/24h) |
+| `pay-draw` | | 支付隨機抽取 (5 IDEA) |
+| `token-balance` | | 查詢代幣餘額 |
+
 ## 文檔索引
 
 | 文檔 | 內容 |
 |------|------|
-| [readme/tutorial.md](readme/tutorial.md) | 命令大全 & 初學者教程（中英雙語） |
+| [readme/tutorial.md](readme/tutorial.md) | 命令大全 & 初學者教程（中英雙語，含 Discovery + 安全） |
 | [readme/modules.md](readme/modules.md) | 所有模塊詳解（models, loader, combiner, triz, evaluation, hub, blockchain, math-zone） |
-| [readme/p2p-hub.md](readme/p2p-hub.md) | P2P Hub：gossip 協議、REST API、CLI 使用 |
+| [readme/p2p-hub.md](readme/p2p-hub.md) | P2P Hub：gossip 協議、REST API、Discovery Server、CLI 使用 |
 | [readme/development.md](readme/development.md) | 開發工作流、測試、完整示例、擴展指南 |
 | [DESIGN.md](DESIGN.md) | 完整系統設計（經濟模型、榮譽系統、區塊鏈緩衝區、Matrix Marketplace、Math Research Zone） |
 
@@ -91,7 +152,10 @@ python3 -m unittest discover tests/ -v
 - **確定性隨機**：`SHA256(block_height + address + nonce)` 種子 Fisher-Yates
 - **Push + Pull gossip**：每 30s 增量同步，TTL 防無限傳播
 - **P2P 聯邦**：多 Hub 自組織，無中央服務器
+- **Discovery Server**：迅雷 Tracker 模式，Hub 自動宣告/發現節點，零手動配置
+- **6 層安全防護**：ed25519 簽名身份、IP 反欺騙、速率限制、隱私保護、LRU 淘汰、NAT 感知
 - **Matrix Marketplace**：方法/問題集合可創建、分享、標星、導入
 - **Math Research Zone**：數學問題專區，閘門解鎖機制，按解法步驟數排名，支持 Fork 協作
 - **Blockchain Buffer Zone**：AI 分析提交 → 社區分類員投票 → 共識達成 → 公佈至排行榜，模擬代幣質押/獎勵
-- **零依賴**：純 stdlib，AI 通過協議注入
+- **TRIZ 標準化**：用戶提交問題自動經 TRIZ Agent 轉換為結構化矛盾矩陣 + 發明原理推薦
+- **零強制依賴**：純 stdlib，AI 通過協議注入，身份簽名可選
