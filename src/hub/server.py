@@ -29,6 +29,22 @@ class _HubHandler(BaseHTTPRequestHandler):
     def log_message(self, format, *args):
         pass  # Suppress default logging
 
+    @property
+    def _remote_ip(self) -> str:
+        return self.client_address[0]
+
+    def _check_rate_limit(self) -> bool:
+        """Check rate limit for discovery endpoints. Sends 429 if limited."""
+        from src.hub.discovery import get_discovery_server
+        ds = get_discovery_server()
+        ip = self._remote_ip
+        if ip and ds.is_rate_limited(ip):
+            self._send_json(
+                {"error": "rate_limited", "retry_after": 60}, 429
+            )
+            return False
+        return True
+
     def _send_html(self, html: str, status: int = 200):
         body = html.encode()
         self.send_response(status)
@@ -63,6 +79,8 @@ class _HubHandler(BaseHTTPRequestHandler):
         elif self.path == "/peers":
             self._send_json(self.api.handle_get_peers())
         elif self.path == "/discovery/peers":
+            if not self._check_rate_limit():
+                return
             self._send_json(self.api.handle_discovery_peers())
         elif self.path.startswith("/combinations"):
             self._send_json(self.api.handle_get_combinations(self.path))
@@ -565,20 +583,24 @@ class _HubHandler(BaseHTTPRequestHandler):
             result = self.api.handle_announce(data)
             self._send_json(result)
         elif self.path == "/discovery/announce":
+            if not self._check_rate_limit():
+                return
             try:
                 data = json.loads(body)
             except json.JSONDecodeError:
                 self._send_json({"error": "invalid json"}, 400)
                 return
-            result = self.api.handle_discovery_announce(data)
+            result = self.api.handle_discovery_announce(data, remote_ip=self._remote_ip)
             self._send_json(result)
         elif self.path == "/discovery/heartbeat":
+            if not self._check_rate_limit():
+                return
             try:
                 data = json.loads(body)
             except json.JSONDecodeError:
                 self._send_json({"error": "invalid json"}, 400)
                 return
-            result = self.api.handle_discovery_heartbeat(data)
+            result = self.api.handle_discovery_heartbeat(data, remote_ip=self._remote_ip)
             self._send_json(result)
         elif self.path == "/submit/method":
             result = self.api.handle_submit_method(body)
@@ -898,22 +920,48 @@ class HubAPI:
     # Discovery Server endpoints (lightweight tracker)
     # ------------------------------------------------------------------
 
-    def handle_discovery_announce(self, data: dict) -> dict:
+    def handle_discovery_announce(self, data: dict, remote_ip: str = "") -> dict:
         from src.hub.discovery import get_discovery_server
         ds = get_discovery_server()
-        ds.announce(
-            data.get("peer_id", ""),
-            data.get("address", "127.0.0.1"),
-            data.get("port", 8765),
+
+        peer_id = data.get("peer_id", "")
+        address = data.get("address", "127.0.0.1")
+        port = int(data.get("port", 8765))
+        timestamp = float(data.get("timestamp", 0))
+        public_key_b64 = data.get("public_key", "")
+        signature_b64 = data.get("signature", "")
+
+        # Signature verification (when present)
+        verified = False
+        if public_key_b64 and signature_b64:
+            from src.hub.identity import verify_announce_payload
+            ok, reason = verify_announce_payload(
+                peer_id, address, port, timestamp,
+                public_key_b64, signature_b64,
+            )
+            if not ok:
+                # Signature present but invalid → reject
+                return {"ok": False, "error": f"verification_failed: {reason}"}
+
+        result = ds.announce(
+            peer_id=peer_id,
+            address=address,
+            port=port,
+            detected_ip=remote_ip,
+            public_key_b64=public_key_b64,
+            signature_b64=signature_b64,
+            timestamp=timestamp,
         )
-        return {"ok": True}
+        if verified:
+            result["verified"] = True
+        return result
 
     def handle_discovery_peers(self) -> dict:
         from src.hub.discovery import get_discovery_server
         ds = get_discovery_server()
         return {"peers": ds.get_peers()}
 
-    def handle_discovery_heartbeat(self, data: dict) -> dict:
+    def handle_discovery_heartbeat(self, data: dict, remote_ip: str = "") -> dict:
         from src.hub.discovery import get_discovery_server
         ds = get_discovery_server()
         ok = ds.heartbeat(data.get("peer_id", ""))
@@ -1046,6 +1094,10 @@ class HubServer:
 
     def start(self):
         self.peer_manager.start()
+        print(f"Hub started on port {self.config.port} "
+              f"(peer_id: {self.peer_manager.peer_id})")
+        print("WARNING: Serving over HTTP. For production, use a reverse "
+              "proxy with HTTPS (e.g., nginx + certbot).")
         _HubHandler.api = self.api
         _HubHandler.db = self.db
         _HubHandler.peer_manager = self.peer_manager

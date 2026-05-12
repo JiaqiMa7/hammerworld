@@ -345,6 +345,32 @@ def cmd_triz_analyze(args):
     print(f"  Constraints: {[c.value for c in problem.constraint_types]}")
 
 
+def cmd_keygen(args):
+    """Generate an ed25519 identity key pair for signed P2P announcements."""
+    from pathlib import Path
+    from src.hub.identity import IdentityManager
+    import base64
+
+    path = args.output or "identity.key"
+    if Path(path).exists() and not args.force:
+        print(f"ERROR: {path} already exists. Use --force to overwrite.", file=sys.stderr)
+        sys.exit(1)
+
+    im = IdentityManager(path)
+    if not im.available:
+        print("ERROR: cryptography library not installed. Install with: pip install cryptography",
+              file=sys.stderr)
+        sys.exit(1)
+
+    print(f"Generated Ed25519 identity key pair:")
+    print(f"  Public key (base64): {base64.b64encode(im.public_key_bytes).decode()}")
+    print(f"  Peer ID:             {im.peer_id}")
+    print(f"  Path:                {path}")
+    print(f"  Algorithm:           Ed25519")
+    print(f"")
+    print(f"Use with:  --identity {path}")
+
+
 def cmd_hub(args):
     """Start a P2P hub server."""
     from src.hub.leaderboard import LeaderboardDB
@@ -359,6 +385,7 @@ def cmd_hub(args):
         gossip_interval=args.gossip_interval,
         peer_timeout=args.peer_timeout,
         max_peers=args.max_peers,
+        identity_key_path=getattr(args, "identity", None),
     )
     server = HubServer(db, config)
 
@@ -883,6 +910,8 @@ def main():
     p_hub.add_argument("--peer-timeout", type=float, default=300.0,
                        help="Peer timeout in seconds")
     p_hub.add_argument("--max-peers", type=int, default=50, help="Maximum peers")
+    p_hub.add_argument("--identity", default=None,
+                       help="Path to ed25519 identity key file for signed announcements")
 
     p_web = sub.add_parser("web", help="Start a hub with Web UI")
     p_web.add_argument("--port", type=int, default=8765, help="HTTP port (default 8765)")
@@ -896,6 +925,14 @@ def main():
     p_web.add_argument("--peer-timeout", type=float, default=300.0,
                        help="Peer timeout in seconds")
     p_web.add_argument("--max-peers", type=int, default=50, help="Maximum peers")
+    p_web.add_argument("--identity", default=None,
+                       help="Path to ed25519 identity key file for signed announcements")
+
+    p_keygen = sub.add_parser("keygen", help="Generate an ed25519 identity key pair")
+    p_keygen.add_argument("--output", "-o", default="identity.key",
+                          help="Output path for the private key file")
+    p_keygen.add_argument("--force", "-f", action="store_true",
+                          help="Overwrite existing file")
 
     p_smethod = sub.add_parser("submit-method", help="Submit a new method to the matrix")
     p_smethod.add_argument("--name", required=True, help="Method name")
@@ -1013,6 +1050,8 @@ def main():
         cmd_random(args)
     elif args.command == "hub":
         cmd_hub(args)
+    elif args.command == "keygen":
+        cmd_keygen(args)
     elif args.command == "web":
         args.web = True
         cmd_hub(args)

@@ -36,6 +36,7 @@ class PeerConfig:
     peer_timeout: float = 300.0
     max_peers: int = 50
     request_timeout: float = 10.0
+    identity_key_path: Optional[str] = None
 
 
 class PeerManager:
@@ -44,15 +45,24 @@ class PeerManager:
     def __init__(self, db: LeaderboardDB, config: PeerConfig | None = None):
         self.db = db
         self.config = config or PeerConfig()
-        self._peer_id = hashlib.sha256(
-            f"{time.time()}:{random.random()}".encode()
-        ).hexdigest()[:16]
+
+        # Identity: ed25519 keypair or random fallback
+        from src.hub.identity import IdentityManager
+        self._identity = IdentityManager(self.config.identity_key_path)
+        if self._identity.available:
+            self._peer_id = self._identity.peer_id
+        else:
+            self._peer_id = hashlib.sha256(
+                f"{time.time()}:{random.random()}".encode()
+            ).hexdigest()[:16]
+
         self._peers: dict[str, PeerInfo] = {}
         self._lock = threading.Lock()
         self._running = False
         self._thread: Optional[threading.Thread] = None
         self._last_sync: dict[str, float] = {}  # peer_id -> last sync timestamp
         self._start_time = time.time()
+        self._external_ip: str = ""  # detected by discovery server
 
     @property
     def peer_id(self) -> str:
@@ -89,8 +99,16 @@ class PeerManager:
                     self._announce_and_join(p["address"], p["port"])
                 except Exception:
                     pass
-            # Announce ourselves to the discovery server
-            announce_to_discovery(url, self._peer_id, "127.0.0.1", self.config.port)
+            # Announce ourselves to the discovery server (signed if identity available)
+            result = announce_to_discovery(
+                url, self._peer_id, "127.0.0.1", self.config.port,
+                identity_manager=self._identity,
+            )
+            # Remember our external IP if the server tells us
+            if isinstance(result, dict):
+                detected = result.get("detected_ip", "")
+                if detected and detected not in ("127.0.0.1", "::1", ""):
+                    self._external_ip = detected
 
         # Bootstrap: announce to initial peers (may include discovery-found peers)
         for addr in self.config.bootstrap:
