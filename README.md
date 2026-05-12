@@ -26,7 +26,7 @@ hammerworld/
 │   └── cli/             # CLI：mine / top / search / random / hub / buffer-submit / buffer-classify / pay-view / pay-leaderboard / pay-draw / token-balance
 ├── data/                # methods.json (35 條) + problems.json (22 條)
 ├── tests/               # 329 單元測試
-├── readme/              # 詳細文檔
+├── readme/              # 詳細文檔+教程文檔
 ├── DESIGN.md            # 完整系統設計
 └── CLAUDE.md            # Claude Code 指引
 ```
@@ -79,6 +79,7 @@ python3 -m unittest discover tests/ -v
 
 | 文檔 | 內容 |
 |------|------|
+| [readme/tutorial.md](readme/tutorial.md) | 命令大全 & 初學者教程（中英雙語） |
 | [readme/modules.md](readme/modules.md) | 所有模塊詳解（models, loader, combiner, triz, evaluation, hub, blockchain, math-zone） |
 | [readme/p2p-hub.md](readme/p2p-hub.md) | P2P Hub：gossip 協議、REST API、CLI 使用 |
 | [readme/development.md](readme/development.md) | 開發工作流、測試、完整示例、擴展指南 |

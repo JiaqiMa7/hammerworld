@@ -10,6 +10,18 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 
+def _make_triz_agent():
+    """Create a TRIZAgent, with AI provider if API key is configured, else rule-based."""
+    from src.triz.agent import TRIZAgent
+    from src.evaluation.providers import get_api_key, get_api_base, get_model
+    api_key = get_api_key()
+    if api_key:
+        from src.evaluation.providers import OpenAIProvider
+        ai = OpenAIProvider(api_key=api_key, api_base=get_api_base(), model=get_model())
+        return TRIZAgent(ai_provider=ai)
+    return TRIZAgent()
+
+
 def cmd_mine(args):
     """Run the mining combination engine with evaluation and DB storage."""
     import sys
@@ -239,12 +251,98 @@ def cmd_submit_problem(args):
         "constraint_types": [c.strip() for c in (args.constraints or "").split(",") if c.strip()],
         "maturity": args.maturity,
     }
+
+    agent = _make_triz_agent()
+    try:
+        problem = agent.standardize(args.description, args.domain)
+        if problem.triz_standardized:
+            data["triz_standardized"] = problem.triz_standardized
+            tp = problem.triz_standardized.get("triz_params", [])
+            ifr = problem.triz_standardized.get("ifr", "")
+            print(f"TRIZ: {len(tp)} principles recommended, IFR: {ifr[:80]}...")
+    except Exception as e:
+        print(f"TRIZ standardization skipped ({e})")
+
     db = LeaderboardDB(args.db)
     sub_id = db.submit("problem", data, args.submitter)
     print(f"Problem submitted. ID: {sub_id}")
     print(f"  Title: {data['title']}")
     print(f"  Domain: {data['domain']} (maturity {data['maturity']})")
     print(f"Status: pending review")
+
+
+def cmd_triz_analyze(args):
+    """Run TRIZ standardization on a problem description and display results."""
+    agent = _make_triz_agent()
+    print(f"Analyzing: {args.description[:100]}...")
+    print(f"Domain: {args.domain}")
+    mode = "AI" if agent.ai_provider else "rule-based keyword matching"
+    print(f"Mode: {mode}")
+    print()
+
+    problem = agent.standardize(args.description, args.domain)
+    ctx = problem.triz_standardized or {}
+
+    # Contradictions
+    contradiction = ctx.get("contradiction", {})
+    if contradiction.get("improving") or contradiction.get("worsening"):
+        print("=== Technical Contradiction ===")
+        print(f"  Improving: {contradiction.get('improving', 'N/A')}")
+        print(f"  Worsening: {contradiction.get('worsening', 'N/A')}")
+        print()
+
+    # IFR
+    ifr = ctx.get("ifr", "")
+    if ifr:
+        print("=== Ideal Final Result (IFR) ===")
+        print(f"  {ifr}")
+        print()
+
+    # Recommended Principles
+    principles = ctx.get("triz_params", [])
+    if principles:
+        from src.triz.knowledge import INVENTIVE_PRINCIPLES
+        print(f"=== Recommended Principles ({len(principles)}) ===")
+        for pid in principles[:10]:
+            if pid in INVENTIVE_PRINCIPLES:
+                p = INVENTIVE_PRINCIPLES[pid]
+                print(f"  [{pid}] {p.name}")
+                print(f"      {p.description[:100]}...")
+                if p.examples:
+                    print(f"      Examples: {', '.join(p.examples[:2])}")
+        print()
+
+    # Functional Model
+    fm = ctx.get("functional_model", {})
+    actors = fm.get("actors", [])
+    useful = fm.get("useful_functions", [])
+    harmful = fm.get("harmful_functions", [])
+
+    def _fmt_items(items):
+        """Format list items that may be strings or dicts."""
+        result = []
+        for item in items:
+            if isinstance(item, dict):
+                parts = [f"{k}={v}" for k, v in item.items()]
+                result.append("{" + ", ".join(parts) + "}")
+            else:
+                result.append(str(item))
+        return result
+
+    if actors or useful or harmful:
+        print("=== Functional Model ===")
+        if actors:
+            print(f"  Actors: {', '.join(_fmt_items(actors))}")
+        if useful:
+            print(f"  Useful: {', '.join(_fmt_items(useful))}")
+        if harmful:
+            print(f"  Harmful: {', '.join(_fmt_items(harmful))}")
+        print()
+
+    # Inferred constraints
+    print(f"=== Inferred ===")
+    print(f"  Domain: {problem.domain.value}")
+    print(f"  Constraints: {[c.value for c in problem.constraint_types]}")
 
 
 def cmd_hub(args):
@@ -814,6 +912,10 @@ def main():
     p_sproblem.add_argument("--submitter", default="cli_user", help="Submitter address/name")
     p_sproblem.add_argument("--db", default="data/leaderboard.db", help="Database path")
 
+    p_triz_analyze = sub.add_parser("triz-analyze", help="Run TRIZ standardization on a problem description")
+    p_triz_analyze.add_argument("--description", required=True, help="Problem description to analyze")
+    p_triz_analyze.add_argument("--domain", default="medicine", help="Problem domain (default: medicine)")
+
     p_math_mine = sub.add_parser("math-mine", help="Generate seed analysis to unlock a math problem zone")
     p_math_mine.add_argument("--problem-id", type=int, required=True, help="Math problem ID")
     p_math_mine.add_argument("--methods-collection", required=True, help="Math method collection name")
@@ -913,6 +1015,8 @@ def main():
         cmd_submit_method(args)
     elif args.command == "submit-problem":
         cmd_submit_problem(args)
+    elif args.command == "triz-analyze":
+        cmd_triz_analyze(args)
     elif args.command == "math-mine":
         cmd_math_mine(args)
     elif args.command == "math-submit":

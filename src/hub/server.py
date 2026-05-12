@@ -959,6 +959,23 @@ class HubAPI:
             "constraint_types": constraints,
             "maturity": maturity,
         }
+
+        # TRIZ standardization
+        try:
+            from src.triz.agent import TRIZAgent
+            from src.evaluation.providers import get_api_key, get_api_base, get_model
+            api_key = get_api_key()
+            agent = TRIZAgent()
+            if api_key:
+                from src.evaluation.providers import OpenAIProvider
+                agent = TRIZAgent(ai_provider=OpenAIProvider(
+                    api_key=api_key, api_base=get_api_base(), model=get_model()))
+            problem = agent.standardize(description, domain)
+            if problem.triz_standardized:
+                sub_data["triz_standardized"] = problem.triz_standardized
+        except Exception:
+            pass  # TRIZ is best-effort, never block submission
+
         submitter = data.get("submitter", "anonymous").strip()
         sub_id = self.db.submit("problem", sub_data, submitter)
         return {"ok": True, "id": sub_id}
