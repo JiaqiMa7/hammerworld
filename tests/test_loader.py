@@ -59,6 +59,8 @@ class TestLoadProblems(unittest.TestCase):
     def test_all_domains_present(self):
         domains = {p.domain for p in self.problems}
         for d in Domain:
+            if d == Domain.MATHEMATICS:
+                continue  # math problems live in their own zone, not in problems.json
             self.assertIn(d, domains,
                           f"Domain {d} has no problems")
 

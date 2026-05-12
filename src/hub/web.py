@@ -1,6 +1,7 @@
 """Server-side HTML rendering for the hub web interface."""
 from __future__ import annotations
 
+import json
 import time
 from typing import Optional
 
@@ -17,64 +18,68 @@ _CSS = """
 * { margin: 0; padding: 0; box-sizing: border-box; }
 body {
     font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
-    background: #0f0f1a; color: #e0e0e0; line-height: 1.6;
+    background: #f4f6f9; color: #333; line-height: 1.6;
     max-width: 1200px; margin: 0 auto; padding: 0 16px;
 }
-a { color: #7ec8e3; text-decoration: none; }
+a { color: #2563eb; text-decoration: none; }
 a:hover { text-decoration: underline; }
 nav {
     display: flex; gap: 4px; padding: 16px 0; flex-wrap: wrap;
-    border-bottom: 1px solid #2a2a4a; margin-bottom: 20px;
+    border-bottom: 1px solid #dde1e6; margin-bottom: 20px;
 }
 nav a {
-    padding: 6px 14px; border-radius: 4px; background: #1a1a2e;
-    color: #aaa; font-size: 14px;
+    padding: 6px 14px; border-radius: 6px; background: #e8ecf0;
+    color: #555; font-size: 14px; transition: background 0.15s, color 0.15s;
 }
-nav a:hover, nav a.active { background: #0f3460; color: #fff; text-decoration: none; }
-h1 { font-size: 22px; color: #fff; margin-bottom: 16px; }
-h2 { font-size: 18px; color: #ccc; margin: 16px 0 8px; }
+nav a:hover, nav a.active { background: #2563eb; color: #fff; text-decoration: none; }
+h1 { font-size: 22px; color: #1a1a2e; margin-bottom: 16px; }
+h2 { font-size: 18px; color: #555; margin: 16px 0 8px; }
 .stats { display: flex; gap: 16px; flex-wrap: wrap; margin-bottom: 24px; }
 .stat-card {
-    background: #1a1a2e; border: 1px solid #2a2a4a; border-radius: 8px;
+    background: #fff; border: 1px solid #e5e7eb; border-radius: 8px;
     padding: 16px 24px; text-align: center; min-width: 120px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
 }
-.stat-card .num { font-size: 28px; font-weight: bold; color: #7ec8e3; }
-.stat-card .label { font-size: 13px; color: #888; margin-top: 4px; }
+.stat-card .num { font-size: 28px; font-weight: bold; color: #2563eb; }
+.stat-card .label { font-size: 13px; color: #777; margin-top: 4px; }
 .quick-links { display: flex; gap: 8px; flex-wrap: wrap; margin-bottom: 20px; }
 .quick-links a, .quick-links span {
-    padding: 4px 12px; border-radius: 4px; font-size: 13px;
-    background: #1a1a2e; border: 1px solid #2a2a4a; color: #aaa;
+    padding: 4px 12px; border-radius: 6px; font-size: 13px;
+    background: #e8ecf0; border: 1px solid #dde1e6; color: #555;
+    transition: background 0.15s, color 0.15s;
 }
-.quick-links a:hover { background: #0f3460; color: #fff; text-decoration: none; }
-.quick-links .sep { border: none; background: none; color: #444; padding: 4px 2px; }
+.quick-links a:hover { background: #2563eb; color: #fff; text-decoration: none; }
+.quick-links .sep { border: none; background: none; color: #bbb; padding: 4px 2px; }
 table { width: 100%; border-collapse: collapse; margin-bottom: 24px; }
-th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid #2a2a4a; font-size: 13px; }
-th { background: #1a1a2e; color: #888; font-weight: 600; position: sticky; top: 0; }
-tr:hover { background: #1a1a2e; }
-.bar-bg { width: 80px; height: 6px; background: #2a2a4a; border-radius: 3px; display: inline-block; vertical-align: middle; margin-right: 4px; }
+th, td { padding: 8px 10px; text-align: left; border-bottom: 1px solid #eef0f4; font-size: 13px; }
+th { background: #f0f3f7; color: #666; font-weight: 600; position: sticky; top: 0; }
+tr:hover { background: #f0f4f8; }
+.bar-bg { width: 80px; height: 6px; background: #e5e7eb; border-radius: 3px; display: inline-block; vertical-align: middle; margin-right: 4px; }
 .bar-fill { height: 100%; border-radius: 3px; }
-.bar-high { background: #4caf50; } .bar-mid { background: #ff9800; } .bar-low { background: #f44336; }
+.bar-high { background: #22c55e; } .bar-mid { background: #f59e0b; } .bar-low { background: #ef4444; }
 form { margin-bottom: 20px; display: flex; gap: 8px; flex-wrap: wrap; align-items: center; }
 input, select, button {
-    background: #1a1a2e; border: 1px solid #2a2a4a; color: #e0e0e0;
-    padding: 6px 12px; border-radius: 4px; font-size: 14px;
+    background: #fff; border: 1px solid #dde1e6; color: #333;
+    padding: 6px 12px; border-radius: 6px; font-size: 14px;
 }
-button { cursor: pointer; background: #0f3460; border-color: #0f3460; }
-button:hover { background: #1a4a7a; }
+input:focus, select:focus { outline: none; border-color: #2563eb; box-shadow: 0 0 0 3px rgba(37,99,235,0.1); }
+button { cursor: pointer; background: #2563eb; border-color: #2563eb; color: #fff; }
+button:hover { background: #1d4ed8; }
 .pagination { display: flex; gap: 8px; margin: 16px 0; }
 .card {
-    background: #1a1a2e; border: 1px solid #2a2a4a; border-radius: 8px;
+    background: #fff; border: 1px solid #e5e7eb; border-radius: 8px;
     padding: 16px; margin-bottom: 12px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
 }
-.card h3 { font-size: 15px; color: #7ec8e3; margin-bottom: 8px; }
+.card h3 { font-size: 15px; color: #2563eb; margin-bottom: 8px; }
 .card .scores { display: flex; gap: 8px; flex-wrap: wrap; margin-top: 8px; }
 .card .score-tag {
-    font-size: 12px; padding: 2px 8px; border-radius: 3px;
-    background: #0f3460; color: #ccc;
+    font-size: 12px; padding: 2px 8px; border-radius: 4px;
+    background: #e8f0fe; color: #2563eb;
 }
-.empty { text-align: center; color: #666; padding: 40px; font-size: 15px; }
-footer { text-align: center; padding: 20px; color: #555; font-size: 12px; border-top: 1px solid #2a2a4a; margin-top: 30px; }
-.dim-label { font-size: 11px; color: #888; }
+.empty { text-align: center; color: #999; padding: 40px; font-size: 15px; }
+footer { text-align: center; padding: 20px; color: #999; font-size: 12px; border-top: 1px solid #e5e7eb; margin-top: 30px; }
+.dim-label { font-size: 11px; color: #999; }
 """
 
 
@@ -85,6 +90,9 @@ def _base_page(title: str, content: str, active_nav: str = "") -> str:
         ("/web/search", "Search", "search"),
         ("/web/random", "Random Draw", "random"),
         ("/web/peers", "Peers", "peers"),
+        ("/web/math", "Math Zone", "math"),
+        ("/web/collections", "Collections", "collections"),
+        ("/web/submit", "Submit", "submit"),
     ]
     nav_html = "\n".join(
         f'<a href="{url}" class="{"active" if key == active_nav else ""}">{label}</a>'
@@ -257,7 +265,7 @@ def render_leaderboard(db: LeaderboardDB, path: str) -> str:
         next_link = f'<a href="{_filter_url(**{"offset": str(next_offset)})}">Next &rarr;</a>'
 
     content = f"""
-    <p style="color:#888;margin-bottom:12px;">Showing: {filter_text} &mdash; {len(entries)} results (offset {offset})</p>
+    <p style="color:#777;margin-bottom:12px;">Showing: {filter_text} &mdash; {len(entries)} results (offset {offset})</p>
 
     <form method="get" action="/web/leaderboard">
         <select name="dim"><option value="">All Dimensions</option>{dim_opts}</select>
@@ -289,7 +297,7 @@ def render_search(db: LeaderboardDB, path: str) -> str:
     result_html = ""
     if query:
         if entries:
-            result_html = f"<p style='color:#888;margin-bottom:12px;'>{len(entries)} results for '<b>{_esc(query)}</b>'</p>" + _entry_table(entries)
+            result_html = f"<p style='color:#777;margin-bottom:12px;'>{len(entries)} results for '<b>{_esc(query)}</b>'</p>" + _entry_table(entries)
         else:
             result_html = f"<div class='empty'>No results for '<b>{_esc(query)}</b>'.</div>"
     else:
@@ -338,7 +346,7 @@ def render_random(db: LeaderboardDB, path: str) -> str:
         cards.append(f"""
         <div class="card">
             <h3><a href="/web/entry/{e.combo_id}">{_esc(e.method_name)} &times; {_esc(e.problem_title)}</a></h3>
-            <p style="color:#888;font-size:13px;">Best: <b>{e.best_dimension}</b> = {_score_bar(e.best_score)} | Domain: {e.problem_domain} | Level: {e.method_level}</p>
+            <p style="color:#777;font-size:13px;">Best: <b>{e.best_dimension}</b> = {_score_bar(e.best_score)} | Domain: {e.problem_domain} | Level: {e.method_level}</p>
             <div class="scores">{scores_html}</div>
         </div>""")
 
@@ -350,7 +358,7 @@ def render_random(db: LeaderboardDB, path: str) -> str:
         <button type="submit">Draw</button>
     </form>
 
-    <p style="color:#888;margin:12px 0;">
+    <p style="color:#777;margin:12px 0;">
         Board: <b>{draw.board_name}</b> &mdash;
         Available: <b>{draw.total_in_board}</b> &mdash;
         Seed: <b>{draw.draw_seed}</b>
@@ -414,19 +422,765 @@ def render_entry(db: LeaderboardDB, combo_id: str) -> str:
     <div class="card">
         <h3>{_esc(entry.method_name)} &times; {_esc(entry.problem_title)}</h3>
         <table style="margin-top:12px;">
-            <tr><td style="color:#888;width:140px;">Combo ID</td><td>{entry.combo_id}</td></tr>
-            <tr><td style="color:#888;">Method</td><td>{_esc(entry.method_name)}</td></tr>
-            <tr><td style="color:#888;">Method Domain</td><td>{entry.method_domain}</td></tr>
-            <tr><td style="color:#888;">Method Level</td><td>{entry.method_level}</td></tr>
-            <tr><td style="color:#888;">Problem</td><td>{_esc(entry.problem_title)}</td></tr>
-            <tr><td style="color:#888;">Problem Domain</td><td>{entry.problem_domain}</td></tr>
-            <tr><td style="color:#888;">Best Dimension</td><td><b>{entry.best_dimension}</b></td></tr>
-            <tr><td style="color:#888;">Best Score</td><td><b>{entry.best_score:.1f}</b></td></tr>
-            <tr><td style="color:#888;">Miner</td><td>{entry.miner_address}</td></tr>
+            <tr><td style="color:#777;width:140px;">Combo ID</td><td>{entry.combo_id}</td></tr>
+            <tr><td style="color:#777;">Method</td><td>{_esc(entry.method_name)}</td></tr>
+            <tr><td style="color:#777;">Method Domain</td><td>{entry.method_domain}</td></tr>
+            <tr><td style="color:#777;">Method Level</td><td>{entry.method_level}</td></tr>
+            <tr><td style="color:#777;">Problem</td><td>{_esc(entry.problem_title)}</td></tr>
+            <tr><td style="color:#777;">Problem Domain</td><td>{entry.problem_domain}</td></tr>
+            <tr><td style="color:#777;">Best Dimension</td><td><b>{entry.best_dimension}</b></td></tr>
+            <tr><td style="color:#777;">Best Score</td><td><b>{entry.best_score:.1f}</b></td></tr>
+            <tr><td style="color:#777;">Miner</td><td>{entry.miner_address}</td></tr>
         </table>
+    </div>
+
+    <h2>AI Analysis</h2>
+    <div class="card" style="line-height:1.8;font-size:14px;">
+        <p>{_esc(entry.analysis_text) if entry.analysis_text else '<span class="empty" style="padding:0;">No analysis text available.</span>'}</p>
     </div>
 
     <h2>Scores</h2>
     <table>{score_rows}</table>
     """
     return _base_page(f"{entry.method_name} × {entry.problem_title}", content)
+
+
+# ------------------------------------------------------------------
+# Matrix Marketplace — Collection pages
+# ------------------------------------------------------------------
+
+_COLLECTION_CATEGORIES_METHOD = [
+    "triz", "biology", "physics", "chemistry", "mathematics",
+    "economics", "machine_learning", "heuristic", "engineering",
+    "design", "systems", "other",
+]
+_COLLECTION_CATEGORIES_PROBLEM = [
+    "medicine", "energy", "environment", "information", "materials",
+    "society", "transportation", "agriculture", "space", "other",
+]
+
+
+def render_collections(db: LeaderboardDB, path: str) -> str:
+    """Browse method and problem collections with tab switching."""
+    params = _parse_query(path)
+    ctype = params.get("type", "method")
+    sort_by = params.get("sort", "stars")
+    category = params.get("category", None)
+    mine = params.get("mine", None)
+
+    if ctype not in ("method", "problem"):
+        ctype = "method"
+
+    collections = db.get_collections(ctype, sort_by=sort_by, category=category)
+
+    if mine:
+        collections = [c for c in collections if c.get("creator") == mine]
+
+    # Tabs
+    method_tab = f'<a href="/web/collections?type=method&sort=stars" class="{"active" if ctype == "method" else ""}">Methods</a>'
+    problem_tab = f'<a href="/web/collections?type=problem&sort=imports" class="{"active" if ctype == "problem" else ""}">Problems</a>'
+
+    # Sort links
+    method_sorts = [
+        ("stars", "Stars"),
+        ("imports", "Imports"),
+        ("newest", "Newest"),
+    ]
+    sort_links = " | ".join(
+        f'<a href="/web/collections?type={ctype}&sort={s}&category={category or ""}&mine={mine or ""}" style="{"font-weight:bold;color:#2563eb;" if sort_by == s else "font-weight:normal;"}">{label}</a>'
+        for s, label in method_sorts
+    )
+
+    # Category filter chips
+    cats = _COLLECTION_CATEGORIES_METHOD if ctype == "method" else _COLLECTION_CATEGORIES_PROBLEM
+    cat_links = "".join(
+        f'<a href="/web/collections?type={ctype}&sort={sort_by}&category={c}" class="{"active" if category == c else ""}">{c.replace("_", " ").title()}</a>'
+        for c in cats
+    )
+
+    # Cards
+    cards = []
+    for c in collections:
+        cid = c["id"]
+        items_json = c.get("methods_json") or c.get("problems_json") or "[]"
+        try:
+            items = json.loads(items_json)
+        except Exception:
+            items = []
+        item_count = len(items)
+        stars = c.get("stars", 0)
+        imports = c.get("import_count", 0)
+        name = _esc(c.get("name", "Unknown"))
+        desc = _esc((c.get("description") or "")[:200])
+        creator = _esc((c.get("creator") or "unknown")[:16])
+        cat = c.get("category", "other").replace("_", " ").title()
+        import_label = "import" if imports == 1 else "imports"
+
+        cards.append(f"""
+        <div class="card">
+            <h3><a href="/web/collections/{ctype}/{cid}">{name}</a></h3>
+            <p style="color:#777;font-size:13px;margin-bottom:4px;">
+                <span style="background:#e8f0fe;color:#2563eb;padding:1px 8px;border-radius:3px;font-size:11px;">{cat}</span>
+                &nbsp; {item_count} items &nbsp; &#x2605; {stars} &nbsp; {imports} {import_label} &nbsp; by {creator}
+            </p>
+            <p style="font-size:13px;color:#555;">{desc}</p>
+        </div>""")
+
+    if not cards:
+        query_info = f" by <b>{_esc(mine)}</b>" if mine else ""
+        cards_html = f'<div class="empty">No collections found{query_info}. <a href="/web/collections/new">Create the first one</a>.</div>'
+    else:
+        cards_html = "".join(cards)
+
+    mine_link = f' | <a href="/web/collections?type={ctype}&mine=my">My Collections</a>' if not mine else f' | <a href="/web/collections?type={ctype}&sort={sort_by}">All Collections</a>'
+
+    content = f"""
+    <div class="quick-links" style="margin-bottom:12px;">
+        {method_tab}{problem_tab}
+        <span class="sep">|</span>
+        <a href="/web/collections/new">+ New Collection</a>
+        {mine_link}
+    </div>
+    <p style="color:#777;font-size:13px;margin-bottom:8px;">Sort: {sort_links}</p>
+    <div class="quick-links" style="margin-bottom:16px;">{cat_links}</div>
+    {cards_html}
+    """
+    return _base_page("Collections", content, "collections")
+
+
+def render_collection_new(form: dict | None = None, errors: list[str] | None = None, success: str = "") -> str:
+    """Render the collection creation form."""
+    f = form or {}
+    err_html = "".join(f'<p style="color:#ef4444;margin:4px 0;">{_esc(e)}</p>' for e in (errors or []))
+    ok_html = f'<p style="color:#22c55e;margin:8px 0;">{_esc(success)}</p>' if success else ""
+
+    sel_method = 'selected' if f.get("ctype", "method") == "method" else ""
+    sel_problem = 'selected' if f.get("ctype") == "problem" else ""
+
+    method_cats = "".join(
+        f'<option value="{c}" {"selected" if f.get("category") == c else ""}>{c.replace("_", " ").title()}</option>'
+        for c in _COLLECTION_CATEGORIES_METHOD
+    )
+    problem_cats = "".join(
+        f'<option value="{c}" {"selected" if f.get("category") == c else ""}>{c.title()}</option>'
+        for c in _COLLECTION_CATEGORIES_PROBLEM
+    )
+
+    items_json = _esc(f.get("items_json", "[{\n  \n}]"))
+
+    content = f"""
+    {err_html}{ok_html}
+    <form method="post" action="/web/collections/new">
+        <table style="max-width:750px;">
+            <tr><td style="color:#777;width:140px;padding:8px;">Type *</td>
+                <td><select name="ctype" id="ctype-select" onchange="document.getElementById('cat-method').style.display=this.value==='problem'?'none':'block';document.getElementById('cat-problem').style.display=this.value==='method'?'none':'block';">
+                    <option value="method" {sel_method}>Method Collection</option>
+                    <option value="problem" {sel_problem}>Problem Collection</option>
+                </select></td></tr>
+            <tr><td style="color:#777;padding:8px;">Name *</td>
+                <td><input type="text" name="name" value="{_esc(f.get('name', ''))}" required style="width:100%;" placeholder="e.g. Quantum Methods Pack"></td></tr>
+            <tr><td style="color:#777;padding:8px;">Category *</td>
+                <td>
+                    <select name="category" id="cat-method" style="display:{'block' if f.get('ctype', 'method') == 'method' else 'none'};">{method_cats}</select>
+                    <select name="category" id="cat-problem" style="display:{'block' if f.get('ctype') == 'problem' else 'none'};">{problem_cats}</select>
+                </td></tr>
+            <tr><td style="color:#777;padding:8px;">Description</td>
+                <td><textarea name="description" rows="3" style="width:100%;" placeholder="Describe what this collection is about...">{_esc(f.get('description', ''))}</textarea></td></tr>
+            <tr><td style="color:#777;padding:8px;">Items (JSON) *</td>
+                <td><textarea name="items_json" rows="12" required style="width:100%;font-family:monospace;font-size:12px;" placeholder='[&#10;  {{"name": "...", "domain": "...", "level": 2, "description": "..."}}&#10;]'>{items_json}</textarea>
+                <p style="font-size:11px;color:#999;margin-top:4px;">Paste a JSON array of method or problem objects.</p></td></tr>
+            <tr><td style="color:#777;padding:8px;">Creator</td>
+                <td><input type="text" name="creator" value="{_esc(f.get('creator', 'anonymous'))}" style="width:100%;"></td></tr>
+        </table>
+        <button type="submit" style="margin-top:12px;padding:10px 28px;">Create Collection</button>
+    </form>
+    """
+    return _base_page("New Collection", content, "collections")
+
+
+def render_collection_detail(db: LeaderboardDB, ctype: str, cid: int,
+                             starrer: str = "", starred: bool = False) -> str:
+    """Render a single collection's detail page with items and star button."""
+    c = db.get_collection(ctype, cid)
+    if not c:
+        content = '<div class="empty">Collection not found.</div>'
+        return _base_page("Not Found", content)
+
+    items = json.loads(c.get("methods_json") or c.get("problems_json") or "[]")
+    stars = c.get("stars", 0)
+    imports = c.get("import_count", 0)
+    name = _esc(c.get("name", "Unknown"))
+    desc = _esc(c.get("description") or "")
+    creator = _esc(c.get("creator", "unknown"))
+    cat = (c.get("category") or "other").replace("_", " ").title()
+    created = c.get("created_at", 0)
+
+    star_verb = "Unstar" if starred else "Star"
+    star_link = f"/web/collections/{ctype}/{cid}/star?starrer={_esc(starrer)}" if starrer else "#"
+    star_disabled = "" if starrer else "disabled"
+
+    item_rows = []
+    for i, item in enumerate(items):
+        if ctype == "method":
+            label = f"{_esc(item.get('name', '?'))}"
+            sub = f"Domain: {_esc(item.get('domain', '?'))} | Level: {item.get('level', '?')}"
+        else:
+            label = f"{_esc(item.get('title', '?'))}"
+            sub = f"Domain: {_esc(item.get('domain', '?'))} | Maturity: {item.get('maturity', '?')}"
+        desc_item = _esc((item.get("description") or "")[:150])
+        item_rows.append(f"""
+        <tr>
+            <td>{i + 1}</td>
+            <td><b>{label}</b><br><span style="font-size:11px;color:#999;">{sub}</span></td>
+            <td style="font-size:12px;">{desc_item}</td>
+        </tr>""")
+
+    import_label = "import" if imports == 1 else "imports"
+
+    content = f"""
+    <div class="card">
+        <div style="display:flex;justify-content:space-between;align-items:flex-start;flex-wrap:wrap;">
+            <div>
+                <h3 style="margin-bottom:4px;">{name}</h3>
+                <p style="color:#777;font-size:13px;">
+                    <span style="background:#e8f0fe;color:#2563eb;padding:1px 8px;border-radius:3px;font-size:11px;">{cat}</span>
+                    &nbsp; {len(items)} items &nbsp; &#x2605; {stars} &nbsp; {imports} {import_label} &nbsp; by {creator}
+                </p>
+            </div>
+            <div style="text-align:center;">
+                <a href="{star_link}" style="display:inline-block;padding:8px 16px;background:#2563eb;color:#fff;border-radius:6px;font-size:14px;text-decoration:none;{star_disabled}">{star_verb} &#x2605;</a>
+                <p style="font-size:11px;color:#999;margin-top:4px;">{stars} stars</p>
+            </div>
+        </div>
+        <p style="margin-top:12px;font-size:14px;color:#555;">{desc}</p>
+    </div>
+
+    <h2>Items ({len(items)})</h2>
+    <table>
+    <thead><tr><th>#</th><th>{"Method" if ctype == "method" else "Problem"}</th><th>Description</th></tr></thead>
+    <tbody>{"".join(item_rows) if item_rows else '<tr><td colspan="3" class="empty">No items in this collection.</td></tr>'}</tbody>
+    </table>
+
+    <h2>Import</h2>
+    <div class="card">
+        <p style="font-size:13px;color:#555;">Use this command to mine with this collection:</p>
+        <pre style="background:#f0f3f7;padding:12px;border-radius:6px;font-size:13px;overflow-x:auto;">python3 -m src.cli.main mine --{"methods" if ctype == "method" else "problems"}-collection "{name}" --batch 5</pre>
+    </div>
+
+    <p style="margin-top:16px;"><a href="/web/collections?type={ctype}">&larr; Back to Collections</a></p>
+    """
+    return _base_page(name, content, "collections")
+
+
+def render_collections_mine(db: LeaderboardDB, creator: str) -> str:
+    """Redirect to collections filtered by creator."""
+    params = f"type=method&mine={_esc(creator)}"
+    return f'<html><head><meta http-equiv="refresh" content="0;url=/web/collections?{params}"></head><body>Redirecting...</body></html>'
+
+
+# ------------------------------------------------------------------
+# Math Research Zone pages
+# ------------------------------------------------------------------
+
+_MATH_CATEGORIES = [
+    "number_theory", "analysis", "algebra", "geometry",
+    "topology", "combinatorics", "logic", "other",
+]
+
+
+def render_math_home(db: LeaderboardDB) -> str:
+    """Math Zone home page — list all math problems."""
+    problems = db.get_math_problems()
+    cards = []
+    for p in problems:
+        pid = p["id"]
+        title = _esc(p["title"])
+        desc = _esc((p.get("description") or "")[:180])
+        cat = (p.get("category") or "other").replace("_", " ").title()
+        creator = _esc((p.get("creator") or "unknown")[:16])
+        # Count solutions
+        with db._connect() as conn:
+            row = conn.execute(
+                "SELECT COUNT(*) FROM math_solutions WHERE problem_id = ?", (pid,)
+            ).fetchone()
+        solution_count = row[0] if row else 0
+        cards.append(f"""
+        <div class="card">
+            <h3><a href="/web/math/{pid}">{title}</a></h3>
+            <p style="color:#777;font-size:13px;margin-bottom:4px;">
+                <span style="background:#e8f0fe;color:#2563eb;padding:1px 8px;border-radius:3px;font-size:11px;">{cat}</span>
+                &nbsp; {solution_count} solution(s) &nbsp; by {creator}
+            </p>
+            <p style="font-size:13px;color:#555;">{desc}</p>
+        </div>""")
+
+    content = f"""
+    <div class="quick-links" style="margin-bottom:16px;">
+        <a href="/web/math/new">+ New Problem</a>
+    </div>
+    {"".join(cards) if cards else '<div class="empty">No math problem zones yet. <a href="/web/math/new">Apply to create the first one</a>.</div>'}
+    """
+    return _base_page("Math Research Zone", content, "math")
+
+
+def render_math_new(form: dict | None = None, errors: list[str] | None = None,
+                    success: str = "") -> str:
+    """Form to create a new math problem zone."""
+    f = form or {}
+    err_html = "".join(f'<p style="color:#ef4444;margin:4px 0;">{_esc(e)}</p>' for e in (errors or []))
+    ok_html = f'<p style="color:#22c55e;margin:8px 0;">{_esc(success)}</p>' if success else ""
+
+    cat_opts = "".join(
+        f'<option value="{c}" {"selected" if f.get("category") == c else ""}>{c.replace("_", " ").title()}</option>'
+        for c in _MATH_CATEGORIES
+    )
+
+    content = f"""
+    {err_html}{ok_html}
+    <form method="post" action="/web/math/new">
+        <table style="max-width:700px;">
+            <tr><td style="color:#777;width:140px;padding:8px;">Title *</td>
+                <td><input type="text" name="title" value="{_esc(f.get('title', ''))}" required style="width:100%;" placeholder="e.g. Riemann Hypothesis"></td></tr>
+            <tr><td style="color:#777;padding:8px;">Category *</td>
+                <td><select name="category">{cat_opts}</select></td></tr>
+            <tr><td style="color:#777;padding:8px;">Description</td>
+                <td><textarea name="description" rows="4" style="width:100%;" placeholder="Describe the problem...">{_esc(f.get('description', ''))}</textarea></td></tr>
+            <tr><td style="color:#777;padding:8px;">Creator</td>
+                <td><input type="text" name="creator" value="{_esc(f.get('creator', 'anonymous'))}" style="width:100%;"></td></tr>
+        </table>
+        <button type="submit" style="margin-top:12px;padding:10px 28px;">Create Problem Zone</button>
+    </form>
+    """
+    return _base_page("New Math Problem", content, "math")
+
+
+def render_math_problem(db: LeaderboardDB, pid: int, path: str) -> str:
+    """Problem area page — sub-divisions by method collection."""
+    problem = db.get_math_problem(pid)
+    if not problem:
+        return _base_page("Not Found", '<div class="empty">Math problem not found.</div>')
+
+    title = _esc(problem["title"])
+    desc = _esc(problem.get("description") or "")
+    cat = (problem.get("category") or "other").replace("_", " ").title()
+    creator = _esc((problem.get("creator") or "unknown")[:16])
+
+    params = _parse_query(path)
+    user_addr = params.get("user_address", "")
+
+    # Get math method collections (category=mathematics)
+    method_colls = db.get_collections("method", sort_by="stars", category="mathematics")
+
+    rows = []
+    for c in method_colls:
+        mid = c["id"]
+        mname = _esc(c["name"])
+        mitems = len(json.loads(c.get("methods_json") or "[]"))
+        accessed = db.check_math_access(pid, mid, user_addr) if user_addr else False
+
+        # Count solutions
+        with db._connect() as conn:
+            row = conn.execute(
+                "SELECT COUNT(*), MAX(max_correct_step) FROM math_solutions "
+                "WHERE problem_id = ? AND method_collection_id = ?",
+                (pid, mid),
+            ).fetchone()
+        sol_count = row[0] if row else 0
+        top_step = row[1] or 0
+
+        access_label = '<span style="color:#22c55e;">&#x2713; Unlocked</span>' if accessed else '<a href="/web/math/{pid}/{mid}/unlock" style="color:#ef4444;">Locked — Unlock</a>'
+        zone_link = f'/web/math/{pid}/{mid}' if accessed else f'/web/math/{pid}/{mid}/unlock'
+
+        rows.append(f"""
+        <tr>
+            <td><a href="{zone_link}"><b>{mname}</b></a><br><span style="font-size:11px;color:#999;">{mitems} tools</span></td>
+            <td>{access_label}</td>
+            <td><b>{top_step}</b> steps</td>
+            <td>{sol_count} solution(s)</td>
+        </tr>""")
+
+    content = f"""
+    <div class="card">
+        <h3>{title}</h3>
+        <p style="color:#777;font-size:13px;margin-bottom:4px;">
+            <span style="background:#e8f0fe;color:#2563eb;padding:1px 8px;border-radius:3px;font-size:11px;">{cat}</span>
+            &nbsp; by {creator}
+        </p>
+        <p style="font-size:14px;color:#555;margin-top:8px;">{desc}</p>
+    </div>
+
+    <form method="get" action="/web/math/{pid}" style="margin-bottom:12px;">
+        <input type="text" name="user_address" value="{_esc(user_addr)}" placeholder="Your address (e.g. 0xALICE)" style="flex:1;min-width:260px;">
+        <button type="submit">Check Access</button>
+    </form>
+
+    <h2>Method Zones</h2>
+    <table>
+    <thead><tr><th>Method Collection</th><th>Access</th><th>Top Step</th><th>Solutions</th></tr></thead>
+    <tbody>{"".join(rows) if rows else '<tr><td colspan="4" class="empty">No math method collections yet. <a href="/web/collections/new">Create one</a> with category "mathematics".</td></tr>'}</tbody>
+    </table>
+
+    <p style="margin-top:16px;"><a href="/web/math">&larr; Back to Math Zone</a></p>
+    """
+    return _base_page(title, content, "math")
+
+
+def render_math_method_zone(db: LeaderboardDB, pid: int, mid: int, path: str) -> str:
+    """All solutions for a (problem, method), ranked by max_correct_step."""
+    problem = db.get_math_problem(pid)
+    coll = db.get_collection("method", mid)
+    if not problem or not coll:
+        return _base_page("Not Found", '<div class="empty">Problem or method collection not found.</div>')
+
+    params = _parse_query(path)
+    user_addr = params.get("user_address", "")
+
+    accessed = db.check_math_access(pid, mid, user_addr) if user_addr else False
+    if not accessed:
+        return _base_page("Access Required", f"""
+        <div class="card">
+            <h3>Access Required</h3>
+            <p style="color:#777;margin:12px 0;">You must unlock this zone before viewing solutions.</p>
+            <pre style="background:#f0f3f7;padding:12px;border-radius:6px;font-size:13px;">python3 -m src.cli.main math-mine --problem-id {pid} --methods-collection "{_esc(coll['name'])}" --address {"0xYOUR_ADDRESS" if not user_addr else _esc(user_addr)} --batch 3</pre>
+            <p style="margin-top:8px;"><a href="/web/math/{pid}/{mid}/unlock?user_address={_esc(user_addr)}">Manual Unlock</a></p>
+            <p style="margin-top:16px;"><a href="/web/math/{pid}">&larr; Back to Problem</a></p>
+        </div>
+        """, "math")
+
+    solutions = db.get_math_solutions(pid, mid)
+
+    sol_rows = []
+    for i, s in enumerate(solutions):
+        sid = s["id"]
+        try:
+            steps = json.loads(s["steps_json"])
+        except Exception:
+            steps = []
+        step_count = len(steps)
+        max_step = s["max_correct_step"]
+        user = _esc((s.get("user_address") or "unknown")[:16])
+        parent = s.get("parent_solution_id")
+        fork_info = f' <span style="font-size:11px;color:#999;">(forked from #{parent})</span>' if parent else ""
+        sol_rows.append(f"""
+        <tr>
+            <td>{i + 1}</td>
+            <td><a href="/web/math/{pid}/{mid}/{sid}">{user}</a>{fork_info}</td>
+            <td>{_score_bar(max_step, max(10, max_step + 5))}</td>
+            <td>{step_count} steps</td>
+            <td><a href="/web/math/{pid}/{mid}/{sid}?fork=1&user_address={_esc(user_addr)}" style="color:#2563eb;">Fork</a></td>
+        </tr>""")
+
+    content = f"""
+    <div class="card">
+        <h3>{_esc(problem['title'])} &mdash; {_esc(coll['name'])}</h3>
+        <p style="color:#777;font-size:13px;">
+            {json.loads(coll.get("methods_json") or "[]") if False else ''}
+            Access: <span style="color:#22c55e;">&#x2713; Unlocked</span>
+        </p>
+    </div>
+
+    <h2>Solutions ({len(solutions)})</h2>
+    <table>
+    <thead><tr><th>#</th><th>User</th><th>Max Correct Step</th><th>Steps</th><th>Action</th></tr></thead>
+    <tbody>{"".join(sol_rows) if sol_rows else '<tr><td colspan="5" class="empty">No solutions yet. <a href="/web/math/{pid}/{mid}/unlock">Submit the first one</a>.</td></tr>'}</tbody>
+    </table>
+
+    <p style="margin-top:16px;"><a href="/web/math/{pid}">&larr; Back to Problem</a></p>
+    """
+    return _base_page(f"{problem['title']} — {coll['name']}", content, "math")
+
+
+def render_math_solution(db: LeaderboardDB, pid: int, mid: int, sid: int, path: str) -> str:
+    """Single solution detail — full steps, fork button, submit improvement."""
+    solution = db.get_math_solution(sid)
+    if not solution:
+        return _base_page("Not Found", '<div class="empty">Solution not found.</div>')
+
+    problem = db.get_math_problem(pid)
+    coll = db.get_collection("method", mid)
+
+    try:
+        steps = json.loads(solution["steps_json"])
+    except Exception:
+        steps = []
+
+    max_step = solution["max_correct_step"]
+    user = _esc((solution.get("user_address") or "unknown")[:16])
+    parent = solution.get("parent_solution_id")
+    created = solution.get("created_at", 0)
+    updated = solution.get("updated_at", 0)
+
+    step_rows = []
+    for s in sorted(steps, key=lambda x: x.get("step_num", 0)):
+        sn = s.get("step_num", "?")
+        verified = s.get("verified", False)
+        content_text = _esc(s.get("content", ""))
+        v_badge = '<span style="color:#22c55e;">&#x2713;</span>' if verified else '<span style="color:#ef4444;">&#x2717;</span>'
+        step_rows.append(f"""
+        <tr>
+            <td>{sn}</td>
+            <td style="max-width:600px;">{content_text}</td>
+            <td>{v_badge}</td>
+        </tr>""")
+
+    params = _parse_query(path)
+    fork = params.get("fork")
+
+    fork_form = ""
+    if fork:
+        fork_form = f"""
+        <div class="card" style="margin-top:16px;">
+            <h3>Fork Solution #{sid}</h3>
+            <form method="post" action="/web/math/{pid}/{mid}/{sid}/fork">
+                <input type="hidden" name="user_address" value="{_esc(params.get('user_address', 'anonymous'))}">
+                <p style="color:#777;font-size:13px;">This will create a copy of all {len(steps)} steps as your own solution.</p>
+                <button type="submit" style="margin-top:8px;">Confirm Fork</button>
+            </form>
+        </div>"""
+
+    submit_form = f"""
+    <div class="card" style="margin-top:16px;">
+        <h3>Submit Improvement</h3>
+        <form method="post" action="/web/math/{pid}/{mid}/{sid}/submit">
+            <input type="hidden" name="user_address" value="{_esc(params.get('user_address', 'anonymous'))}">
+            <textarea name="steps_json" rows="8" style="width:100%;font-family:monospace;font-size:12px;">{_esc(json.dumps(steps, indent=2, ensure_ascii=False))}</textarea>
+            <p style="font-size:11px;color:#999;margin-top:4px;">Edit the JSON above and submit. max_correct_step will be recalculated.</p>
+            <button type="submit" style="margin-top:8px;">Submit Update</button>
+        </form>
+    </div>"""
+
+    parent_info = f'<p style="color:#777;font-size:13px;">Forked from <a href="/web/math/{pid}/{mid}/{parent}">Solution #{parent}</a></p>' if parent else ""
+
+    content = f"""
+    <div class="card">
+        <h3>Solution #{sid}</h3>
+        <p style="color:#777;font-size:13px;">
+            Problem: <b>{_esc(problem['title']) if problem else '?'}</b> &nbsp;
+            Method: <b>{_esc(coll['name']) if coll else '?'}</b>
+        </p>
+        <p style="color:#777;font-size:13px;">
+            By: <b>{user}</b> &nbsp;
+            Max Correct Step: <b>{max_step}</b> &nbsp;
+            Steps: <b>{len(steps)}</b>
+        </p>
+        {parent_info}
+    </div>
+
+    <h2>Steps</h2>
+    <table>
+    <thead><tr><th>#</th><th>Content</th><th>Verified</th></tr></thead>
+    <tbody>{"".join(step_rows) if step_rows else '<tr><td colspan="3" class="empty">No steps.</td></tr>'}</tbody>
+    </table>
+
+    <div class="quick-links" style="margin-top:16px;">
+        <a href="/web/math/{pid}/{mid}/{sid}?fork=1&user_address={_esc(params.get('user_address', ''))}">Fork Solution</a>
+    </div>
+    {fork_form}
+    {submit_form}
+
+    <p style="margin-top:16px;"><a href="/web/math/{pid}/{mid}">&larr; Back to Method Zone</a></p>
+    """
+    return _base_page(f"Solution #{sid}", content, "math")
+
+
+def render_math_unlock(db: LeaderboardDB, pid: int, mid: int, path: str) -> str:
+    """Gate unlock page — shows CLI command or manual unlock."""
+    problem = db.get_math_problem(pid)
+    coll = db.get_collection("method", mid)
+    if not problem or not coll:
+        return _base_page("Not Found", '<div class="empty">Problem or method collection not found.</div>')
+
+    params = _parse_query(path)
+    user_addr = params.get("user_address", "")
+
+    accessed = db.check_math_access(pid, mid, user_addr) if user_addr else False
+
+    if accessed:
+        return _base_page("Zone Unlocked", f"""
+        <div class="card">
+            <h3 style="color:#22c55e;">&#x2713; Zone Already Unlocked</h3>
+            <p style="color:#777;margin:12px 0;">You have access to this zone.</p>
+            <a href="/web/math/{pid}/{mid}?user_address={_esc(user_addr)}">Go to Method Zone</a>
+        </div>
+        """, "math")
+
+    pname = _esc(problem["title"])
+    cname = _esc(coll["name"])
+
+    content = f"""
+    <div class="card">
+        <h3>Unlock: {cname} &rarr; {pname}</h3>
+        <p style="color:#777;margin:12px 0;">
+            To view solutions in this zone, you must first run a <b>math-mine</b> operation.
+            This combines methods from the collection with the problem and generates an AI seed analysis.
+        </p>
+
+        <h3 style="margin-top:16px;">Step 1: Run CLI command</h3>
+        <pre style="background:#f0f3f7;padding:12px;border-radius:6px;font-size:13px;overflow-x:auto;">python3 -m src.cli.main math-mine \\
+  --problem-id {pid} \\
+  --methods-collection "{cname}" \\
+  --address {"0xYOUR_ADDRESS" if not user_addr else _esc(user_addr)} \\
+  --batch 3</pre>
+
+        <h3 style="margin-top:16px;">Step 2: Manual unlock (if needed)</h3>
+        <form method="post" action="/web/math/{pid}/{mid}/unlock">
+            <input type="text" name="user_address" value="{_esc(user_addr)}" placeholder="Your address" required style="width:100%;margin-bottom:8px;">
+            <input type="text" name="combo_id" placeholder="Combo ID from math-mine output" required style="width:100%;margin-bottom:8px;">
+            <button type="submit">Unlock</button>
+        </form>
+    </div>
+
+    <p style="margin-top:16px;"><a href="/web/math/{pid}">&larr; Back to Problem</a></p>
+    """
+    return _base_page(f"Unlock: {cname}", content, "math")
+
+
+# ------------------------------------------------------------------
+# Community Submission pages
+# ------------------------------------------------------------------
+
+def render_submit_home() -> str:
+    """Landing page for community submissions."""
+    content = """
+    <div class="stats">
+        <div class="stat-card" style="flex:1;min-width:200px;">
+            <div style="font-size:40px;margin-bottom:8px;">&#x1F9E0;</div>
+            <div class="label">Submit a new thinking method to the matrix</div>
+            <a href="/web/submit/method" style="display:inline-block;margin-top:12px;padding:8px 20px;background:#2563eb;color:#fff;border-radius:6px;">Submit Method</a>
+        </div>
+        <div class="stat-card" style="flex:1;min-width:200px;">
+            <div style="font-size:40px;margin-bottom:8px;">&#x1F50D;</div>
+            <div class="label">Submit an unsolved problem for the matrix</div>
+            <a href="/web/submit/problem" style="display:inline-block;margin-top:12px;padding:8px 20px;background:#2563eb;color:#fff;border-radius:6px;">Submit Problem</a>
+        </div>
+    </div>
+    <p style="color:#777;margin-top:16px;">All submissions are reviewed before joining the active matrix.</p>
+    """
+    return _base_page("Community Submit", content, "submit")
+
+
+def render_submit_method(form: dict | None = None, errors: list[str] | None = None, success: str = "") -> str:
+    """Render the method submission form."""
+    f = form or {}
+    err_html = "".join(f'<p style="color:#ef4444;margin:4px 0;">{_esc(e)}</p>' for e in (errors or []))
+    ok_html = f'<p style="color:#22c55e;margin:8px 0;">{_esc(success)}</p>' if success else ""
+
+    domains = ["triz", "biology", "physics", "chemistry", "mathematics", "economics",
+               "machine_learning", "heuristic", "engineering", "design", "systems", "other"]
+    domain_opts = "".join(
+        f'<option value="{d}" {"selected" if f.get("domain") == d else ""}>{d.replace("_", " ").title()}</option>'
+        for d in domains
+    )
+    level_opts = "".join(
+        f'<option value="{l}" {"selected" if str(f.get("level", "")) == str(l) else ""}>Level {l}</option>'
+        for l in range(1, 5)
+    )
+
+    content = f"""
+    {err_html}{ok_html}
+    <form method="post" action="/submit/method">
+        <table style="max-width:700px;">
+            <tr><td style="color:#777;width:140px;padding:8px;">Name *</td>
+                <td><input type="text" name="name" value="{_esc(f.get('name', ''))}" required style="width:100%;"></td></tr>
+            <tr><td style="color:#777;padding:8px;">Domain *</td>
+                <td><select name="domain" required>{domain_opts}</select></td></tr>
+            <tr><td style="color:#777;padding:8px;">Level *</td>
+                <td><select name="level" required>{level_opts}</select></td></tr>
+            <tr><td style="color:#777;padding:8px;">Description *</td>
+                <td><textarea name="description" rows="4" required style="width:100%;">{_esc(f.get('description', ''))}</textarea></td></tr>
+            <tr><td style="color:#777;padding:8px;">Examples</td>
+                <td><input type="text" name="examples" value="{_esc(f.get('examples', ''))}" placeholder="comma-separated" style="width:100%;"></td></tr>
+            <tr><td style="color:#777;padding:8px;">Prerequisites</td>
+                <td><input type="text" name="prerequisites" value="{_esc(f.get('prerequisites', ''))}" placeholder="comma-separated method IDs" style="width:100%;"></td></tr>
+            <tr><td style="color:#777;padding:8px;">Compatible With</td>
+                <td><input type="text" name="compatible_with" value="{_esc(f.get('compatible_with', ''))}" placeholder="comma-separated method IDs" style="width:100%;"></td></tr>
+            <tr><td style="color:#777;padding:8px;">Submitter</td>
+                <td><input type="text" name="submitter" value="{_esc(f.get('submitter', 'anonymous'))}" style="width:100%;"></td></tr>
+        </table>
+        <button type="submit" style="margin-top:12px;padding:10px 28px;">Submit Method</button>
+    </form>
+    """
+    return _base_page("Submit Method", content, "submit")
+
+
+def render_submit_problem(form: dict | None = None, errors: list[str] | None = None, success: str = "") -> str:
+    """Render the problem submission form."""
+    f = form or {}
+    err_html = "".join(f'<p style="color:#ef4444;margin:4px 0;">{_esc(e)}</p>' for e in (errors or []))
+    ok_html = f'<p style="color:#22c55e;margin:8px 0;">{_esc(success)}</p>' if success else ""
+
+    domains = ["medicine", "energy", "environment", "information", "materials", "society",
+               "transportation", "agriculture", "space", "other"]
+    domain_opts = "".join(
+        f'<option value="{d}" {"selected" if f.get("domain") == d else ""}>{d.title()}</option>'
+        for d in domains
+    )
+    mat_opts = "".join(
+        f'<option value="{l}" {"selected" if str(f.get("maturity", "")) == str(l) else ""}>Level {l} — {["","Only problem description","Partial solutions, poor results","Solutions exist but too costly","Bottleneck clear, path unknown"][l]}</option>'
+        for l in range(1, 5)
+    )
+    constraint_opts = ["physical_limit", "resource", "time", "complexity", "ethical"]
+    constraint_html = "".join(
+        f'<label style="margin-right:12px;"><input type="checkbox" name="constraints" value="{c}" {"checked" if c in f.get("constraints", []) else ""}> {c.replace("_", " ").title()}</label>'
+        for c in constraint_opts
+    )
+
+    content = f"""
+    {err_html}{ok_html}
+    <form method="post" action="/submit/problem">
+        <table style="max-width:700px;">
+            <tr><td style="color:#777;width:140px;padding:8px;">Title *</td>
+                <td><input type="text" name="title" value="{_esc(f.get('title', ''))}" required style="width:100%;"></td></tr>
+            <tr><td style="color:#777;padding:8px;">Domain *</td>
+                <td><select name="domain" required>{domain_opts}</select></td></tr>
+            <tr><td style="color:#777;padding:8px;">Description *</td>
+                <td><textarea name="description" rows="4" required style="width:100%;">{_esc(f.get('description', ''))}</textarea></td></tr>
+            <tr><td style="color:#777;padding:8px;">Maturity</td>
+                <td><select name="maturity">{mat_opts}</select></td></tr>
+            <tr><td style="color:#777;padding:8px;">Constraint Types</td>
+                <td>{constraint_html}</td></tr>
+            <tr><td style="color:#777;padding:8px;">Submitter</td>
+                <td><input type="text" name="submitter" value="{_esc(f.get('submitter', 'anonymous'))}" style="width:100%;"></td></tr>
+        </table>
+        <button type="submit" style="margin-top:12px;padding:10px 28px;">Submit Problem</button>
+    </form>
+    """
+    return _base_page("Submit Problem", content, "submit")
+
+
+def render_submissions(db: LeaderboardDB) -> str:
+    """Render the pending submissions list (operator review page)."""
+    pending = db.get_pending_submissions()
+    total = db.total_pending()
+
+    if not pending:
+        content = '<div class="empty">No pending submissions.</div>'
+        return _base_page("Submissions", content, "submit")
+
+    rows = []
+    for sub in pending:
+        data = json.loads(sub["data"])
+        preview = _esc(str(data)[:120])
+        sub_id = sub["id"]
+        stype = sub["type"]
+        submitter = _esc(sub.get("submitter", "")[:16])
+        rows.append(f"""
+        <tr>
+            <td>{sub_id}</td>
+            <td><span style="background:#e8f0fe;color:#2563eb;padding:2px 8px;border-radius:3px;font-size:12px;">{stype}</span></td>
+            <td style="font-size:12px;max-width:300px;overflow:hidden;">{preview}</td>
+            <td>{submitter}</td>
+            <td>
+                <a href="/web/submissions?approve={sub_id}" style="color:#22c55e;margin-right:8px;">Approve</a>
+                <a href="/web/submissions?reject={sub_id}" style="color:#ef4444;">Reject</a>
+            </td>
+        </tr>""")
+
+    content = f"""
+    <p style="color:#777;margin-bottom:12px;">{total} pending submission(s)</p>
+    <table>
+    <thead><tr><th>ID</th><th>Type</th><th>Preview</th><th>Submitter</th><th>Action</th></tr></thead>
+    <tbody>{"".join(rows)}</tbody>
+    </table>
+    """
+    return _base_page("Submissions", content, "submit")

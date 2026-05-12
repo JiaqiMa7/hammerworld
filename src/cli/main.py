@@ -1,6 +1,7 @@
 """CLI tools for the Idea Mining Network."""
 
 import argparse
+import json
 import signal
 import sys
 from pathlib import Path
@@ -10,22 +11,151 @@ sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 
 def cmd_mine(args):
-    """Run the mining combination engine."""
+    """Run the mining combination engine with evaluation and DB storage."""
+    import sys
     from src.engine.loader import load_methods, load_problems
     from src.engine.combiner import generate_combinations
+    from src.evaluation.scorer import EvaluationPipeline
+    from src.evaluation.providers import OpenAIProvider, get_api_key, get_api_base, get_model
+    from src.hub.leaderboard import LeaderboardDB
 
-    methods = load_methods()
-    problems = load_problems()
+    # Require API key
+    api_key = get_api_key()
+    if not api_key:
+        print("ERROR: No API key configured.", file=sys.stderr)
+        print("", file=sys.stderr)
+        print("Set the HAMMERWORLD_API_KEY environment variable:", file=sys.stderr)
+        print("  export HAMMERWORLD_API_KEY=sk-...", file=sys.stderr)
+        print("", file=sys.stderr)
+        print("Or create ~/.hammerworld/config with:", file=sys.stderr)
+        print("  api_key=sk-...", file=sys.stderr)
+        print("  api_base=https://api.openai.com/v1   # optional, defaults to OpenAI", file=sys.stderr)
+        print("  model=gpt-4o                          # optional", file=sys.stderr)
+        print("", file=sys.stderr)
+        print("Compatible providers: OpenAI, Anthropic (via compatible proxy), local LLM, etc.", file=sys.stderr)
+        sys.exit(1)
+
+    # Open DB for collection loading and later saving
+    db = LeaderboardDB(args.db)
+
+    # Load methods: collection > custom file > default
+    if args.methods_collection:
+        coll = db.find_collection_by_name("method", args.methods_collection)
+        if not coll:
+            print(f"ERROR: Method collection '{args.methods_collection}' not found.", file=sys.stderr)
+            sys.exit(1)
+        methods_data = json.loads(coll["methods_json"])
+        from src.engine.models import Method, MethodLevel
+        methods = [
+            Method(
+                id=m.get("id", m.get("name", f"m{i}")),
+                name=m["name"],
+                domain=m.get("domain", "other"),
+                level=MethodLevel(m.get("level", 1)),
+                description=m.get("description", ""),
+                trigger_conditions=m.get("trigger_conditions", []),
+                examples=m.get("examples", []),
+                prerequisites=m.get("prerequisites", []),
+                compatible_with=m.get("compatible_with", []),
+            )
+            for i, m in enumerate(methods_data)
+        ]
+        db.increment_import("method", coll["id"])
+        print(f"Loaded {len(methods)} methods from collection '{args.methods_collection}'")
+    else:
+        methods = load_methods(args.methods or None)
+
+    # Load problems: collection > custom file > default
+    if args.problems_collection:
+        coll = db.find_collection_by_name("problem", args.problems_collection)
+        if not coll:
+            print(f"ERROR: Problem collection '{args.problems_collection}' not found.", file=sys.stderr)
+            sys.exit(1)
+        problems_data = json.loads(coll["problems_json"])
+        from src.engine.models import Problem, Domain, ProblemMaturity, ConstraintType
+        problems = [
+            Problem(
+                id=p.get("id", p.get("title", f"p{i}")),
+                title=p["title"],
+                domain=Domain(p.get("domain", "other")),
+                description=p.get("description", ""),
+                constraint_types=[ConstraintType(c) for c in p.get("constraint_types", [])],
+                maturity=ProblemMaturity(p.get("maturity", 1)),
+                triz_standardized=p.get("triz_standardized"),
+            )
+            for i, p in enumerate(problems_data)
+        ]
+        db.increment_import("problem", coll["id"])
+        print(f"Loaded {len(problems)} problems from collection '{args.problems_collection}'")
+    else:
+        problems = load_problems(args.problems or None)
+
+    print(f"Matrix: {len(methods)} methods × {len(problems)} problems ({len(methods) * len(problems)} possible pairs)")
     combos = generate_combinations(
         methods, problems,
         block_height=args.block_height,
         user_address=args.address,
         nonce=args.nonce,
         batch_size=args.batch,
+        method_step=args.method_step,
+        problem_step=args.problem_step,
+        problem_offset=args.problem_offset,
+        max_attempts_mult=args.max_attempts,
     )
-    print(f"Generated {len(combos)} combinations:")
-    for c in combos:
-        print(f"  [{c.id}] {c.method.name} × {c.problem.title}")
+    if args.method_step == 0 or args.problem_step == 0:
+        print("Stepping: auto-tuned (pass --method-step/--problem-step to override)")
+
+    # Evaluate with real AI (parallel)
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    api_base = args.api_base or get_api_base()
+    model = args.model or get_model()
+    workers = getattr(args, "parallel", 1)
+    provider = OpenAIProvider(api_key=api_key, api_base=api_base, model=model)
+    print(f"API: {api_base}  model: {model}  workers: {workers}")
+    print(f"Evaluating {len(combos)} combinations...")
+    pipeline = EvaluationPipeline(
+        provider,
+        threshold=args.threshold,
+        model_name=model,
+        model_version="api",
+    )
+
+    results_by_index: dict[int, object] = {}
+    with ThreadPoolExecutor(max_workers=workers) as executor:
+        future_to_index = {
+            executor.submit(pipeline.evaluate, combo): i
+            for i, combo in enumerate(combos)
+        }
+        for future in as_completed(future_to_index):
+            i = future_to_index[future]
+            combo = combos[i]
+            label = f"{combo.method.name[:30]} × {combo.problem.title[:35]}"
+            try:
+                result = future.result()
+                best = result.combination.best_dimension
+                print(f"  [{i+1}/{len(combos)}] {label} → best={best.value if best else '?'}={result.combination.best_score or 0:.1f}")
+                results_by_index[i] = result
+            except Exception as exc:
+                print(f"  [{i+1}/{len(combos)}] {label} → FAILED: {exc}")
+
+    # Collect results in original order
+    results = [results_by_index[i] for i in sorted(results_by_index)]
+
+    # Save to leaderboard
+    saved = 0
+    for r in results:
+        try:
+            db.insert(r.combination, miner_addr=args.address)
+            saved += 1
+            dims = [d.value for d in r.high_dimensions]
+            print(f"  [{r.combination.id}] {r.combination.method.name} × {r.combination.problem.title} "
+                  f"→ best={r.combination.best_dimension.value if r.combination.best_dimension else '?'}"
+                  f"={r.combination.best_score or 0:.1f} "
+                  f"high={dims}")
+        except Exception as exc:
+            print(f"  [{r.combination.id}] error: {exc}")
+
+    print(f"Saved {saved}/{len(combos)} combinations to {args.db}")
 
 
 def cmd_top(args):
@@ -75,6 +205,48 @@ def cmd_random(args):
         print(f"  [{e.best_dimension}={e.best_score:.1f}] {e.method_name} × {e.problem_title}")
 
 
+def cmd_submit_method(args):
+    """Submit a new thinking method to the matrix."""
+    import json
+    from src.hub.leaderboard import LeaderboardDB
+
+    data = {
+        "name": args.name,
+        "domain": args.domain,
+        "level": args.level,
+        "description": args.description,
+        "examples": [e.strip() for e in (args.examples or "").split(",") if e.strip()],
+        "prerequisites": [p.strip() for p in (args.prerequisites or "").split(",") if p.strip()],
+        "compatible_with": [c.strip() for c in (args.compatible_with or "").split(",") if c.strip()],
+    }
+    db = LeaderboardDB(args.db)
+    sub_id = db.submit("method", data, args.submitter)
+    print(f"Method submitted. ID: {sub_id}")
+    print(f"  Name: {data['name']}")
+    print(f"  Domain: {data['domain']} (level {data['level']})")
+    print(f"Status: pending review")
+
+
+def cmd_submit_problem(args):
+    """Submit a new unsolved problem to the matrix."""
+    import json
+    from src.hub.leaderboard import LeaderboardDB
+
+    data = {
+        "title": args.title,
+        "domain": args.domain,
+        "description": args.description,
+        "constraint_types": [c.strip() for c in (args.constraints or "").split(",") if c.strip()],
+        "maturity": args.maturity,
+    }
+    db = LeaderboardDB(args.db)
+    sub_id = db.submit("problem", data, args.submitter)
+    print(f"Problem submitted. ID: {sub_id}")
+    print(f"  Title: {data['title']}")
+    print(f"  Domain: {data['domain']} (maturity {data['maturity']})")
+    print(f"Status: pending review")
+
+
 def cmd_hub(args):
     """Start a P2P hub server."""
     from src.hub.leaderboard import LeaderboardDB
@@ -115,15 +287,198 @@ def cmd_hub(args):
         server.stop()
 
 
+def cmd_math_mine(args):
+    """Run mining for math zone gate unlock — auto-grants access."""
+    from src.engine.loader import load_methods
+    from src.engine.combiner import generate_combinations
+    from src.evaluation.scorer import EvaluationPipeline
+    from src.evaluation.providers import OpenAIProvider, get_api_key, get_api_base, get_model
+    from src.hub.leaderboard import LeaderboardDB
+    from src.engine.models import Method, MethodLevel, Problem, Domain, ProblemMaturity, ConstraintType
+
+    api_key = get_api_key()
+    if not api_key:
+        print("ERROR: No API key configured.", file=sys.stderr)
+        sys.exit(1)
+
+    db = LeaderboardDB(args.db)
+
+    # Load math problem
+    problem_entry = db.get_math_problem(args.problem_id)
+    if not problem_entry:
+        print(f"ERROR: Math problem #{args.problem_id} not found.", file=sys.stderr)
+        sys.exit(1)
+
+    # Load method collection
+    coll = db.find_collection_by_name("method", args.methods_collection)
+    if not coll:
+        print(f"ERROR: Method collection '{args.methods_collection}' not found.", file=sys.stderr)
+        sys.exit(1)
+    methods_data = json.loads(coll["methods_json"])
+    methods = [
+        Method(
+            id=m.get("id", m.get("name", f"m{i}")),
+            name=m["name"],
+            domain=m.get("domain", "mathematics"),
+            level=MethodLevel(m.get("level", 1)),
+            description=m.get("description", ""),
+            trigger_conditions=m.get("trigger_conditions", []),
+            examples=m.get("examples", []),
+            prerequisites=m.get("prerequisites", []),
+            compatible_with=m.get("compatible_with", []),
+        )
+        for i, m in enumerate(methods_data)
+    ]
+
+    # Wrap problem as Problem object
+    problem = Problem(
+        id=str(problem_entry["id"]),
+        title=problem_entry["title"],
+        domain=Domain("mathematics"),
+        description=problem_entry.get("description", ""),
+        constraint_types=[],
+        maturity=ProblemMaturity(1),
+    )
+
+    print(f"Math Mine: {len(methods)} methods × {problem.title}")
+    print(f"Method Collection: {coll['name']}")
+
+    combos = generate_combinations(
+        methods, [problem],
+        block_height=args.block_height,
+        user_address=args.address,
+        nonce=args.nonce,
+        batch_size=args.batch,
+        method_step=args.method_step,
+        problem_step=0,
+        problem_offset=0,
+        max_attempts_mult=args.max_attempts,
+    )
+    print(f"Generated {len(combos)} combination(s)")
+
+    # Evaluate
+    api_base = args.api_base or get_api_base()
+    model = args.model or get_model()
+    workers = args.parallel
+    provider = OpenAIProvider(api_key=api_key, api_base=api_base, model=model)
+    print(f"API: {api_base}  model: {model}  workers: {workers}")
+
+    pipeline = EvaluationPipeline(provider, threshold=args.threshold, model_name=model, model_version="api")
+
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+    results_by_index: dict[int, object] = {}
+    with ThreadPoolExecutor(max_workers=workers) as executor:
+        future_to_index = {
+            executor.submit(pipeline.evaluate, combo): i
+            for i, combo in enumerate(combos)
+        }
+        for future in as_completed(future_to_index):
+            i = future_to_index[future]
+            combo = combos[i]
+            label = f"{combo.method.name[:30]} × {combo.problem.title[:35]}"
+            try:
+                result = future.result()
+                best = result.combination.best_dimension
+                print(f"  [{i+1}/{len(combos)}] {label} → best={best.value if best else '?'}={result.combination.best_score or 0:.1f}")
+                results_by_index[i] = result
+            except Exception as exc:
+                print(f"  [{i+1}/{len(combos)}] {label} → FAILED: {exc}")
+
+    results = [results_by_index[i] for i in sorted(results_by_index)]
+
+    # Save to leaderboard
+    saved = 0
+    access_granted = False
+    for r in results:
+        try:
+            entry = db.insert(r.combination, miner_addr=args.address)
+            saved += 1
+            # Auto-grant access on first successful save
+            if not access_granted:
+                analysis_json = json.dumps({
+                    "analysis_text": r.combination.analyses[-1].analysis_text if r.combination.analyses else "",
+                    "best_dimension": str(r.combination.best_dimension.value) if r.combination.best_dimension else "",
+                    "best_score": r.combination.best_score,
+                }, ensure_ascii=False)
+                db.grant_math_access(
+                    problem_entry["id"], coll["id"],
+                    args.address, r.combination.id, analysis_json,
+                )
+                access_granted = True
+                print(f"  Access granted! You can now view: /web/math/{problem_entry['id']}/{coll['id']}")
+        except Exception as exc:
+            print(f"  error saving: {exc}")
+
+    print(f"Saved {saved}/{len(combos)} combinations to {args.db}")
+    if not access_granted and saved == 0:
+        print("WARNING: No combinations were saved. Access was NOT granted.")
+    db.increment_import("method", coll["id"])
+
+
+def cmd_math_submit(args):
+    """Submit or fork a math solution."""
+    from src.hub.leaderboard import LeaderboardDB
+
+    db = LeaderboardDB(args.db)
+
+    # Verify problem and collection exist
+    problem = db.get_math_problem(args.problem_id)
+    if not problem:
+        print(f"ERROR: Math problem #{args.problem_id} not found.", file=sys.stderr)
+        sys.exit(1)
+    coll = db.get_collection("method", args.method_collection_id)
+    if not coll:
+        print(f"ERROR: Method collection #{args.method_collection_id} not found.", file=sys.stderr)
+        sys.exit(1)
+
+    # Parse steps
+    try:
+        steps = json.loads(args.steps_json)
+        if not isinstance(steps, list):
+            print("ERROR: --steps-json must be a JSON array.", file=sys.stderr)
+            sys.exit(1)
+    except json.JSONDecodeError as e:
+        print(f"ERROR: Invalid JSON in --steps-json: {e}", file=sys.stderr)
+        sys.exit(1)
+
+    sid = db.submit_math_solution(
+        problem_id=args.problem_id,
+        method_collection_id=args.method_collection_id,
+        user_address=args.address,
+        steps=steps,
+        parent_id=args.parent_id,
+    )
+    print(f"Solution submitted. ID: {sid}")
+    if args.parent_id:
+        print(f"  Forked from solution #{args.parent_id}")
+    print(f"  Problem: {problem['title']}")
+    print(f"  Method: {coll['name']}")
+    print(f"  Steps: {len(steps)}")
+    print(f"  Max correct step: {db._calc_max_correct_step(steps)}")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Idea Mining Network CLI")
     sub = parser.add_subparsers(dest="command")
 
-    p_mine = sub.add_parser("mine", help="Generate method×problem combinations")
+    p_mine = sub.add_parser("mine", help="Generate method×problem combinations (requires API key)")
     p_mine.add_argument("--address", default="0xMINER", help="Miner address")
     p_mine.add_argument("--block-height", type=int, default=1, help="Block height for seed")
     p_mine.add_argument("--nonce", type=int, default=0, help="Nonce")
     p_mine.add_argument("--batch", type=int, default=10, help="Batch size")
+    p_mine.add_argument("--db", default="data/leaderboard.db", help="Leaderboard database path")
+    p_mine.add_argument("--threshold", type=float, default=8.0, help="Score threshold for 'high' dimensions")
+    p_mine.add_argument("--model", default=None, help="Override model name (default: gpt-4o)")
+    p_mine.add_argument("--api-base", default=None, help="Override API base URL")
+    p_mine.add_argument("--parallel", type=int, default=1, help="Parallel API workers (default: 1, sequential)")
+    p_mine.add_argument("--methods", default=None, help="Custom methods JSON file path")
+    p_mine.add_argument("--problems", default=None, help="Custom problems JSON file path")
+    p_mine.add_argument("--methods-collection", default=None, help="Load methods from a named collection in the DB")
+    p_mine.add_argument("--problems-collection", default=None, help="Load problems from a named collection in the DB")
+    p_mine.add_argument("--method-step", type=int, default=0, help="Method stepping (0=auto-tune based on matrix size)")
+    p_mine.add_argument("--problem-step", type=int, default=0, help="Problem stepping (0=auto-tune based on matrix size)")
+    p_mine.add_argument("--problem-offset", type=int, default=0, help="Base offset into shuffled problem list (0=auto)")
+    p_mine.add_argument("--max-attempts", type=int, default=0, help="Max attempts multiplier (0=auto-tune based on matrix size)")
 
     p_top = sub.add_parser("top", help="Show top-N leaderboard")
     p_top.add_argument("--dimension", default=None, help="Filter by dimension (elegance, weirdness, etc.)")
@@ -167,6 +522,49 @@ def main():
                        help="Peer timeout in seconds")
     p_web.add_argument("--max-peers", type=int, default=50, help="Maximum peers")
 
+    p_smethod = sub.add_parser("submit-method", help="Submit a new method to the matrix")
+    p_smethod.add_argument("--name", required=True, help="Method name")
+    p_smethod.add_argument("--domain", required=True, help="Method domain (e.g. physics, biology)")
+    p_smethod.add_argument("--level", type=int, required=True, choices=[1, 2, 3, 4], help="Method level (1-4)")
+    p_smethod.add_argument("--description", required=True, help="Method description")
+    p_smethod.add_argument("--examples", default="", help="Comma-separated examples")
+    p_smethod.add_argument("--prerequisites", default="", help="Comma-separated prerequisite method IDs")
+    p_smethod.add_argument("--compatible-with", default="", help="Comma-separated compatible method IDs")
+    p_smethod.add_argument("--submitter", default="cli_user", help="Submitter address/name")
+    p_smethod.add_argument("--db", default="data/leaderboard.db", help="Database path")
+
+    p_sproblem = sub.add_parser("submit-problem", help="Submit a new problem to the matrix")
+    p_sproblem.add_argument("--title", required=True, help="Problem title")
+    p_sproblem.add_argument("--domain", required=True, help="Problem domain (e.g. energy, medicine)")
+    p_sproblem.add_argument("--description", required=True, help="Problem description")
+    p_sproblem.add_argument("--constraints", default="", help="Comma-separated constraint types")
+    p_sproblem.add_argument("--maturity", type=int, default=1, choices=[1, 2, 3, 4], help="Problem maturity (1-4)")
+    p_sproblem.add_argument("--submitter", default="cli_user", help="Submitter address/name")
+    p_sproblem.add_argument("--db", default="data/leaderboard.db", help="Database path")
+
+    p_math_mine = sub.add_parser("math-mine", help="Generate seed analysis to unlock a math problem zone")
+    p_math_mine.add_argument("--problem-id", type=int, required=True, help="Math problem ID")
+    p_math_mine.add_argument("--methods-collection", required=True, help="Math method collection name")
+    p_math_mine.add_argument("--address", default="0xMINER", help="Miner address")
+    p_math_mine.add_argument("--block-height", type=int, default=1)
+    p_math_mine.add_argument("--nonce", type=int, default=0)
+    p_math_mine.add_argument("--batch", type=int, default=3, help="Number of combos to generate")
+    p_math_mine.add_argument("--db", default="data/leaderboard.db")
+    p_math_mine.add_argument("--threshold", type=float, default=8.0)
+    p_math_mine.add_argument("--model", default=None)
+    p_math_mine.add_argument("--api-base", default=None)
+    p_math_mine.add_argument("--parallel", type=int, default=1)
+    p_math_mine.add_argument("--method-step", type=int, default=0)
+    p_math_mine.add_argument("--max-attempts", type=int, default=0)
+
+    p_math_submit = sub.add_parser("math-submit", help="Submit a math solution for a (problem, method) zone")
+    p_math_submit.add_argument("--problem-id", type=int, required=True)
+    p_math_submit.add_argument("--method-collection-id", type=int, required=True)
+    p_math_submit.add_argument("--steps-json", required=True, help="JSON array of solution steps")
+    p_math_submit.add_argument("--parent-id", type=int, default=None, help="Solution ID to fork from")
+    p_math_submit.add_argument("--address", default="0xSOLVER")
+    p_math_submit.add_argument("--db", default="data/leaderboard.db")
+
     args = parser.parse_args()
     if args.command == "mine":
         cmd_mine(args)
@@ -181,6 +579,14 @@ def main():
     elif args.command == "web":
         args.web = True
         cmd_hub(args)
+    elif args.command == "submit-method":
+        cmd_submit_method(args)
+    elif args.command == "submit-problem":
+        cmd_submit_problem(args)
+    elif args.command == "math-mine":
+        cmd_math_mine(args)
+    elif args.command == "math-submit":
+        cmd_math_submit(args)
     else:
         parser.print_help()
 

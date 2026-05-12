@@ -685,6 +685,113 @@ TRIZ的40原理、76標準解、進化趨勢等被拆解為獨立的方法矩陣
 
 ---
 
+## 十三、矩陣商城（Matrix Marketplace）
+
+### 設計動機
+
+替換原有「提交→審核→合併」的單向流程。改為用戶創建**命名的 method/problem collection**，
+其他用戶可瀏覽、加星、導入到自己的 mine 任務。
+
+### 數據模型
+
+```
+method_collections (id, name, description, category, creator, stars, import_count, methods_json, created_at)
+problem_collections (id, name, description, category, creator, stars, import_count, problems_json, created_at)
+collection_stars (collection_type, collection_id, starrer, starred_at) -- 防雙重加星
+```
+
+### 推薦邏輯
+
+- **方法推荐**：`ORDER BY stars DESC` — 星越多越靠前
+- **問題推荐**：`ORDER BY import_count ASC` — 被導入越少越靠前（鼓勵探索冷門問題）
+
+### 導入機制
+
+```
+python3 -m src.cli.main mine \
+  --methods-collection "Creative Methods Pack" \
+  --problems-collection "Energy & Climate Problems"
+```
+
+導入時自動 `import_count += 1`。
+
+---
+
+## 十四、數學研究專區（Math Research Zone）
+
+### 設計動機
+
+為數學未解問題建立專屬研究區域，以特定數學問題為最上層劃分（如黎曼猜想），
+Peer 可申請創建問題區。訪問需通過「閘門機制」——運行數學工具庫與問題的隨機組合 + AI 分析來解鎖。
+解法按「最大連續正確步驟數」排名，支持 Fork 協作。
+
+### 層級結構
+
+```
+Math Problem (Top-level, e.g., Riemann Hypothesis)
+  ├── Method Collection A (e.g., Complex Analysis Tools)
+  │     ├── Solution 1 (Alice) - max_correct_step: 15
+  │     ├── Solution 2 (Bob, forked from #1) - max_correct_step: 18
+  │     └── Solution 3 (Charlie) - max_correct_step: 5
+  ├── Method Collection B (e.g., Fourier Analysis)
+  │     └── Solution 4 (Dave) - max_correct_step: 10
+  └── Method Collection C (e.g., Algebraic Topology)
+        └── Solution 5 (Eve) - max_correct_step: 3
+```
+
+### 閘門機制（Gate Mechanism）
+
+```
+用戶 → math-mine → 加載問題 + 數學方法庫 → 隨機組合 → AI 分析 →
+保存到 leaderboard → 自動授予訪問權（math_access_log）→ 解鎖該 (problem, method) 區域
+```
+
+Web unlock 頁面作為備用通道（手動輸入 combo_id 解鎖）。
+
+### 數據模型
+
+```
+math_problems (id, title, description, category, creator, status, created_at)
+math_solutions (id, problem_id, method_collection_id, user_address, parent_solution_id,
+                steps_json, max_correct_step, seed_combo_id, seed_analysis_json,
+                created_at, updated_at)
+math_access_log (id, problem_id, method_collection_id, user_address, combo_id,
+                 analysis_json, created_at)
+```
+
+### 解法步驟格式
+
+```json
+[
+  {"step_num": 1, "content": "定義 Riemann zeta 函數...", "verified": true},
+  {"step_num": 2, "content": "應用圍道積分...", "verified": true},
+  {"step_num": 3, "content": "嘗試約束誤差項...", "verified": false}
+]
+```
+
+`max_correct_step` = 最後連續 verified=true 的步驟數。
+
+### 排名規則
+
+同一 (problem, method) 區域內，解法按 `max_correct_step DESC` 排名。
+
+### Fork 工作流
+
+用戶可 Fork（pull）他人解法作為起點繼續工作，後續有成果時 submit 自己的更新。
+`parent_solution_id` 記錄派生關係。
+
+### CLI 命令
+
+```bash
+# 閘門解鎖（隨機組合 + AI 分析 + 自動授權）
+python3 -m src.cli.main math-mine --problem-id 1 --methods-collection "Complex Analysis" --batch 3
+
+# 提交/Fork 解法
+python3 -m src.cli.main math-submit --problem-id 1 --method-collection-id 3 --steps-json '[...]' --parent-id 5
+```
+
+---
+
 ## 一句話
 
 這不是又一個眾包平台——它是一個**創意工作量證明（Proof of Creative Work）**網絡：
@@ -695,4 +802,5 @@ TRIZ的40原理、76標準解、進化趨勢等被拆解為獨立的方法矩陣
 - 用投毒檢測 + 合規檢測讓算力貢獻多元化的價值
 - 用顆粒度排行榜 + 隨機抽取打破馬太效應
 - 用榮譽系統閉環（idea → 實現 → 追溯獎勵所有貢獻者）
+- 用數學專區 + 閘門機制讓未解難題獲得系統化的社區攻擊
 - 讓算力、創造力、判斷力在同一市場中各自定價

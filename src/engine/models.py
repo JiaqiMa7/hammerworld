@@ -49,6 +49,7 @@ class Domain(Enum):
     INFORMATION = "information"
     MATERIALS = "materials"
     SOCIETY = "society"
+    MATHEMATICS = "mathematics"
 
 
 @dataclass

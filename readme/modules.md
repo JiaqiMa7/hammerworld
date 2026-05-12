@@ -12,7 +12,7 @@
 | `ProblemMaturity` | 1-4 | 問題成熟度：無方案 / 部分方案 / 成本過高 / 瓶頸已知 |
 | `ConstraintType` | physical_limit, resource, time, complexity, ethical | 問題約束類型 |
 | `EvalDimension` | elegance, weirdness, human_feasibility, ai_feasibility, novelty, analogy_distance, scaling_potential, side_effects | 8 個評估維度 |
-| `Domain` | medicine, energy, environment, information, materials, society | 6 大問題領域 |
+| `Domain` | medicine, energy, environment, information, materials, society, mathematics | 7 大問題領域 |
 
 **數據類：**
 
@@ -263,3 +263,155 @@ passed, failed = pipeline.evaluate_and_filter(combos)
 | 類比距離 | analogy_distance | 跨界跨度大 |
 | 縮放潛力 | scaling_potential | 可指數級擴展 |
 | 副作用 | side_effects | 負面影響小 |
+
+---
+
+## 9. `src/evaluation/providers.py` — AI 供應商插件
+
+OpenAI 兼容 API 的 stdlib-only 實現。
+
+```python
+from src.evaluation.providers import OpenAIProvider, get_api_key, get_api_base, get_model
+
+# 默認配置
+api_key = get_api_key()                             # ~/.hammerworld/config or env
+api_base = get_api_base()                           # https://api.openai.com/v1
+model = get_model()                                 # gpt-4o
+
+provider = OpenAIProvider(api_key=api_key, api_base=api_base, model=model)
+response = provider.generate("System prompt", "User prompt")
+```
+
+**配置優先級：** 函數參數 > 環境變量 > `~/.hammerworld/config`
+
+---
+
+## 10. `src/hub/leaderboard.py` — SQLite 排行榜存儲
+
+SQLite 後端，WAL 模式，支持排名、搜索、隨機抽取。
+
+**表結構：**
+- `combinations` — 所有方法×問題組合及其評分
+- `paid_views` — 付費查看記錄
+- `user_draws` — 用戶隨機抽取記錄
+- `submissions` — 社區提交（方法/問題）
+- `method_collections` / `problem_collections` — Matrix Marketplace 集合
+- `collection_stars` — 集合標星
+- `math_problems` / `math_solutions` / `math_access_log` — Math Research Zone
+
+```python
+from src.hub.leaderboard import LeaderboardDB
+
+db = LeaderboardDB("data/leaderboard.db")
+entry = db.insert(combo, miner_addr="0xABC")
+top = db.get_top(dimension=EvalDimension.ELEGANCE, limit=10)
+results = db.search("antibiotic")
+draw = db.random_draw(domain=Domain.MEDICINE, draw_count=5)
+```
+
+---
+
+## 11. `src/hub/web.py` — 服務端 HTML 渲染
+
+純 Python HTML 渲染（無前端框架、無 JS）。
+
+**Web 頁面覆蓋：**
+| 頁面 | 路徑 |
+|------|------|
+| Dashboard | `/` |
+| Leaderboard (含過濾器) | `/web/leaderboard` |
+| Search | `/web/search` |
+| Random Draw | `/web/random` |
+| Peers | `/web/peers` |
+| Entry Detail | `/web/entry/{id}` |
+| Submit Method/Problem | `/web/submit` |
+| Submissions Review | `/web/submissions` |
+| Collections Browse | `/web/collections` |
+| Collection Detail | `/web/collections/{type}/{id}` |
+| Math Zone Home | `/web/math` |
+| Math Problem | `/web/math/{pid}` |
+| Math Method Zone | `/web/math/{pid}/{mid}` |
+| Math Solution Detail | `/web/math/{pid}/{mid}/{sid}` |
+| Math Unlock | `/web/math/{pid}/{mid}/unlock` |
+
+---
+
+## 12. `src/hub/server.py` — HTTP Server + REST API
+
+基於 stdlib `http.server` / `ThreadingMixIn`，提供 Web UI + P2P REST API。
+
+```python
+from src.hub.server import HubServer
+from src.hub.leaderboard import LeaderboardDB
+from src.hub.peer import PeerConfig
+
+db = LeaderboardDB("data/leaderboard.db")
+server = HubServer(db, PeerConfig(port=8765))
+server.start()  # blocks, handles Web UI + P2P API + gossip
+```
+
+**P2P API 端點：** `/health`, `/stats`, `/peers`, `/combinations` (GET/POST), `/peers/announce`
+
+---
+
+## 13. Matrix Marketplace
+
+命名的問題/方法集合可創建、瀏覽、標星、導入。
+
+```bash
+# Web UI 創建集合
+http://localhost:8765/web/collections/new
+
+# CLI：導入集合挖礦
+python3 -m src.cli.main mine --methods-collection "Quantum Methods" --batch 5
+python3 -m src.cli.main mine --problems-collection "Energy Challenges" --batch 5
+```
+
+**排序規則：** 方法集合按 stars DESC（鼓勵質量），問題集合按 import_count ASC（鼓勵探索冷門問題）。
+
+---
+
+## 14. Math Research Zone
+
+數學問題專屬研究區域，閘門解鎖機制，按解法步驟排名。
+
+**數據模型：**
+```
+math_problems          — 數學問題區（title, category, creator）
+math_solutions         — 解法（steps_json, max_correct_step, parent_solution_id）
+math_access_log        — 訪問權限記錄
+```
+
+**閘門機制：**
+```
+用戶 → 運行 math-mine → 方法庫×問題 隨機組合 → AI 分析 → 自動授予訪問權
+```
+
+**層級結構：**
+```
+Math Problem (e.g., Riemann Hypothesis)
+  ├── Method Collection A (Complex Analysis)
+  │     ├── Solution 1 (Alice) - max_correct_step: 15
+  │     ├── Solution 2 (Bob, forked from #1) - max_correct_step: 18
+  │     └── Solution 3 (Charlie) - max_correct_step: 5
+  └── Method Collection B (Fourier Analysis)
+        └── Solution 4 (Dave) - max_correct_step: 10
+```
+
+**CLI 命令：**
+```bash
+# 閘門解鎖
+python3 -m src.cli.main math-mine \
+  --problem-id 1 --methods-collection "Complex Analysis" \
+  --address 0xMINER --batch 3
+
+# 提交解法
+python3 -m src.cli.main math-submit \
+  --problem-id 1 --method-collection-id 3 \
+  --steps-json '[{"step_num":1,"content":"Define zeta...","verified":true}]'
+
+# Fork 現有解法
+python3 -m src.cli.main math-submit \
+  --problem-id 1 --method-collection-id 3 \
+  --steps-json '[...]' --parent-id 5
+```

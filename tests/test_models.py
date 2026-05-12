@@ -21,15 +21,16 @@ class TestMethodLevel(unittest.TestCase):
 
 
 class TestDomain(unittest.TestCase):
-    def test_all_six_domains(self):
+    def test_all_seven_domains(self):
         domains = list(Domain)
-        self.assertEqual(len(domains), 6)
+        self.assertEqual(len(domains), 7)
         self.assertIn(Domain.MEDICINE, domains)
         self.assertIn(Domain.ENERGY, domains)
         self.assertIn(Domain.ENVIRONMENT, domains)
         self.assertIn(Domain.INFORMATION, domains)
         self.assertIn(Domain.MATERIALS, domains)
         self.assertIn(Domain.SOCIETY, domains)
+        self.assertIn(Domain.MATHEMATICS, domains)
 
     def test_from_string(self):
         self.assertEqual(Domain("medicine"), Domain.MEDICINE)

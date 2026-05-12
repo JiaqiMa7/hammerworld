@@ -20,10 +20,10 @@ hammerworld/
 │   ├── engine/          # 核心引擎：models, combiner, loader
 │   ├── triz/            # TRIZ 理論：knowledge, matrix, agent, prompts
 │   ├── evaluation/      # AI 評估：8 維度評分流水線
-│   ├── hub/             # P2P 聯邦排行榜：leaderboard, peer, server
-│   └── cli/             # CLI：mine / top / search / random / hub
+│   ├── hub/             # P2P 聯邦排行榜：leaderboard, peer, server, web
+│   └── cli/             # CLI：mine / top / search / random / hub / math-mine / math-submit
 ├── data/                # methods.json (35 條) + problems.json (22 條)
-├── tests/               # 165+ 單元測試
+├── tests/               # 256 單元測試
 ├── readme/              # 詳細文檔
 ├── DESIGN.md            # 完整系統設計
 └── CLAUDE.md            # Claude Code 指引
@@ -51,8 +51,14 @@ python3 -m src.cli.main top --limit 10
 # 搜索
 python3 -m src.cli.main search "antibiotic"
 
-# 啟動 P2P Hub
-python3 -m src.cli.main hub --port 8765
+# 啟動 P2P Hub (含 Web UI)
+python3 -m src.cli.main web --port 8765
+
+# Math Zone：解鎖數學問題區域
+python3 -m src.cli.main math-mine --problem-id 1 --methods-collection "Complex Analysis" --batch 3
+
+# Math Zone：提交解法
+python3 -m src.cli.main math-submit --problem-id 1 --method-collection-id 1 --steps-json '[{"step_num":1,"content":"define the problem","verified":true}]'
 
 # 運行測試
 python3 -m unittest discover tests/ -v
@@ -62,10 +68,10 @@ python3 -m unittest discover tests/ -v
 
 | 文檔 | 內容 |
 |------|------|
-| [readme/modules.md](readme/modules.md) | 所有模塊詳解（models, loader, combiner, triz, evaluation） |
+| [readme/modules.md](readme/modules.md) | 所有模塊詳解（models, loader, combiner, triz, evaluation, hub, math-zone） |
 | [readme/p2p-hub.md](readme/p2p-hub.md) | P2P Hub：gossip 協議、REST API、CLI 使用 |
 | [readme/development.md](readme/development.md) | 開發工作流、測試、完整示例、擴展指南 |
-| [DESIGN.md](DESIGN.md) | 完整系統設計（經濟模型、榮譽系統、區塊鏈緩衝區） |
+| [DESIGN.md](DESIGN.md) | 完整系統設計（經濟模型、榮譽系統、區塊鏈緩衝區、Matrix Marketplace、Math Research Zone） |
 
 ## 核心設計決策
 
@@ -73,4 +79,6 @@ python3 -m unittest discover tests/ -v
 - **確定性隨機**：`SHA256(block_height + address + nonce)` 種子 Fisher-Yates
 - **Push + Pull gossip**：每 30s 增量同步，TTL 防無限傳播
 - **P2P 聯邦**：多 Hub 自組織，無中央服務器
+- **Matrix Marketplace**：方法/問題集合可創建、分享、標星、導入
+- **Math Research Zone**：數學問題專區，閘門解鎖機制，按解法步驟數排名，支持 Fork 協作
 - **零依賴**：純 stdlib，AI 通過協議注入

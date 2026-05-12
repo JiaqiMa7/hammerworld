@@ -74,6 +74,11 @@ class _HubHandler(BaseHTTPRequestHandler):
         from src.hub.web import (
             render_dashboard, render_leaderboard, render_search,
             render_random, render_peers, render_entry,
+            render_submit_home, render_submit_method, render_submit_problem,
+            render_submissions,
+            render_collections, render_collection_new, render_collection_detail,
+            render_math_home, render_math_new, render_math_problem,
+            render_math_method_zone, render_math_solution, render_math_unlock,
         )
         db = self.db
         pm = self.peer_manager
@@ -92,10 +97,300 @@ class _HubHandler(BaseHTTPRequestHandler):
         elif path.startswith("/web/entry/"):
             combo_id = path.split("/web/entry/", 1)[1]
             html = render_entry(db, combo_id)
+        elif path == "/web/submit":
+            html = render_submit_home()
+        elif path == "/web/submit/method":
+            html = render_submit_method()
+        elif path == "/web/submit/problem":
+            html = render_submit_problem()
+        elif path.startswith("/web/submissions"):
+            self._handle_submissions(path)
+            return
+        # Matrix Marketplace — Collections
+        elif _match_collection_star(path):
+            self._handle_collection_star(path)
+            return
+        elif path == "/web/collections/new":
+            html = render_collection_new()
+        elif path.startswith("/web/collections/new"):
+            # Nothing else matches this prefix besides the exact path above
+            html = render_collection_new()
+        elif _match_collection_detail(path):
+            ctype, cid_str = _parse_collection_path(path)
+            try:
+                cid = int(cid_str)
+            except ValueError:
+                self._send_json({"error": "invalid collection id"}, 404)
+                return
+            html = render_collection_detail(db, ctype, cid, starrer="")
+        elif path.startswith("/web/collections"):
+            html = render_collections(db, self.path)
+        # Math Research Zone routes
+        elif path == "/web/math":
+            html = render_math_home(db)
+        elif path == "/web/math/new":
+            html = render_math_new()
+        elif _match_math_solution(path):
+            pid, mid, sid = _parse_math_solution(path)
+            html = render_math_solution(db, pid, mid, sid, self.path)
+        elif _match_math_method_zone(path):
+            pid, mid = _parse_math_method_zone(path)
+            html = render_math_method_zone(db, pid, mid, self.path)
+        elif _match_math_problem(path):
+            pid = _parse_math_problem_id(path)
+            html = render_math_problem(db, pid, self.path)
         else:
             self._send_json({"error": "not found"}, 404)
             return
         self._send_html(html)
+
+    def _respond_submit(self, form_path: str, result: dict, body: bytes):
+        """Respond to a form submission — HTML for browser, JSON for API."""
+        ct = self.headers.get("Content-Type", "")
+        if "json" in ct:
+            self._send_json(result)
+            return
+
+        from src.hub.web import render_submit_method, render_submit_problem
+        if result.get("ok"):
+            if "method" in form_path:
+                html = render_submit_method(success=f"Method submitted! ID: {result['id']}")
+            else:
+                html = render_submit_problem(success=f"Problem submitted! ID: {result['id']}")
+        else:
+            # Re-render form with errors and submitted data
+            from urllib.parse import parse_qs
+            try:
+                form_data = {k: v[0] for k, v in parse_qs(body.decode()).items()}
+            except Exception:
+                form_data = {}
+            errors = result.get("errors", [])
+            if "method" in form_path:
+                html = render_submit_method(form=form_data, errors=errors)
+            else:
+                html = render_submit_problem(form=form_data, errors=errors)
+        self._send_html(html)
+
+    def _handle_submissions(self, path: str):
+        from src.hub.web import render_submissions
+        from urllib.parse import parse_qs
+        db = self.db
+        assert db is not None
+
+        # Handle approve/reject actions via query params
+        if "?" in self.path:
+            qs = self.path.split("?", 1)[1]
+            params = parse_qs(qs)
+            if "approve" in params:
+                sub_id = int(params["approve"][0])
+                data = db.approve_submission(sub_id)
+                if data:
+                    self._send_html(render_submissions(db))
+                    return
+            elif "reject" in params:
+                sub_id = int(params["reject"][0])
+                db.reject_submission(sub_id)
+
+        self._send_html(render_submissions(db))
+
+    def _handle_collection_star(self, path: str):
+        """Handle star toggle for a collection."""
+        from src.hub.web import render_collection_detail
+        db = self.db
+        assert db is not None
+
+        # Parse /web/collections/{type}/{id}/star?starrer=x
+        rest = path.split("/web/collections/", 1)[1]
+        parts = rest.split("/")
+        ctype = parts[0]
+        cid = int(parts[1])
+
+        params: dict[str, str] = {}
+        if "?" in self.path:
+            qs = self.path.split("?", 1)[1]
+            for pair in qs.split("&"):
+                if "=" in pair:
+                    k, v = pair.split("=", 1)
+                    params[k] = v
+        starrer = params.get("starrer", "")
+
+        try:
+            db.toggle_star(ctype, cid, starrer)
+        except Exception:
+            pass
+
+        # Redirect back to the detail page
+        html = render_collection_detail(db, ctype, cid, starrer=starrer, starred=True)
+        self._send_html(html)
+
+    def _handle_create_collection(self, body: bytes):
+        """Handle POST to create a new collection."""
+        from urllib.parse import parse_qs
+        from src.hub.web import render_collection_new
+
+        db = self.db
+        assert db is not None
+
+        ct = self.headers.get("Content-Type", "")
+        if "json" in ct:
+            try:
+                data = json.loads(body)
+            except json.JSONDecodeError:
+                self._send_json({"ok": False, "errors": ["Invalid JSON"]})
+                return
+        else:
+            decoded = parse_qs(body.decode())
+            data = {k: v[0] if len(v) == 1 else v for k, v in decoded.items()}
+
+        ctype = data.get("ctype", "method").strip()
+        name = data.get("name", "").strip()
+        description = data.get("description", "").strip()
+        category = data.get("category", "other").strip()
+        creator = data.get("creator", "anonymous").strip()
+        items_json = data.get("items_json", "[]").strip()
+
+        errors = []
+        if not name:
+            errors.append("Name is required.")
+        if ctype not in ("method", "problem"):
+            errors.append("Type must be 'method' or 'problem'.")
+
+        items = []
+        if not errors:
+            try:
+                items = json.loads(items_json)
+                if not isinstance(items, list):
+                    errors.append("Items must be a JSON array.")
+                elif len(items) == 0:
+                    errors.append("At least one item is required.")
+            except json.JSONDecodeError as e:
+                errors.append(f"Invalid JSON in items: {e}")
+
+        if errors:
+            if "json" in ct:
+                self._send_json({"ok": False, "errors": errors})
+            else:
+                html = render_collection_new(form=data, errors=errors)
+                self._send_html(html)
+            return
+
+        cid = db.create_collection(ctype, name, description, category, creator, items)
+
+        if "json" in ct:
+            self._send_json({"ok": True, "id": cid})
+        else:
+            # Redirect to the new collection detail
+            from src.hub.web import render_collection_detail
+            html = render_collection_detail(db, ctype, cid, starrer=creator)
+            self._send_html(html)
+
+    def _handle_create_math_problem(self, body: bytes):
+        """Handle POST to create a new math problem."""
+        from urllib.parse import parse_qs
+        from src.hub.web import render_math_new
+
+        db = self.db
+        assert db is not None
+
+        decoded = parse_qs(body.decode())
+        data = {k: v[0] if len(v) == 1 else v for k, v in decoded.items()}
+
+        title = data.get("title", "").strip()
+        description = data.get("description", "").strip()
+        category = data.get("category", "number_theory").strip()
+        creator = data.get("creator", "anonymous").strip()
+
+        errors = []
+        if not title:
+            errors.append("Title is required.")
+
+        if errors:
+            html = render_math_new(form=data, errors=errors)
+            self._send_html(html)
+            return
+
+        pid = db.create_math_problem(title, description, category, creator)
+        # Redirect to the new problem page
+        from src.hub.web import render_math_problem
+        html = render_math_problem(db, pid, self.path)
+        self._send_html(html)
+
+    def _handle_fork_math_solution(self, pid: int, mid: int, sid: int, body: bytes):
+        """Handle POST to fork a math solution."""
+        from urllib.parse import parse_qs
+
+        db = self.db
+        assert db is not None
+
+        decoded = parse_qs(body.decode())
+        data = {k: v[0] if len(v) == 1 else v for k, v in decoded.items()}
+        user_address = data.get("user_address", "anonymous").strip()
+
+        new_sid = db.fork_math_solution(sid, user_address)
+        if new_sid:
+            # Redirect to the new forked solution
+            self.send_response(302)
+            self.send_header("Location", f"/web/math/{pid}/{mid}/{new_sid}")
+            self.end_headers()
+        else:
+            self._send_html("<div class='empty'>Failed to fork solution. Original not found.</div>", 404)
+
+    def _handle_submit_math_solution(self, pid: int, mid: int, sid: int, body: bytes):
+        """Handle POST to update math solution steps."""
+        from urllib.parse import parse_qs
+
+        db = self.db
+        assert db is not None
+
+        decoded = parse_qs(body.decode())
+        data = {k: v[0] if len(v) == 1 else v for k, v in decoded.items()}
+
+        steps_json = data.get("steps_json", "[]")
+        user_address = data.get("user_address", "anonymous").strip()
+
+        errors = []
+        try:
+            steps = json.loads(steps_json)
+            if not isinstance(steps, list):
+                errors.append("Steps must be a JSON array.")
+        except json.JSONDecodeError as e:
+            errors.append(f"Invalid JSON: {e}")
+
+        if errors:
+            from src.hub.web import render_math_solution
+            html = render_math_solution(db, pid, mid, sid, self.path)
+            self._send_html(html)
+            return
+
+        db.update_math_solution(sid, steps)
+        # Redirect back to solution page
+        self.send_response(302)
+        self.send_header("Location", f"/web/math/{pid}/{mid}/{sid}")
+        self.end_headers()
+
+    def _handle_math_unlock(self, pid: int, mid: int, body: bytes):
+        """Handle POST to manually unlock a math zone."""
+        from urllib.parse import parse_qs
+        from src.hub.web import render_math_unlock
+
+        db = self.db
+        assert db is not None
+
+        decoded = parse_qs(body.decode())
+        data = {k: v[0] if len(v) == 1 else v for k, v in decoded.items()}
+        user_address = data.get("user_address", "").strip()
+        combo_id = data.get("combo_id", "").strip()
+
+        if not user_address or not combo_id:
+            html = render_math_unlock(db, pid, mid, self.path)
+            self._send_html(html)
+            return
+
+        db.grant_math_access(pid, mid, user_address, combo_id)
+        # Redirect to method zone
+        self.send_response(302)
+        self.send_header("Location", f"/web/math/{pid}/{mid}?user_address={user_address}")
+        self.end_headers()
 
     def do_POST(self):
         assert self.api is not None
@@ -116,8 +411,153 @@ class _HubHandler(BaseHTTPRequestHandler):
                 return
             result = self.api.handle_announce(data)
             self._send_json(result)
+        elif self.path == "/submit/method":
+            result = self.api.handle_submit_method(body)
+            self._respond_submit("/web/submit/method", result, body)
+        elif self.path == "/submit/problem":
+            result = self.api.handle_submit_problem(body)
+            self._respond_submit("/web/submit/problem", result, body)
+        elif self.path == "/web/collections/new":
+            self._handle_create_collection(body)
+        elif self.path == "/web/math/new":
+            self._handle_create_math_problem(body)
+        elif _match_math_solution_fork(self.path):
+            pid, mid, sid = _parse_math_solution_fork(self.path)
+            self._handle_fork_math_solution(pid, mid, sid, body)
+        elif _match_math_solution_submit(self.path):
+            pid, mid, sid = _parse_math_solution_submit(self.path)
+            self._handle_submit_math_solution(pid, mid, sid, body)
+        elif _match_math_unlock_post(self.path):
+            pid, mid = _parse_math_unlock_post(self.path)
+            self._handle_math_unlock(pid, mid, body)
         else:
             self._send_json({"error": "not found"}, 404)
+
+
+def _match_collection_star(path: str) -> bool:
+    """Check if path matches /web/collections/{type}/{id}/star"""
+    if not path.startswith("/web/collections/"):
+        return False
+    rest = path.split("/web/collections/", 1)[1]
+    parts = rest.split("/")
+    return len(parts) >= 3 and parts[2] == "star"
+
+
+def _match_collection_detail(path: str) -> bool:
+    """Check if path matches /web/collections/{type}/{id} (but NOT /star or /new)"""
+    if not path.startswith("/web/collections/"):
+        return False
+    rest = path.split("/web/collections/", 1)[1]
+    if rest in ("new", ""):
+        return False
+    parts = rest.split("/")
+    if any(p in parts for p in ("star", "new")):
+        return False
+    return len(parts) == 2
+
+
+def _parse_collection_path(path: str) -> tuple[str, str]:
+    """Parse /web/collections/{type}/{id} -> (type, id_str)"""
+    rest = path.split("/web/collections/", 1)[1]
+    parts = rest.split("/")
+    return parts[0], parts[1]
+
+
+def _match_math_problem(path: str) -> bool:
+    """Check if path matches /web/math/{id} (integer id, no further segments)."""
+    if not path.startswith("/web/math/"):
+        return False
+    rest = path.split("/web/math/", 1)[1]
+    if rest in ("new", ""):
+        return False
+    parts = rest.split("/")
+    return len(parts) == 1 and parts[0].isdigit()
+
+
+def _parse_math_problem_id(path: str) -> int:
+    """Extract math problem id from path."""
+    rest = path.split("/web/math/", 1)[1]
+    return int(rest.split("/")[0])
+
+
+def _match_math_method_zone(path: str) -> bool:
+    """Check if path matches /web/math/{pid}/{mid} (two int segments, no further)."""
+    if not path.startswith("/web/math/"):
+        return False
+    rest = path.split("/web/math/", 1)[1]
+    parts = rest.split("/")
+    return len(parts) == 2 and parts[0].isdigit() and parts[1].isdigit()
+
+
+def _parse_math_method_zone(path: str) -> tuple[int, int]:
+    """Extract (pid, mid) from method zone path."""
+    rest = path.split("/web/math/", 1)[1]
+    parts = rest.split("/")
+    return int(parts[0]), int(parts[1])
+
+
+def _match_math_solution(path: str) -> bool:
+    """Check if path matches /web/math/{pid}/{mid}/{sid} (three int segments)."""
+    if not path.startswith("/web/math/"):
+        return False
+    rest = path.split("/web/math/", 1)[1]
+    parts = rest.split("/")
+    return len(parts) >= 3 and parts[0].isdigit() and parts[1].isdigit() and parts[2].isdigit()
+
+
+def _parse_math_solution(path: str) -> tuple[int, int, int]:
+    """Extract (pid, mid, sid) from solution path."""
+    rest = path.split("/web/math/", 1)[1]
+    parts = rest.split("/")
+    return int(parts[0]), int(parts[1]), int(parts[2])
+
+
+def _match_math_unlock_post(path: str) -> bool:
+    """Check if path matches /web/math/{pid}/{mid}/unlock (POST)."""
+    if not path.startswith("/web/math/"):
+        return False
+    rest = path.split("/web/math/", 1)[1]
+    parts = rest.split("/")
+    return len(parts) == 3 and parts[0].isdigit() and parts[1].isdigit() and parts[2] == "unlock"
+
+
+def _parse_math_unlock_post(path: str) -> tuple[int, int]:
+    """Extract (pid, mid) from unlock POST path."""
+    rest = path.split("/web/math/", 1)[1]
+    parts = rest.split("/")
+    return int(parts[0]), int(parts[1])
+
+
+def _match_math_solution_fork(path: str) -> bool:
+    """Check if path matches /web/math/{pid}/{mid}/{sid}/fork."""
+    if not path.startswith("/web/math/"):
+        return False
+    rest = path.split("/web/math/", 1)[1]
+    parts = rest.split("/")
+    return len(parts) >= 4 and parts[0].isdigit() and parts[1].isdigit() and parts[2].isdigit() and parts[3] == "fork"
+
+
+def _parse_math_solution_fork(path: str) -> tuple[int, int, int]:
+    """Extract (pid, mid, sid) from fork path."""
+    rest = path.split("/web/math/", 1)[1]
+    parts = rest.split("/")
+    return int(parts[0]), int(parts[1]), int(parts[2])
+
+
+def _match_math_solution_submit(path: str) -> bool:
+    """Check if path matches /web/math/{pid}/{mid}/{sid}/submit."""
+    if not path.startswith("/web/math/"):
+        return False
+    rest = path.split("/web/math/", 1)[1]
+    parts = rest.split("/")
+    return len(parts) >= 4 and parts[0].isdigit() and parts[1].isdigit() and parts[2].isdigit() and parts[3] == "submit"
+
+
+def _parse_math_solution_submit(path: str) -> tuple[int, int, int]:
+    """Extract (pid, mid, sid) from submit path."""
+    rest = path.split("/web/math/", 1)[1]
+    parts = rest.split("/")
+    return int(parts[0]), int(parts[1]), int(parts[2])
 
 
 class HubAPI:
@@ -202,6 +642,93 @@ class HubAPI:
                 for p in self.peer_manager.get_peers()
             ],
         }
+
+    def handle_submit_method(self, body: bytes) -> dict:
+        """Handle method submission (form-urlencoded or JSON)."""
+        from urllib.parse import parse_qs
+        try:
+            data = json.loads(body)
+        except json.JSONDecodeError:
+            data = {k: v[0] for k, v in parse_qs(body.decode()).items()}
+
+        errors = []
+        name = data.get("name", "").strip()
+        domain = data.get("domain", "").strip()
+        level = data.get("level", "")
+        description = data.get("description", "").strip()
+
+        if not name:
+            errors.append("Name is required.")
+        if not domain:
+            errors.append("Domain is required.")
+        if not description:
+            errors.append("Description is required.")
+        try:
+            level = int(level)
+            if level < 1 or level > 4:
+                errors.append("Level must be 1-4.")
+        except (ValueError, TypeError):
+            errors.append("Level must be a number 1-4.")
+
+        if errors:
+            return {"ok": False, "errors": errors}
+
+        sub_data = {
+            "name": name,
+            "domain": domain,
+            "level": level,
+            "description": description,
+            "examples": [e.strip() for e in data.get("examples", "").split(",") if e.strip()],
+            "prerequisites": [p.strip() for p in data.get("prerequisites", "").split(",") if p.strip()],
+            "compatible_with": [c.strip() for c in data.get("compatible_with", "").split(",") if c.strip()],
+        }
+        submitter = data.get("submitter", "anonymous").strip()
+        sub_id = self.db.submit("method", sub_data, submitter)
+        return {"ok": True, "id": sub_id}
+
+    def handle_submit_problem(self, body: bytes) -> dict:
+        """Handle problem submission (form-urlencoded or JSON)."""
+        from urllib.parse import parse_qs
+        try:
+            data = json.loads(body)
+        except json.JSONDecodeError:
+            decoded = {k: v[0] if len(v) == 1 else v for k, v in parse_qs(body.decode()).items()}
+            data = decoded
+
+        errors = []
+        title = data.get("title", "").strip()
+        domain = data.get("domain", "").strip()
+        description = data.get("description", "").strip()
+
+        if not title:
+            errors.append("Title is required.")
+        if not domain:
+            errors.append("Domain is required.")
+        if not description:
+            errors.append("Description is required.")
+
+        if errors:
+            return {"ok": False, "errors": errors}
+
+        constraints = data.get("constraints", data.get("constraint_types", []))
+        if isinstance(constraints, str):
+            constraints = [constraints] if constraints else []
+        maturity = data.get("maturity", 1)
+        try:
+            maturity = int(maturity)
+        except (ValueError, TypeError):
+            maturity = 1
+
+        sub_data = {
+            "title": title,
+            "domain": domain,
+            "description": description,
+            "constraint_types": constraints,
+            "maturity": maturity,
+        }
+        submitter = data.get("submitter", "anonymous").strip()
+        sub_id = self.db.submit("problem", sub_data, submitter)
+        return {"ok": True, "id": sub_id}
 
 
 class HubServer:

@@ -287,6 +287,7 @@ def _entry_to_json(entry: LeaderboardEntry) -> dict:
         "side_effects": entry.side_effects,
         "miner_address": entry.miner_address,
         "created_at": entry.created_at,
+        "analysis_text": entry.analysis_text,
     }
 
 
@@ -312,6 +313,7 @@ def _json_to_entry(data: dict) -> Optional[LeaderboardEntry]:
             side_effects=data.get("side_effects", 0),
             miner_address=data.get("miner_address", ""),
             created_at=data.get("created_at", 0),
+            analysis_text=data.get("analysis_text", ""),
         )
     except (KeyError, TypeError):
         return None

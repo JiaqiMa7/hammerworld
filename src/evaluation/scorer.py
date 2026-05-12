@@ -126,12 +126,14 @@ class EvaluationPipeline:
     def _parse_response(
         self, response_text: str, combination: Combination
     ) -> AIAnalysis:
-        """Parse AI response with fallback to simulated evaluation."""
+        """Parse AI response. Falls back to keyword scores if JSON is malformed."""
         try:
+            # Strategy 1: fenced JSON block ```json ... ```
             json_match = re.search(r'```json\s*(.*?)\s*```', response_text, re.DOTALL)
             if json_match:
                 data = json.loads(json_match.group(1))
             else:
+                # Strategy 2: outermost { } containing "scores"
                 json_match = re.search(r'\{[\s\S]*"scores"[\s\S]*\}', response_text)
                 if json_match:
                     data = json.loads(json_match.group(0))
@@ -153,12 +155,14 @@ class EvaluationPipeline:
                     explanation=s.get("explanation", ""),
                 ))
 
-            analysis_text = data.get("analysis_text", response_text[:500])
+            analysis_text = data.get("analysis_text", "")
 
-        except (json.JSONDecodeError, ValueError, KeyError):
-            # Fallback: generate basic scores from the raw text
+        except (json.JSONDecodeError, ValueError, KeyError) as exc:
+            import sys
+            print(f"  [WARN] JSON parse failed for {combination.id}: {exc}", file=sys.stderr)
+            print(f"  [WARN] Using fallback scores. Raw response: {response_text[:200]}...", file=sys.stderr)
             scores = self._fallback_scores(response_text)
-            analysis_text = response_text[:500]
+            analysis_text = response_text[:2000]
 
         inference_hash = hashlib.sha256(
             f"{combination.id}:{json.dumps([(s.dimension.value, s.score) for s in scores])}".encode()

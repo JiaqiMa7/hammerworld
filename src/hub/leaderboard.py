@@ -1,6 +1,7 @@
 """Local leaderboard with SQLite storage, ranking, search, and random draw."""
 from __future__ import annotations
 
+import json
 import os
 import random
 import sqlite3
@@ -35,6 +36,7 @@ class LeaderboardEntry:
     side_effects: float = 0
     miner_address: str = ""
     created_at: float = 0.0
+    analysis_text: str = ""
 
 
 @dataclass
@@ -100,7 +102,8 @@ class LeaderboardDB:
                     scaling_potential REAL DEFAULT 0,
                     side_effects REAL DEFAULT 0,
                     miner_addr TEXT DEFAULT '',
-                    created_at REAL DEFAULT 0
+                    created_at REAL DEFAULT 0,
+                    analysis_text TEXT DEFAULT ''
                 );
                 CREATE TABLE IF NOT EXISTS paid_views (
                     viewer_addr TEXT NOT NULL,
@@ -119,7 +122,84 @@ class LeaderboardDB:
                 CREATE INDEX IF NOT EXISTS idx_best_score ON combinations(best_score DESC);
                 CREATE INDEX IF NOT EXISTS idx_problem_domain ON combinations(problem_domain);
                 CREATE INDEX IF NOT EXISTS idx_method_domain ON combinations(method_domain);
+                CREATE TABLE IF NOT EXISTS submissions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    type TEXT NOT NULL,
+                    data TEXT NOT NULL,
+                    submitter TEXT DEFAULT '',
+                    status TEXT DEFAULT 'pending',
+                    submitted_at REAL DEFAULT 0
+                );
+                CREATE TABLE IF NOT EXISTS method_collections (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL,
+                    description TEXT DEFAULT '',
+                    category TEXT DEFAULT 'other',
+                    creator TEXT DEFAULT '',
+                    stars INTEGER DEFAULT 0,
+                    import_count INTEGER DEFAULT 0,
+                    methods_json TEXT NOT NULL,
+                    created_at REAL DEFAULT 0
+                );
+                CREATE TABLE IF NOT EXISTS problem_collections (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    name TEXT NOT NULL,
+                    description TEXT DEFAULT '',
+                    category TEXT DEFAULT 'other',
+                    creator TEXT DEFAULT '',
+                    stars INTEGER DEFAULT 0,
+                    import_count INTEGER DEFAULT 0,
+                    problems_json TEXT NOT NULL,
+                    created_at REAL DEFAULT 0
+                );
+                CREATE TABLE IF NOT EXISTS collection_stars (
+                    collection_type TEXT NOT NULL,
+                    collection_id INTEGER NOT NULL,
+                    starrer TEXT NOT NULL,
+                    starred_at REAL DEFAULT 0,
+                    PRIMARY KEY (collection_type, collection_id, starrer)
+                );
+                CREATE TABLE IF NOT EXISTS math_problems (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    title TEXT NOT NULL,
+                    description TEXT DEFAULT '',
+                    category TEXT DEFAULT 'number_theory',
+                    creator TEXT DEFAULT '',
+                    status TEXT DEFAULT 'active',
+                    created_at REAL DEFAULT 0
+                );
+                CREATE TABLE IF NOT EXISTS math_solutions (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    problem_id INTEGER NOT NULL,
+                    method_collection_id INTEGER NOT NULL,
+                    user_address TEXT DEFAULT '',
+                    parent_solution_id INTEGER DEFAULT NULL,
+                    steps_json TEXT NOT NULL,
+                    max_correct_step INTEGER DEFAULT 0,
+                    seed_combo_id TEXT DEFAULT '',
+                    seed_analysis_json TEXT DEFAULT '',
+                    created_at REAL DEFAULT 0,
+                    updated_at REAL DEFAULT 0
+                );
+                CREATE TABLE IF NOT EXISTS math_access_log (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    problem_id INTEGER NOT NULL,
+                    method_collection_id INTEGER NOT NULL,
+                    user_address TEXT NOT NULL,
+                    combo_id TEXT NOT NULL,
+                    analysis_json TEXT DEFAULT '',
+                    created_at REAL DEFAULT 0
+                );
+                CREATE INDEX IF NOT EXISTS idx_math_solutions_lookup
+                    ON math_solutions(problem_id, method_collection_id, max_correct_step DESC);
+                CREATE INDEX IF NOT EXISTS idx_math_access_check
+                    ON math_access_log(problem_id, method_collection_id, user_address);
             """)
+        # Migration: add analysis_text for existing databases
+        try:
+            conn.execute("ALTER TABLE combinations ADD COLUMN analysis_text TEXT DEFAULT ''")
+        except sqlite3.OperationalError:
+            pass  # column already exists
         if self.db_path == ":memory:":
             self._persistent_conn = conn
         else:
@@ -153,6 +233,7 @@ class LeaderboardDB:
             side_effects=scores_dict.get("side_effects", 0),
             miner_address=miner_addr,
             created_at=combo.created_at,
+            analysis_text=latest.analysis_text,
         )
 
         with self._connect() as conn:
@@ -162,8 +243,8 @@ class LeaderboardDB:
                  problem_title, problem_domain, best_dim, best_score,
                  elegance, weirdness, human_feasibility, ai_feasibility,
                  novelty, analogy_distance, scaling_potential, side_effects,
-                 miner_addr, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 miner_addr, created_at, analysis_text)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 entry.combo_id, entry.method_name, entry.method_domain,
                 entry.method_level, entry.problem_title, entry.problem_domain,
@@ -172,6 +253,7 @@ class LeaderboardDB:
                 entry.ai_feasibility, entry.novelty, entry.analogy_distance,
                 entry.scaling_potential, entry.side_effects,
                 entry.miner_address, entry.created_at,
+                entry.analysis_text,
             ))
 
         return entry
@@ -189,8 +271,8 @@ class LeaderboardDB:
                  problem_title, problem_domain, best_dim, best_score,
                  elegance, weirdness, human_feasibility, ai_feasibility,
                  novelty, analogy_distance, scaling_potential, side_effects,
-                 miner_addr, created_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                 miner_addr, created_at, analysis_text)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
                 entry.combo_id, entry.method_name, entry.method_domain,
                 entry.method_level, entry.problem_title, entry.problem_domain,
@@ -199,6 +281,7 @@ class LeaderboardDB:
                 entry.ai_feasibility, entry.novelty, entry.analogy_distance,
                 entry.scaling_potential, entry.side_effects,
                 entry.miner_address, entry.created_at,
+                entry.analysis_text,
             ))
         return True
 
@@ -387,4 +470,354 @@ class LeaderboardDB:
             side_effects=row["side_effects"],
             miner_address=row["miner_addr"],
             created_at=row["created_at"],
+            analysis_text=row["analysis_text"] if "analysis_text" in row.keys() else "",
         )
+
+    # ------------------------------------------------------------------
+    # Community Submissions
+    # ------------------------------------------------------------------
+
+    def submit(self, stype: str, data: dict, submitter: str = "") -> int:
+        """Submit a method or problem for review. Returns the submission id."""
+        with self._connect() as conn:
+            cur = conn.execute(
+                "INSERT INTO submissions (type, data, submitter, status, submitted_at) "
+                "VALUES (?, ?, ?, 'pending', ?)",
+                (stype, json.dumps(data, ensure_ascii=False), submitter, time.time()),
+            )
+            return cur.lastrowid
+
+    def get_pending_submissions(self, stype: str | None = None) -> list[dict]:
+        """List pending submissions, optionally filtered by type."""
+        with self._connect() as conn:
+            if stype:
+                rows = conn.execute(
+                    "SELECT * FROM submissions WHERE status = 'pending' AND type = ? ORDER BY submitted_at DESC",
+                    (stype,),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT * FROM submissions WHERE status = 'pending' ORDER BY submitted_at DESC",
+                ).fetchall()
+        return [dict(r) for r in rows]
+
+    def approve_submission(self, sub_id: int) -> dict | None:
+        """Approve a pending submission and return its data."""
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM submissions WHERE id = ? AND status = 'pending'", (sub_id,)
+            ).fetchone()
+            if not row:
+                return None
+            conn.execute(
+                "UPDATE submissions SET status = 'approved' WHERE id = ?", (sub_id,)
+            )
+            return json.loads(row["data"])
+
+    def reject_submission(self, sub_id: int) -> bool:
+        """Reject a pending submission. Returns True if found."""
+        with self._connect() as conn:
+            cur = conn.execute(
+                "UPDATE submissions SET status = 'rejected' WHERE id = ? AND status = 'pending'",
+                (sub_id,),
+            )
+            return cur.rowcount > 0
+
+    def get_approved_methods(self) -> list[dict]:
+        """Get all approved method submissions (for merging into matrix)."""
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT id, data, submitter FROM submissions WHERE type = 'method' AND status = 'approved'"
+            ).fetchall()
+        return [{"id": r["id"], "submitter": r["submitter"], **json.loads(r["data"])} for r in rows]
+
+    def get_approved_problems(self) -> list[dict]:
+        """Get all approved problem submissions (for merging into matrix)."""
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT id, data, submitter FROM submissions WHERE type = 'problem' AND status = 'approved'"
+            ).fetchall()
+        return [{"id": r["id"], "submitter": r["submitter"], **json.loads(r["data"])} for r in rows]
+
+    def total_pending(self, stype: str | None = None) -> int:
+        """Count pending submissions."""
+        with self._connect() as conn:
+            if stype:
+                row = conn.execute(
+                    "SELECT COUNT(*) FROM submissions WHERE status = 'pending' AND type = ?",
+                    (stype,),
+                ).fetchone()
+            else:
+                row = conn.execute(
+                    "SELECT COUNT(*) FROM submissions WHERE status = 'pending'"
+                ).fetchone()
+            return row[0] if row else 0
+
+    # ------------------------------------------------------------------
+    # Matrix Marketplace — Collections
+    # ------------------------------------------------------------------
+
+    def create_collection(self, ctype: str, name: str, description: str,
+                          category: str, creator: str, items: list[dict]) -> int:
+        """Create a new method or problem collection. Returns the collection id."""
+        items_json = json.dumps(items, ensure_ascii=False)
+        table = "method_collections" if ctype == "method" else "problem_collections"
+        col = "methods_json" if ctype == "method" else "problems_json"
+        with self._connect() as conn:
+            cur = conn.execute(
+                f"INSERT INTO {table} (name, description, category, creator, {col}, created_at) "
+                f"VALUES (?, ?, ?, ?, ?, ?)",
+                (name, description, category, creator, items_json, time.time()),
+            )
+            return cur.lastrowid
+
+    def get_collections(self, ctype: str, sort_by: str = "stars",
+                        category: str | None = None) -> list[dict]:
+        """List collections, optionally filtered and sorted."""
+        table = "method_collections" if ctype == "method" else "problem_collections"
+        sort_map = {
+            "stars": "stars DESC",
+            "imports": "import_count ASC",
+            "newest": "created_at DESC",
+        }
+        order = sort_map.get(sort_by, "stars DESC")
+        where = ""
+        params: list = []
+        if category:
+            where = "WHERE category = ?"
+            params.append(category)
+        with self._connect() as conn:
+            rows = conn.execute(
+                f"SELECT * FROM {table} {where} ORDER BY {order}", params
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def get_collection(self, ctype: str, cid: int) -> dict | None:
+        """Get a single collection by type and id."""
+        table = "method_collections" if ctype == "method" else "problem_collections"
+        with self._connect() as conn:
+            row = conn.execute(
+                f"SELECT * FROM {table} WHERE id = ?", (cid,)
+            ).fetchone()
+            return dict(row) if row else None
+
+    def search_collections(self, ctype: str, query: str) -> list[dict]:
+        """Search collections by name or description."""
+        table = "method_collections" if ctype == "method" else "problem_collections"
+        like = f"%{query}%"
+        with self._connect() as conn:
+            rows = conn.execute(
+                f"SELECT * FROM {table} WHERE name LIKE ? OR description LIKE ? "
+                f"ORDER BY stars DESC",
+                (like, like),
+            ).fetchall()
+        return [dict(r) for r in rows]
+
+    def toggle_star(self, ctype: str, cid: int, starrer: str) -> int:
+        """Toggle a star on a collection. Returns the new star count."""
+        table = "method_collections" if ctype == "method" else "problem_collections"
+        with self._connect() as conn:
+            existing = conn.execute(
+                "SELECT 1 FROM collection_stars WHERE collection_type = ? AND collection_id = ? AND starrer = ?",
+                (ctype, cid, starrer),
+            ).fetchone()
+            if existing:
+                conn.execute(
+                    "DELETE FROM collection_stars WHERE collection_type = ? AND collection_id = ? AND starrer = ?",
+                    (ctype, cid, starrer),
+                )
+                delta = -1
+            else:
+                conn.execute(
+                    "INSERT INTO collection_stars (collection_type, collection_id, starrer, starred_at) "
+                    "VALUES (?, ?, ?, ?)",
+                    (ctype, cid, starrer, time.time()),
+                )
+                delta = 1
+            conn.execute(
+                f"UPDATE {table} SET stars = MAX(0, stars + ?) WHERE id = ?",
+                (delta, cid),
+            )
+            row = conn.execute(
+                f"SELECT stars FROM {table} WHERE id = ?", (cid,)
+            ).fetchone()
+            return row[0] if row else 0
+
+    def increment_import(self, ctype: str, cid: int) -> None:
+        """Increment the import count for a collection."""
+        table = "method_collections" if ctype == "method" else "problem_collections"
+        with self._connect() as conn:
+            conn.execute(
+                f"UPDATE {table} SET import_count = import_count + 1 WHERE id = ?",
+                (cid,),
+            )
+
+    def find_collection_by_name(self, ctype: str, name: str) -> dict | None:
+        """Find a collection by exact name match."""
+        table = "method_collections" if ctype == "method" else "problem_collections"
+        with self._connect() as conn:
+            row = conn.execute(
+                f"SELECT * FROM {table} WHERE name = ?", (name,)
+            ).fetchone()
+            return dict(row) if row else None
+
+    # ------------------------------------------------------------------
+    # Math Research Zone
+    # ------------------------------------------------------------------
+
+    def create_math_problem(self, title: str, description: str = "",
+                            category: str = "number_theory",
+                            creator: str = "") -> int:
+        """Create a new math problem zone. Returns auto-increment id."""
+        with self._connect() as conn:
+            cur = conn.execute(
+                "INSERT INTO math_problems (title, description, category, creator, created_at) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (title, description, category, creator, time.time()),
+            )
+            return cur.lastrowid
+
+    def get_math_problems(self, status: str = "active") -> list[dict]:
+        """List math problems, optionally filtered by status."""
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM math_problems WHERE status = ? ORDER BY created_at DESC",
+                (status,),
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    def get_math_problem(self, pid: int) -> dict | None:
+        """Get a single math problem by id."""
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM math_problems WHERE id = ?", (pid,)
+            ).fetchone()
+            return dict(row) if row else None
+
+    def update_math_problem_status(self, pid: int, status: str) -> None:
+        """Set the status of a math problem."""
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE math_problems SET status = ? WHERE id = ?",
+                (status, pid),
+            )
+
+    def submit_math_solution(self, problem_id: int, method_collection_id: int,
+                              user_address: str, steps: list[dict],
+                              parent_id: int | None = None,
+                              seed_combo_id: str = "",
+                              seed_analysis: str = "") -> int:
+        """Insert a new math solution. Returns id."""
+        steps_json = json.dumps(steps, ensure_ascii=False)
+        seed_analysis_json = seed_analysis
+        max_step = self._calc_max_correct_step(steps)
+        now = time.time()
+        with self._connect() as conn:
+            cur = conn.execute(
+                "INSERT INTO math_solutions (problem_id, method_collection_id, user_address, "
+                "parent_solution_id, steps_json, max_correct_step, seed_combo_id, "
+                "seed_analysis_json, created_at, updated_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (problem_id, method_collection_id, user_address, parent_id,
+                 steps_json, max_step, seed_combo_id, seed_analysis_json, now, now),
+            )
+            return cur.lastrowid
+
+    @staticmethod
+    def _calc_max_correct_step(steps: list[dict]) -> int:
+        """Count consecutive verified steps from step 1."""
+        max_step = 0
+        for s in sorted(steps, key=lambda x: x.get("step_num", 0)):
+            if s.get("verified"):
+                max_step = s["step_num"]
+            else:
+                break
+        return max_step
+
+    def get_math_solutions(self, problem_id: int, method_collection_id: int,
+                            sort_by: str = "max_correct_step") -> list[dict]:
+        """List solutions in a (problem, method) zone, sorted descending."""
+        order = "max_correct_step DESC" if sort_by == "max_correct_step" else "created_at DESC"
+        with self._connect() as conn:
+            rows = conn.execute(
+                f"SELECT * FROM math_solutions WHERE problem_id = ? AND method_collection_id = ? "
+                f"ORDER BY {order}",
+                (problem_id, method_collection_id),
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    def get_math_solution(self, sid: int) -> dict | None:
+        """Get a single math solution by id."""
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM math_solutions WHERE id = ?", (sid,)
+            ).fetchone()
+            return dict(row) if row else None
+
+    def fork_math_solution(self, sid: int, user_address: str) -> int:
+        """Copy an existing solution's steps as a new solution owned by user_address."""
+        original = self.get_math_solution(sid)
+        if not original:
+            return 0
+        try:
+            steps = json.loads(original["steps_json"])
+        except (json.JSONDecodeError, TypeError):
+            steps = []
+        return self.submit_math_solution(
+            problem_id=original["problem_id"],
+            method_collection_id=original["method_collection_id"],
+            user_address=user_address,
+            steps=steps,
+            parent_id=sid,
+            seed_combo_id=original.get("seed_combo_id", ""),
+            seed_analysis=original.get("seed_analysis_json", ""),
+        )
+
+    def update_math_solution(self, sid: int, steps: list[dict],
+                              max_correct_step: int | None = None) -> None:
+        """Update steps and max_correct_step for an existing solution."""
+        if max_correct_step is None:
+            max_correct_step = self._calc_max_correct_step(steps)
+        steps_json = json.dumps(steps, ensure_ascii=False)
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE math_solutions SET steps_json = ?, max_correct_step = ?, "
+                "updated_at = ? WHERE id = ?",
+                (steps_json, max_correct_step, time.time(), sid),
+            )
+
+    def check_math_access(self, problem_id: int, method_collection_id: int,
+                           user_address: str) -> bool:
+        """Returns True if user has unlocked this (problem, method) zone."""
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT COUNT(*) FROM math_access_log "
+                "WHERE problem_id = ? AND method_collection_id = ? AND user_address = ?",
+                (problem_id, method_collection_id, user_address),
+            ).fetchone()
+            return row[0] > 0 if row else False
+
+    def grant_math_access(self, problem_id: int, method_collection_id: int,
+                           user_address: str, combo_id: str,
+                           analysis_json: str = "") -> None:
+        """Record that a user has unlocked a (problem, method) zone."""
+        now = time.time()
+        with self._connect() as conn:
+            # Upsert — replace if already exists
+            conn.execute(
+                "INSERT OR REPLACE INTO math_access_log "
+                "(problem_id, method_collection_id, user_address, combo_id, "
+                "analysis_json, created_at) VALUES (?, ?, ?, ?, ?, ?)",
+                (problem_id, method_collection_id, user_address, combo_id,
+                 analysis_json, now),
+            )
+
+    def get_math_access_log(self, problem_id: int, user_address: str) -> list[dict]:
+        """List all access grants for a user on a problem (all methods)."""
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM math_access_log WHERE problem_id = ? AND user_address = ? "
+                "ORDER BY created_at DESC",
+                (problem_id, user_address),
+            ).fetchall()
+            return [dict(r) for r in rows]
