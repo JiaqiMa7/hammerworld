@@ -30,6 +30,7 @@ class PeerInfo:
 class PeerConfig:
     port: int = 8765
     bootstrap: list[str] = field(default_factory=list)  # ["host:port", ...]
+    discovery_urls: list[str] = field(default_factory=list)  # ["http://discovery:port", ...]
     gossip_interval: float = 30.0
     peer_exchange_interval: float = 300.0
     peer_timeout: float = 300.0
@@ -75,7 +76,23 @@ class PeerManager:
         self._running = True
         self._thread = threading.Thread(target=self._run_loop, daemon=True)
         self._thread.start()
-        # Bootstrap: announce to initial peers
+
+        # Discovery: fetch peer list from discovery servers, then announce self
+        from src.hub.discovery import discover_peers, announce_to_discovery
+        for url in self.config.discovery_urls:
+            # Discover peers first (before announcing, to avoid self-loop)
+            peers = discover_peers(url)
+            for p in peers:
+                self.add_peer(p["address"], p["port"], p.get("peer_id", ""))
+                # Also add as bootstrap target for initial data pull
+                try:
+                    self._announce_and_join(p["address"], p["port"])
+                except Exception:
+                    pass
+            # Announce ourselves to the discovery server
+            announce_to_discovery(url, self._peer_id, "127.0.0.1", self.config.port)
+
+        # Bootstrap: announce to initial peers (may include discovery-found peers)
         for addr in self.config.bootstrap:
             try:
                 host, port_str = addr.rsplit(":", 1)
@@ -141,6 +158,7 @@ class PeerManager:
 
     def _run_loop(self):
         last_peer_exchange = time.time()
+        last_discovery_heartbeat = time.time()
         while self._running:
             try:
                 # Pull from a random peer
@@ -162,6 +180,16 @@ class PeerManager:
                         self._exchange_peers(target)
                 except Exception:
                     pass
+
+            # Heartbeat to discovery servers every 120s
+            if now - last_discovery_heartbeat > 120.0:
+                last_discovery_heartbeat = now
+                from src.hub.discovery import heartbeat_to_discovery
+                for url in self.config.discovery_urls:
+                    try:
+                        heartbeat_to_discovery(url, self._peer_id)
+                    except Exception:
+                        pass
 
             # Clean up stale peers
             self._cleanup_stale_peers()

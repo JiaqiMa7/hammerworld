@@ -62,6 +62,8 @@ class _HubHandler(BaseHTTPRequestHandler):
             self._send_json(self.api.handle_stats())
         elif self.path == "/peers":
             self._send_json(self.api.handle_get_peers())
+        elif self.path == "/discovery/peers":
+            self._send_json(self.api.handle_discovery_peers())
         elif self.path.startswith("/combinations"):
             self._send_json(self.api.handle_get_combinations(self.path))
         # Web UI endpoints
@@ -562,6 +564,22 @@ class _HubHandler(BaseHTTPRequestHandler):
                 return
             result = self.api.handle_announce(data)
             self._send_json(result)
+        elif self.path == "/discovery/announce":
+            try:
+                data = json.loads(body)
+            except json.JSONDecodeError:
+                self._send_json({"error": "invalid json"}, 400)
+                return
+            result = self.api.handle_discovery_announce(data)
+            self._send_json(result)
+        elif self.path == "/discovery/heartbeat":
+            try:
+                data = json.loads(body)
+            except json.JSONDecodeError:
+                self._send_json({"error": "invalid json"}, 400)
+                return
+            result = self.api.handle_discovery_heartbeat(data)
+            self._send_json(result)
         elif self.path == "/submit/method":
             result = self.api.handle_submit_method(body)
             self._respond_submit("/web/submit/method", result, body)
@@ -875,6 +893,31 @@ class HubAPI:
                 for p in self.peer_manager.get_peers()
             ],
         }
+
+    # ------------------------------------------------------------------
+    # Discovery Server endpoints (lightweight tracker)
+    # ------------------------------------------------------------------
+
+    def handle_discovery_announce(self, data: dict) -> dict:
+        from src.hub.discovery import get_discovery_server
+        ds = get_discovery_server()
+        ds.announce(
+            data.get("peer_id", ""),
+            data.get("address", "127.0.0.1"),
+            data.get("port", 8765),
+        )
+        return {"ok": True}
+
+    def handle_discovery_peers(self) -> dict:
+        from src.hub.discovery import get_discovery_server
+        ds = get_discovery_server()
+        return {"peers": ds.get_peers()}
+
+    def handle_discovery_heartbeat(self, data: dict) -> dict:
+        from src.hub.discovery import get_discovery_server
+        ds = get_discovery_server()
+        ok = ds.heartbeat(data.get("peer_id", ""))
+        return {"ok": ok}
 
     def handle_submit_method(self, body: bytes) -> dict:
         """Handle method submission (form-urlencoded or JSON)."""

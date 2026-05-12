@@ -355,6 +355,7 @@ def cmd_hub(args):
     config = PeerConfig(
         port=args.port,
         bootstrap=args.bootstrap or [],
+        discovery_urls=args.discovery_urls or [],
         gossip_interval=args.gossip_interval,
         peer_timeout=args.peer_timeout,
         max_peers=args.max_peers,
@@ -874,6 +875,8 @@ def main():
     p_hub.add_argument("--port", type=int, default=8765, help="HTTP port (default 8765)")
     p_hub.add_argument("--bootstrap", action="append", default=None,
                        help="Bootstrap peer address (host:port), repeatable")
+    p_hub.add_argument("--discovery-url", action="append", default=None, dest="discovery_urls",
+                       help="Discovery server URL (http://host:port), repeatable")
     p_hub.add_argument("--db", default="data/leaderboard.db", help="SQLite database path")
     p_hub.add_argument("--gossip-interval", type=float, default=30.0,
                        help="Gossip interval in seconds")
@@ -885,6 +888,8 @@ def main():
     p_web.add_argument("--port", type=int, default=8765, help="HTTP port (default 8765)")
     p_web.add_argument("--bootstrap", action="append", default=None,
                        help="Bootstrap peer address (host:port), repeatable")
+    p_web.add_argument("--discovery-url", action="append", default=None, dest="discovery_urls",
+                       help="Discovery server URL (http://host:port), repeatable")
     p_web.add_argument("--db", default="data/leaderboard.db", help="SQLite database path")
     p_web.add_argument("--gossip-interval", type=float, default=30.0,
                        help="Gossip interval in seconds")
