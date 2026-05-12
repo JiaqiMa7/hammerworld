@@ -457,6 +457,182 @@ def cmd_math_submit(args):
     print(f"  Max correct step: {db._calc_max_correct_step(steps)}")
 
 
+def cmd_buffer_submit(args):
+    """Submit an AI analysis to the blockchain buffer zone."""
+    from src.hub.leaderboard import LeaderboardDB
+    from src.blockchain.contracts import SimulatedToken, StakingContract
+    from src.blockchain.buffer import BufferZone
+
+    db = LeaderboardDB(args.db)
+    token = SimulatedToken(db)
+    staking = StakingContract(db, token)
+    buffer_zone = BufferZone(db, token, staking)
+
+    analysis_json = args.analysis_json
+    if args.analysis_file:
+        try:
+            analysis_json = Path(args.analysis_file).read_text()
+        except FileNotFoundError:
+            print(f"ERROR: File not found: {args.analysis_file}", file=sys.stderr)
+            sys.exit(1)
+
+    sub_id = buffer_zone.submit_analysis(
+        combo_id=args.combo_id,
+        method_id=args.method_id,
+        method_name=args.method_name,
+        problem_id=args.problem_id,
+        problem_title=args.problem_title,
+        submitter=args.address,
+        analysis_json=analysis_json,
+        analysis_text=args.analysis_text,
+    )
+    print(f"Submission sent to buffer zone.")
+    print(f"  Submission ID: {sub_id}")
+    print(f"  Combo: {args.combo_id}")
+    print(f"  Status: pending")
+    print(f"  Staked: {BufferZone.STAKE_PER_SUBMISSION} IDEA")
+
+
+def cmd_buffer_classify(args):
+    """Classify a pending buffer submission."""
+    from src.hub.leaderboard import LeaderboardDB
+    from src.blockchain.contracts import SimulatedToken, StakingContract
+    from src.blockchain.buffer import BufferZone
+
+    db = LeaderboardDB(args.db)
+    token = SimulatedToken(db)
+    staking = StakingContract(db, token)
+    buffer_zone = BufferZone(db, token, staking)
+
+    result = buffer_zone.classify(
+        submission_id=args.submission_id,
+        classifier_addr=args.address,
+        domain_label=args.domain,
+        is_nsfw=args.nsfw,
+        is_spam=args.spam,
+        notes=args.notes,
+    )
+    if not result.get("ok"):
+        print(f"ERROR: {result.get('error', 'classification failed')}", file=sys.stderr)
+        sys.exit(1)
+
+    consensus = result.get("consensus", {})
+    print(f"Classification submitted.")
+    print(f"  Submission: {args.submission_id}")
+    print(f"  Classifier: {args.address}")
+    print(f"  Domain: {args.domain}")
+    print(f"  Votes: {consensus.get('total', 1)}")
+    if consensus.get("reached"):
+        print(f"  Consensus: REACHED ({consensus.get('domain', '')})")
+    else:
+        if consensus.get("total", 0) < BufferZone.MIN_CLASSIFICATIONS:
+            needed = BufferZone.MIN_CLASSIFICATIONS - consensus.get("total", 0)
+            print(f"  Consensus: Need {needed} more vote(s)")
+
+
+def cmd_buffer_status(args):
+    """Check buffer submission status."""
+    from src.hub.leaderboard import LeaderboardDB
+
+    db = LeaderboardDB(args.db)
+
+    if args.submission_id:
+        from src.blockchain.contracts import SimulatedToken, StakingContract
+        from src.blockchain.buffer import BufferZone
+        token = SimulatedToken(db)
+        staking = StakingContract(db, token)
+        buffer_zone = BufferZone(db, token, staking)
+
+        status = buffer_zone.get_status(args.submission_id)
+        if "error" in status:
+            print(f"ERROR: {status['error']}", file=sys.stderr)
+            sys.exit(1)
+        print(f"Submission: {args.submission_id}")
+        print(f"  Combo: {status.get('combo_id', '')}")
+        print(f"  Submitter: {status.get('submitter', '')}")
+        print(f"  Status: {status.get('status', 'unknown')}")
+        print(f"  Classifiers: {status.get('classifier_count', 0)}")
+        if status.get("consensus_domain"):
+            print(f"  Consensus Domain: {status['consensus_domain']}")
+        classifications = status.get("classifications", [])
+        if classifications:
+            print(f"  Votes:")
+            for c in classifications:
+                match = "✓" if c.get("matched_consensus") else "✗"
+                print(f"    {c['classifier_addr'][:14]} | {c['domain_label']} | {match} | +{c.get('reward_earned', 0)}")
+    elif args.address:
+        entries = db.get_buffer_entries_by_submitter(args.address)
+        if not entries:
+            print(f"No submissions from {args.address}.")
+        else:
+            print(f"Submissions from {args.address} ({len(entries)}):")
+            for e in entries:
+                print(f"  {e['id']} | {e['status']:12} | {e['method_name']} × {e['problem_title']}")
+    else:
+        stats = [("Pending", db.count_buffer_by_status("pending")),
+                  ("Classified", db.count_buffer_by_status("classified")),
+                  ("Disputed", db.count_buffer_by_status("disputed")),
+                  ("Published", db.count_buffer_by_status("published"))]
+        print("Buffer Zone Stats:")
+        for label, count in stats:
+            print(f"  {label}: {count}")
+
+
+def cmd_buffer_stake(args):
+    """Manage token staking."""
+    from src.hub.leaderboard import LeaderboardDB
+    from src.blockchain.contracts import SimulatedToken, StakingContract
+
+    db = LeaderboardDB(args.db)
+    token = SimulatedToken(db)
+    staking = StakingContract(db, token)
+
+    if args.action == "stake":
+        sid = staking.stake(args.address, args.amount)
+        if sid < 0:
+            print(f"ERROR: Insufficient balance. Current: {token.balance_of(args.address)} IDEA", file=sys.stderr)
+            sys.exit(1)
+        print(f"Staked {args.amount} IDEA (stake ID: {sid})")
+        print(f"  Balance: {token.balance_of(args.address)} IDEA")
+        print(f"  Total staked: {staking.get_active_stake(args.address)} IDEA")
+    else:
+        stakes = db.get_active_stakes(args.address)
+        if not stakes:
+            print(f"No active stakes for {args.address}.")
+            return
+        total_released = 0
+        for s in stakes:
+            if staking.release_stake(s["id"]):
+                total_released += s["amount"]
+        if total_released > 0:
+            print(f"Released {total_released} IDEA from staking.")
+            print(f"  Balance: {token.balance_of(args.address)} IDEA")
+        else:
+            print("No stakes to release.")
+
+
+def cmd_buffer_tokens(args):
+    """View token balance and classifier stats."""
+    from src.hub.leaderboard import LeaderboardDB
+    from src.blockchain.contracts import SimulatedToken, StakingContract
+    from src.blockchain.buffer import BufferZone
+
+    db = LeaderboardDB(args.db)
+    token = SimulatedToken(db)
+    staking = StakingContract(db, token)
+    buffer_zone = BufferZone(db, token, staking)
+
+    stats = buffer_zone.get_classifier_stats(args.address)
+    print(f"Account: {args.address}")
+    print(f"  Token: {token.name} ({token.symbol})")
+    print(f"  Balance: {stats['balance']} {token.symbol}")
+    print(f"  Staked: {stats['staked']} {token.symbol}")
+    print(f"  Total Earned: {stats['total_earned']} {token.symbol}")
+    print(f"  Total Slashed: {stats['total_slashed']} {token.symbol}")
+    print(f"  Classifications: {stats['total_classifications']} ({stats['correct_classifications']} correct)")
+    print(f"  Streak: {stats['consecutive_correct']}")
+
+
 def main():
     parser = argparse.ArgumentParser(description="Idea Mining Network CLI")
     sub = parser.add_subparsers(dest="command")
@@ -565,6 +741,42 @@ def main():
     p_math_submit.add_argument("--address", default="0xSOLVER")
     p_math_submit.add_argument("--db", default="data/leaderboard.db")
 
+    p_buf_submit = sub.add_parser("buffer-submit", help="Submit an AI analysis to the blockchain buffer zone")
+    p_buf_submit.add_argument("--combo-id", required=True, help="Combination ID")
+    p_buf_submit.add_argument("--method-id", default="", help="Method ID")
+    p_buf_submit.add_argument("--method-name", default="", help="Method name")
+    p_buf_submit.add_argument("--problem-id", default="", help="Problem ID")
+    p_buf_submit.add_argument("--problem-title", default="", help="Problem title")
+    p_buf_submit.add_argument("--analysis-json", default="{}", help="Analysis JSON string")
+    p_buf_submit.add_argument("--analysis-file", default=None, help="Read analysis JSON from file")
+    p_buf_submit.add_argument("--analysis-text", default="", help="Analysis summary text")
+    p_buf_submit.add_argument("--address", default="0xBUFFER", help="Submitter address")
+    p_buf_submit.add_argument("--db", default="data/leaderboard.db")
+
+    p_buf_classify = sub.add_parser("buffer-classify", help="Classify a pending buffer submission")
+    p_buf_classify.add_argument("--submission-id", required=True, help="Buffer submission ID to classify")
+    p_buf_classify.add_argument("--domain", required=True, help="Domain label (e.g. medicine, energy)")
+    p_buf_classify.add_argument("--nsfw", action="store_true", help="Mark as NSFW")
+    p_buf_classify.add_argument("--spam", action="store_true", help="Mark as spam / AI hallucination")
+    p_buf_classify.add_argument("--notes", default="", help="Optional classification notes")
+    p_buf_classify.add_argument("--address", default="0xCLASSIFIER", help="Classifier address")
+    p_buf_classify.add_argument("--db", default="data/leaderboard.db")
+
+    p_buf_status = sub.add_parser("buffer-status", help="Check submission status in buffer zone")
+    p_buf_status.add_argument("--submission-id", default=None, help="Specific submission ID to check")
+    p_buf_status.add_argument("--address", default=None, help="Show submissions from this address")
+    p_buf_status.add_argument("--db", default="data/leaderboard.db")
+
+    p_buf_stake = sub.add_parser("buffer-stake", help="Manage token staking")
+    p_buf_stake.add_argument("--address", required=True, help="Staker address")
+    p_buf_stake.add_argument("--amount", type=int, default=100, help="Amount to stake/unstake")
+    p_buf_stake.add_argument("--action", choices=["stake", "unstake"], default="stake")
+    p_buf_stake.add_argument("--db", default="data/leaderboard.db")
+
+    p_buf_tokens = sub.add_parser("buffer-tokens", help="View token balance and classifier stats")
+    p_buf_tokens.add_argument("--address", default="0xVIEWER", help="Address to query")
+    p_buf_tokens.add_argument("--db", default="data/leaderboard.db")
+
     args = parser.parse_args()
     if args.command == "mine":
         cmd_mine(args)
@@ -587,6 +799,16 @@ def main():
         cmd_math_mine(args)
     elif args.command == "math-submit":
         cmd_math_submit(args)
+    elif args.command == "buffer-submit":
+        cmd_buffer_submit(args)
+    elif args.command == "buffer-classify":
+        cmd_buffer_classify(args)
+    elif args.command == "buffer-status":
+        cmd_buffer_status(args)
+    elif args.command == "buffer-stake":
+        cmd_buffer_stake(args)
+    elif args.command == "buffer-tokens":
+        cmd_buffer_tokens(args)
     else:
         parser.print_help()
 

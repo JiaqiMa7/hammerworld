@@ -415,3 +415,131 @@ python3 -m src.cli.main math-submit \
   --problem-id 1 --method-collection-id 3 \
   --steps-json '[...]' --parent-id 5
 ```
+
+## 15. `src/blockchain/` — 區塊鏈緩衝區
+
+模擬鏈上提交、分類、共識與代幣經濟。
+
+### 核心組件
+
+**`SimulatedToken`** (`contracts.py`) — 模擬 ERC-20 代幣：
+
+```python
+from src.blockchain.contracts import SimulatedToken
+from src.hub.leaderboard import LeaderboardDB
+
+db = LeaderboardDB("data/leaderboard.db")
+token = SimulatedToken(db, name="Idea Token", symbol="IDEA")
+
+token.faucet("0xALICE", 1000)          # 新用戶獲取初始代幣
+token.mint("0xALICE", 500)            # 鑄造（獎勵）
+balance = token.balance_of("0xALICE")  # 查詢餘額
+token.transfer("0xALICE", "0xBOB", 200)  # 轉賬
+total = token.total_supply()           # 總供應量
+```
+
+**`StakingContract`** (`contracts.py`) — 模擬質押合約：
+
+```python
+from src.blockchain.contracts import StakingContract
+
+staking = StakingContract(db, token)
+
+sid = staking.stake("0xALICE", 200)     # 質押 200 代幣
+staking.release_stake(sid)              # 釋放質押
+staking.slash_stake(sid, 100)           # 罰沒部分質押
+active = staking.get_active_stake("0xALICE")  # 查詢活躍質押
+```
+
+**`BufferZone`** (`buffer.py`) — 緩衝區編排：
+
+```python
+from src.blockchain.buffer import BufferZone
+
+buffer_zone = BufferZone(db, token, staking)
+
+# 提交 AI 分析
+sub_id = buffer_zone.submit_analysis(
+    combo_id="combo_001", method_id="m1", method_name="TRIZ Method",
+    problem_id="p1", problem_title="Antibiotic Resistance",
+    submitter="0xALICE",
+    analysis_json='{"scores":[{"dim":"elegance","score":8.5}]}',
+)
+
+# 分類員投票
+result = buffer_zone.classify(sub_id, "0xBOB", "medicine")
+result = buffer_zone.classify(sub_id, "0xCAROL", "medicine")
+result = buffer_zone.classify(sub_id, "0xDAVE", "medicine")
+
+# 3 人一致 → 共識達成，自動分發獎勵
+status = buffer_zone.get_status(sub_id)
+# status['status'] == 'classified'
+# status['consensus_domain'] == 'medicine'
+
+# 查看分類員統計
+stats = buffer_zone.get_classifier_stats("0xBOB")
+dashboard = buffer_zone.get_dashboard_stats()
+```
+
+### 緩衝區流程
+
+```
+AI Analysis → Buffer Zone (pending, only submitter visible)
+    → Classifiers vote (domain, NSFW, spam)
+        → 3+ votes, ≥60% domain consensus → classified (public)
+            → publish_to_leaderboard() → published (on leaderboard)
+        → 7 votes, no consensus → disputed
+```
+
+### 代幣經濟常量
+
+| 常量 | 值 | 說明 |
+|------|-----|------|
+| `STAKE_PER_SUBMISSION` | 50 | 每次提交需質押 |
+| `STAKE_PER_CLASSIFICATION` | 10 | 每次分類需質押 |
+| `REWARD_CORRECT` | 10 | 正確分類獎勵 |
+| `REWARD_SPAM` | 25 | 檢舉垃圾額外獎勵 |
+| `PENALTY_WRONG` | 5 | 錯誤分類罰沒 |
+| `MIN_CLASSIFICATIONS` | 3 | 最少分類人數 |
+| `CONSENSUS_THRESHOLD` | 0.6 | 共識閾值（60%） |
+| `SPEED_BONUS_RATE` | 0.1 | 連續正確加成（10%/次） |
+
+### Web 頁面
+
+| 路徑 | 頁面 | 說明 |
+|------|------|------|
+| `/web/buffer` | 緩衝區面板 | 各狀態統計、快捷入口 |
+| `/web/buffer/pending` | 待分類列表 | 等待分類的提交 |
+| `/web/buffer/classify/{sid}` | 分類表單 | 提交分類投票 |
+| `/web/buffer/submissions` | 我的提交 | 按提交者查詢 |
+| `/web/buffer/detail/{sid}` | 提交詳情 | 含所有分類記錄 |
+| `/web/buffer/tokens` | 代幣儀表板 | 餘額/質押/獎勵 |
+| `/web/buffer/leaderboard` | 分類員排行榜 | Top 50 分類員 |
+
+### CLI 命令
+
+```bash
+# 提交至緩衝區
+python3 -m src.cli.main buffer-submit \
+  --combo-id my_combo --method-id m1 --method-name "Test" \
+  --problem-id p1 --problem-title "Problem" \
+  --analysis-json '{"scores":[{"dim":"elegance","score":9.0}]}' \
+  --address 0xALICE
+
+# 分類投票
+python3 -m src.cli.main buffer-classify \
+  --submission-id abc123 --domain medicine --address 0xBOB
+
+# 查看狀態
+python3 -m src.cli.main buffer-status
+python3 -m src.cli.main buffer-status --address 0xALICE
+
+# 代幣管理
+python3 -m src.cli.main buffer-tokens --address 0xBOB
+```
+
+### 數據庫表
+
+4 個新表：`buffer_submissions`, `buffer_classifications`, `token_accounts`, `stake_records`
+
+詳見 `src/hub/leaderboard.py` `_init_db()` 和 `# --- Blockchain Buffer Zone ---` 區塊。

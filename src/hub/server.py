@@ -79,6 +79,10 @@ class _HubHandler(BaseHTTPRequestHandler):
             render_collections, render_collection_new, render_collection_detail,
             render_math_home, render_math_new, render_math_problem,
             render_math_method_zone, render_math_solution, render_math_unlock,
+            render_buffer_dashboard, render_buffer_pending,
+            render_buffer_classify, render_buffer_submissions,
+            render_buffer_submission_detail, render_buffer_tokens,
+            render_buffer_leaderboard, _parse_query,
         )
         db = self.db
         pm = self.peer_manager
@@ -139,6 +143,27 @@ class _HubHandler(BaseHTTPRequestHandler):
         elif _match_math_problem(path):
             pid = _parse_math_problem_id(path)
             html = render_math_problem(db, pid, self.path)
+        # Blockchain Buffer Zone routes
+        elif path == "/web/buffer" or path == "/web/buffer/":
+            html = render_buffer_dashboard(db)
+        elif path.startswith("/web/buffer/pending"):
+            html = render_buffer_pending(db, self.path)
+        elif _match_buffer_classify(path):
+            sub_id = _parse_buffer_classify(path)
+            html = render_buffer_classify(db, sub_id, self.path)
+        elif _match_buffer_detail(path):
+            sub_id = _parse_buffer_detail(path)
+            html = render_buffer_submission_detail(db, sub_id)
+        elif path.startswith("/web/buffer/submissions"):
+            params = _parse_query(self.path)
+            addr = params.get("address", "0xVIEWER")
+            html = render_buffer_submissions(db, addr)
+        elif path.startswith("/web/buffer/tokens"):
+            params = _parse_query(self.path)
+            addr = params.get("address", "0xVIEWER")
+            html = render_buffer_tokens(db, addr)
+        elif path.startswith("/web/buffer/leaderboard"):
+            html = render_buffer_leaderboard(db)
         else:
             self._send_json({"error": "not found"}, 404)
             return
@@ -392,6 +417,39 @@ class _HubHandler(BaseHTTPRequestHandler):
         self.send_header("Location", f"/web/math/{pid}/{mid}?user_address={user_address}")
         self.end_headers()
 
+    def _handle_buffer_classify(self, sub_id: str, body: bytes):
+        """Handle POST to classify a buffer submission."""
+        from urllib.parse import parse_qs
+        from src.hub.web import render_buffer_classify
+
+        buffer_zone = self.buffer_zone  # type: ignore[attr-defined]
+        if buffer_zone is None:
+            self._send_json({"ok": False, "error": "Buffer zone not available"}, 500)
+            return
+
+        db = self.db
+        assert db is not None
+
+        decoded = parse_qs(body.decode())
+        data = {k: v[0] if len(v) == 1 else v for k, v in decoded.items()}
+        classifier_addr = data.get("address", "0xCLASSIFIER").strip()
+        domain = data.get("domain", "other").strip()
+        is_nsfw = data.get("nsfw", "0") == "1"
+        is_spam = data.get("spam", "0") == "1"
+        notes = data.get("notes", "").strip()
+
+        result = buffer_zone.classify(sub_id, classifier_addr, domain, is_nsfw, is_spam, notes)
+
+        if not result.get("ok"):
+            html = render_buffer_classify(db, sub_id, self.path)
+            self._send_html(html)
+            return
+
+        # Redirect to detail page after successful classification
+        self.send_response(302)
+        self.send_header("Location", f"/web/buffer/detail/{sub_id}")
+        self.end_headers()
+
     def do_POST(self):
         assert self.api is not None
         body = self._read_body()
@@ -430,6 +488,9 @@ class _HubHandler(BaseHTTPRequestHandler):
         elif _match_math_unlock_post(self.path):
             pid, mid = _parse_math_unlock_post(self.path)
             self._handle_math_unlock(pid, mid, body)
+        elif _match_buffer_classify(self.path):
+            sub_id = _parse_buffer_classify(self.path)
+            self._handle_buffer_classify(sub_id, body)
         else:
             self._send_json({"error": "not found"}, 404)
 
@@ -558,6 +619,42 @@ def _parse_math_solution_submit(path: str) -> tuple[int, int, int]:
     rest = path.split("/web/math/", 1)[1]
     parts = rest.split("/")
     return int(parts[0]), int(parts[1]), int(parts[2])
+
+
+def _match_buffer_classify(path: str) -> bool:
+    """Check if path matches /web/buffer/classify/{sub_id}."""
+    if not path.startswith("/web/buffer/classify/"):
+        return False
+    rest = path.split("/web/buffer/classify/", 1)[1]
+    if "?" in rest:
+        rest = rest.split("?")[0]
+    return len(rest) > 0 and "/" not in rest
+
+
+def _parse_buffer_classify(path: str) -> str:
+    """Extract submission ID from buffer classify path."""
+    rest = path.split("/web/buffer/classify/", 1)[1]
+    if "?" in rest:
+        rest = rest.split("?")[0]
+    return rest
+
+
+def _match_buffer_detail(path: str) -> bool:
+    """Check if path matches /web/buffer/detail/{sub_id}."""
+    if not path.startswith("/web/buffer/detail/"):
+        return False
+    rest = path.split("/web/buffer/detail/", 1)[1]
+    if "?" in rest:
+        rest = rest.split("?")[0]
+    return len(rest) > 0 and "/" not in rest
+
+
+def _parse_buffer_detail(path: str) -> str:
+    """Extract submission ID from buffer detail path."""
+    rest = path.split("/web/buffer/detail/", 1)[1]
+    if "?" in rest:
+        rest = rest.split("?")[0]
+    return rest
 
 
 class HubAPI:
@@ -743,12 +840,18 @@ class HubServer:
         self.db = db
         self.peer_manager = PeerManager(db, self.config)
         self.api = HubAPI(db, self.peer_manager)
+        from src.blockchain.contracts import SimulatedToken, StakingContract
+        from src.blockchain.buffer import BufferZone
+        self.token = SimulatedToken(db)
+        self.staking = StakingContract(db, self.token)
+        self.buffer_zone = BufferZone(db, self.token, self.staking)
 
     def start(self):
         self.peer_manager.start()
         _HubHandler.api = self.api
         _HubHandler.db = self.db
         _HubHandler.peer_manager = self.peer_manager
+        _HubHandler.buffer_zone = self.buffer_zone
         self._http = _ThreadingHTTPServer(("0.0.0.0", self.config.port), _HubHandler)
         # Run server in daemon thread so shutdown() works from signal handler
         import threading

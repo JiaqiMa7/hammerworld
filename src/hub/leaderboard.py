@@ -194,6 +194,69 @@ class LeaderboardDB:
                     ON math_solutions(problem_id, method_collection_id, max_correct_step DESC);
                 CREATE INDEX IF NOT EXISTS idx_math_access_check
                     ON math_access_log(problem_id, method_collection_id, user_address);
+
+                CREATE TABLE IF NOT EXISTS buffer_submissions (
+                    id TEXT PRIMARY KEY,
+                    combo_id TEXT NOT NULL,
+                    method_id TEXT NOT NULL,
+                    method_name TEXT DEFAULT '',
+                    problem_id TEXT NOT NULL,
+                    problem_title TEXT DEFAULT '',
+                    submitter TEXT NOT NULL,
+                    status TEXT DEFAULT 'pending',
+                    analysis_json TEXT NOT NULL,
+                    analysis_text TEXT DEFAULT '',
+                    domain_label TEXT DEFAULT '',
+                    nsfw INTEGER DEFAULT 0,
+                    spam INTEGER DEFAULT 0,
+                    classifier_count INTEGER DEFAULT 0,
+                    consensus_domain TEXT DEFAULT '',
+                    consensus_nsfw INTEGER DEFAULT 0,
+                    consensus_spam INTEGER DEFAULT 0,
+                    staked_amount INTEGER DEFAULT 0,
+                    created_at REAL DEFAULT 0,
+                    classified_at REAL DEFAULT 0
+                );
+                CREATE INDEX IF NOT EXISTS idx_buffer_status ON buffer_submissions(status);
+                CREATE INDEX IF NOT EXISTS idx_buffer_submitter ON buffer_submissions(submitter);
+
+                CREATE TABLE IF NOT EXISTS buffer_classifications (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    submission_id TEXT NOT NULL,
+                    classifier_addr TEXT NOT NULL,
+                    domain_label TEXT NOT NULL,
+                    is_nsfw INTEGER DEFAULT 0,
+                    is_spam INTEGER DEFAULT 0,
+                    notes TEXT DEFAULT '',
+                    matched_consensus INTEGER DEFAULT 0,
+                    reward_earned INTEGER DEFAULT 0,
+                    created_at REAL DEFAULT 0
+                );
+                CREATE INDEX IF NOT EXISTS idx_class_submission ON buffer_classifications(submission_id);
+                CREATE INDEX IF NOT EXISTS idx_class_classifier ON buffer_classifications(classifier_addr);
+
+                CREATE TABLE IF NOT EXISTS token_accounts (
+                    address TEXT PRIMARY KEY,
+                    balance INTEGER DEFAULT 0,
+                    staked INTEGER DEFAULT 0,
+                    total_earned INTEGER DEFAULT 0,
+                    total_slashed INTEGER DEFAULT 0,
+                    consecutive_correct INTEGER DEFAULT 0,
+                    total_classifications INTEGER DEFAULT 0,
+                    correct_classifications INTEGER DEFAULT 0
+                );
+
+                CREATE TABLE IF NOT EXISTS stake_records (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    address TEXT NOT NULL,
+                    amount INTEGER NOT NULL,
+                    status TEXT DEFAULT 'active',
+                    submission_id TEXT DEFAULT '',
+                    created_at REAL DEFAULT 0,
+                    released_at REAL DEFAULT 0
+                );
+                CREATE INDEX IF NOT EXISTS idx_stake_address ON stake_records(address);
+                CREATE INDEX IF NOT EXISTS idx_stake_status ON stake_records(status);
             """)
         # Migration: add analysis_text for existing databases
         try:
@@ -821,3 +884,253 @@ class LeaderboardDB:
                 (problem_id, user_address),
             ).fetchall()
             return [dict(r) for r in rows]
+
+    # ------------------------------------------------------------------
+    # Blockchain Buffer Zone
+    # ------------------------------------------------------------------
+
+    def create_buffer_entry(self, sub_id: str, combo_id: str, method_id: str,
+                            method_name: str, problem_id: str, problem_title: str,
+                            submitter: str, analysis_json: str, analysis_text: str = "",
+                            staked_amount: int = 0) -> None:
+        now = time.time()
+        with self._connect() as conn:
+            conn.execute(
+                "INSERT INTO buffer_submissions (id, combo_id, method_id, method_name, "
+                "problem_id, problem_title, submitter, analysis_json, analysis_text, "
+                "staked_amount, created_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (sub_id, combo_id, method_id, method_name, problem_id, problem_title,
+                 submitter, analysis_json, analysis_text, staked_amount, now),
+            )
+
+    def get_buffer_entry(self, sub_id: str) -> dict | None:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM buffer_submissions WHERE id = ?", (sub_id,)
+            ).fetchone()
+            return dict(row) if row else None
+
+    def get_pending_buffer_entries(self, exclude_addr: str = "") -> list[dict]:
+        with self._connect() as conn:
+            if exclude_addr:
+                rows = conn.execute(
+                    "SELECT * FROM buffer_submissions WHERE status = 'pending' "
+                    "AND submitter != ? ORDER BY created_at DESC", (exclude_addr,)
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT * FROM buffer_submissions WHERE status = 'pending' "
+                    "ORDER BY created_at DESC"
+                ).fetchall()
+            return [dict(r) for r in rows]
+
+    def get_buffer_entries_by_submitter(self, submitter: str) -> list[dict]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM buffer_submissions WHERE submitter = ? "
+                "ORDER BY created_at DESC", (submitter,)
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    def get_buffer_entries_by_status(self, status: str) -> list[dict]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM buffer_submissions WHERE status = ? "
+                "ORDER BY created_at DESC", (status,)
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    def get_all_buffer_entries(self, limit: int = 100) -> list[dict]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM buffer_submissions ORDER BY created_at DESC LIMIT ?",
+                (limit,)
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    def update_buffer_status(self, sub_id: str, status: str, **kwargs) -> None:
+        sets = ["status = ?"]
+        params = [status]
+        for key, val in kwargs.items():
+            sets.append(f"{key} = ?")
+            params.append(val)
+        params.append(sub_id)
+        with self._connect() as conn:
+            conn.execute(
+                f"UPDATE buffer_submissions SET {', '.join(sets)} WHERE id = ?",
+                params,
+            )
+
+    def count_buffer_by_status(self, status: str | None = None) -> int:
+        with self._connect() as conn:
+            if status:
+                row = conn.execute(
+                    "SELECT COUNT(*) FROM buffer_submissions WHERE status = ?", (status,)
+                ).fetchone()
+            else:
+                row = conn.execute("SELECT COUNT(*) FROM buffer_submissions").fetchone()
+            return row[0] if row else 0
+
+    def classify_buffer_entry(self, submission_id: str, classifier_addr: str,
+                              domain_label: str, is_nsfw: int, is_spam: int,
+                              notes: str = "") -> int:
+        now = time.time()
+        with self._connect() as conn:
+            cur = conn.execute(
+                "INSERT INTO buffer_classifications (submission_id, classifier_addr, "
+                "domain_label, is_nsfw, is_spam, notes, created_at) VALUES (?, ?, ?, ?, ?, ?, ?)",
+                (submission_id, classifier_addr, domain_label, is_nsfw, is_spam, notes, now),
+            )
+            conn.execute(
+                "UPDATE buffer_submissions SET classifier_count = classifier_count + 1 "
+                "WHERE id = ?", (submission_id,)
+            )
+            return cur.lastrowid
+
+    def get_classifications(self, submission_id: str) -> list[dict]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM buffer_classifications WHERE submission_id = ? "
+                "ORDER BY created_at", (submission_id,)
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    def get_classifications_by_classifier(self, classifier_addr: str) -> list[dict]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM buffer_classifications WHERE classifier_addr = ? "
+                "ORDER BY created_at DESC", (classifier_addr,)
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    def set_classification_consensus_match(self, class_id: int,
+                                           matched: bool, reward: int) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE buffer_classifications SET matched_consensus = ?, reward_earned = ? "
+                "WHERE id = ?", (1 if matched else 0, reward, class_id),
+            )
+
+    def get_or_create_account(self, address: str) -> dict:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM token_accounts WHERE address = ?", (address,)
+            ).fetchone()
+            if row:
+                return dict(row)
+            conn.execute(
+                "INSERT INTO token_accounts (address) VALUES (?)", (address,)
+            )
+            row2 = conn.execute(
+                "SELECT * FROM token_accounts WHERE address = ?", (address,)
+            ).fetchone()
+            return dict(row2)
+
+    def update_token_balance(self, address: str, delta: int) -> int:
+        self.get_or_create_account(address)
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE token_accounts SET balance = balance + ? WHERE address = ?",
+                (delta, address),
+            )
+            row = conn.execute(
+                "SELECT balance FROM token_accounts WHERE address = ?", (address,)
+            ).fetchone()
+            return row[0] if row else 0
+
+    def update_token_staked(self, address: str, delta: int) -> int:
+        self.get_or_create_account(address)
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE token_accounts SET staked = staked + ? WHERE address = ?",
+                (delta, address),
+            )
+            row = conn.execute(
+                "SELECT staked FROM token_accounts WHERE address = ?", (address,)
+            ).fetchone()
+            return row[0] if row else 0
+
+    def update_token_earned(self, address: str, delta: int) -> None:
+        self.get_or_create_account(address)
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE token_accounts SET total_earned = total_earned + ? WHERE address = ?",
+                (delta, address),
+            )
+
+    def update_token_slashed(self, address: str, delta: int) -> None:
+        self.get_or_create_account(address)
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE token_accounts SET total_slashed = total_slashed + ? WHERE address = ?",
+                (delta, address),
+            )
+
+    def update_classifier_stats(self, address: str, correct: bool) -> None:
+        self.get_or_create_account(address)
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE token_accounts SET total_classifications = total_classifications + 1 "
+                "WHERE address = ?", (address,)
+            )
+            if correct:
+                conn.execute(
+                    "UPDATE token_accounts SET correct_classifications = correct_classifications + 1, "
+                    "consecutive_correct = consecutive_correct + 1 WHERE address = ?", (address,)
+                )
+            else:
+                conn.execute(
+                    "UPDATE token_accounts SET consecutive_correct = 0 WHERE address = ?",
+                    (address,)
+                )
+
+    def get_token_leaderboard(self, sort_by: str = "balance",
+                               limit: int = 50) -> list[dict]:
+        col = "balance" if sort_by == "balance" else "total_earned"
+        with self._connect() as conn:
+            rows = conn.execute(
+                f"SELECT address, balance, staked, total_earned, correct_classifications, "
+                f"total_classifications, consecutive_correct FROM token_accounts "
+                f"ORDER BY {col} DESC LIMIT ?", (limit,)
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    def create_stake_record(self, address: str, amount: int,
+                            submission_id: str = "") -> int:
+        now = time.time()
+        with self._connect() as conn:
+            cur = conn.execute(
+                "INSERT INTO stake_records (address, amount, submission_id, created_at) "
+                "VALUES (?, ?, ?, ?)", (address, amount, submission_id, now),
+            )
+            return cur.lastrowid
+
+    def get_active_stakes(self, address: str) -> list[dict]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM stake_records WHERE address = ? AND status = 'active' "
+                "ORDER BY created_at DESC", (address,)
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    def get_all_stakes(self) -> list[dict]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM stake_records ORDER BY created_at DESC"
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    def update_stake_status(self, stake_id: int, status: str) -> None:
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE stake_records SET status = ?, released_at = ? WHERE id = ?",
+                (status, time.time() if status != "active" else 0, stake_id),
+            )
+
+    def get_total_staked(self, address: str) -> int:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT COALESCE(SUM(amount), 0) FROM stake_records "
+                "WHERE address = ? AND status = 'active'", (address,)
+            ).fetchone()
+            return row[0] if row else 0

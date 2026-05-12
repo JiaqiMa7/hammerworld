@@ -21,9 +21,10 @@ hammerworld/
 │   ├── triz/            # TRIZ 理論：knowledge, matrix, agent, prompts
 │   ├── evaluation/      # AI 評估：8 維度評分流水線
 │   ├── hub/             # P2P 聯邦排行榜：leaderboard, peer, server, web
-│   └── cli/             # CLI：mine / top / search / random / hub / math-mine / math-submit
+│   ├── blockchain/      # 區塊鏈緩衝區：token, staking, buffer zone
+│   └── cli/             # CLI：mine / top / search / random / hub / buffer-submit / buffer-classify / ...
 ├── data/                # methods.json (35 條) + problems.json (22 條)
-├── tests/               # 256 單元測試
+├── tests/               # 298 單元測試
 ├── readme/              # 詳細文檔
 ├── DESIGN.md            # 完整系統設計
 └── CLAUDE.md            # Claude Code 指引
@@ -60,6 +61,15 @@ python3 -m src.cli.main math-mine --problem-id 1 --methods-collection "Complex A
 # Math Zone：提交解法
 python3 -m src.cli.main math-submit --problem-id 1 --method-collection-id 1 --steps-json '[{"step_num":1,"content":"define the problem","verified":true}]'
 
+# Buffer Zone：提交分析到區塊鏈緩衝區
+python3 -m src.cli.main buffer-submit --combo-id my_combo --method-id m1 --method-name "Test" --problem-id p1 --problem-title "Problem" --analysis-json '{"scores":[{"dim":"elegance","score":9.0}]}' --address 0xALICE
+
+# Buffer Zone：對待分類提交進行投票
+python3 -m src.cli.main buffer-classify --submission-id <ID> --domain medicine --address 0xBOB
+
+# Buffer Zone：查看分類員排行榜
+python3 -m src.cli.main buffer-tokens --address 0xBOB
+
 # 運行測試
 python3 -m unittest discover tests/ -v
 ```
@@ -68,7 +78,7 @@ python3 -m unittest discover tests/ -v
 
 | 文檔 | 內容 |
 |------|------|
-| [readme/modules.md](readme/modules.md) | 所有模塊詳解（models, loader, combiner, triz, evaluation, hub, math-zone） |
+| [readme/modules.md](readme/modules.md) | 所有模塊詳解（models, loader, combiner, triz, evaluation, hub, blockchain, math-zone） |
 | [readme/p2p-hub.md](readme/p2p-hub.md) | P2P Hub：gossip 協議、REST API、CLI 使用 |
 | [readme/development.md](readme/development.md) | 開發工作流、測試、完整示例、擴展指南 |
 | [DESIGN.md](DESIGN.md) | 完整系統設計（經濟模型、榮譽系統、區塊鏈緩衝區、Matrix Marketplace、Math Research Zone） |
@@ -81,4 +91,5 @@ python3 -m unittest discover tests/ -v
 - **P2P 聯邦**：多 Hub 自組織，無中央服務器
 - **Matrix Marketplace**：方法/問題集合可創建、分享、標星、導入
 - **Math Research Zone**：數學問題專區，閘門解鎖機制，按解法步驟數排名，支持 Fork 協作
+- **Blockchain Buffer Zone**：AI 分析提交 → 社區分類員投票 → 共識達成 → 公佈至排行榜，模擬代幣質押/獎勵
 - **零依賴**：純 stdlib，AI 通過協議注入
