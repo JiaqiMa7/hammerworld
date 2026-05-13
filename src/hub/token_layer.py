@@ -145,8 +145,12 @@ class TokenGate:
     # Helpers
     # ------------------------------------------------------------------
 
-    def _ensure_balance(self, address: str, needed: int) -> None:
-        """Auto-faucet if balance is below the needed amount."""
+    def _ensure_balance(self, address: str, needed: int) -> bool:
+        """Check balance and attempt faucet if needed. Returns True if balance is sufficient."""
         bal = self.token.balance_of(address)
-        if bal < needed:
-            self.token.faucet(address, self.FAUCET_AMOUNT)
+        if bal >= needed:
+            return True
+        # Try faucet (may be rate-limited)
+        self.token.faucet(address, self.FAUCET_AMOUNT)
+        bal = self.token.balance_of(address)
+        return bal >= needed

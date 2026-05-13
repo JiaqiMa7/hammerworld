@@ -180,7 +180,7 @@ class _HubHandler(BaseHTTPRequestHandler):
             combo_id = path.split("/web/entry/", 1)[1]
             html = render_entry(db, combo_id, viewer_addr=viewer, token_gate=tg, lang=lang)
         elif path == "/web/tokens":
-            html = render_token_dashboard(db, token_gate=tg, viewer_addr=viewer, lang=lang)
+            html = render_token_dashboard(db, token_gate=tg, viewer_addr=viewer, lang=lang, path=self.path)
         elif path == "/web/submit":
             html = render_submit_home(lang=lang, viewer_addr=viewer)
         elif path == "/web/submit/method":
@@ -692,17 +692,25 @@ class _HubHandler(BaseHTTPRequestHandler):
 
     def _handle_faucet(self, body: bytes):
         """Handle POST to trigger faucet."""
-        from urllib.parse import parse_qs
+        from urllib.parse import parse_qs, urlencode
         decoded = parse_qs(body.decode())
         data = {k: v[0] if len(v) == 1 else v for k, v in decoded.items()}
         viewer_addr = data.get("viewer_addr", "").strip() or self._cookie_addr()
         redirect = data.get("redirect", "/web/tokens")
 
         tg = self.token_gate
+        msg = ""
         if tg and viewer_addr:
-            tg.token.faucet(viewer_addr, tg.FAUCET_AMOUNT)
+            minted = tg.token.faucet(viewer_addr, tg.FAUCET_AMOUNT)
+            if minted > 0:
+                msg = "faucet_ok"
+            else:
+                msg = "faucet_limited"
 
+        sep = "&" if "?" in redirect else "?"
         self.send_response(302)
+        if msg:
+            redirect = f"{redirect}{sep}msg={msg}"
         if viewer_addr:
             self._set_cookie(viewer_addr)
         self.send_header("Location", redirect)

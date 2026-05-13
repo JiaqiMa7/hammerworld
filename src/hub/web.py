@@ -165,6 +165,8 @@ _T = {
     "tokens.payments":       {"en": "Payments",            "zh": "支付次数"},
     "tokens.faucet":         {"en": "Get Free Tokens (Faucet)", "zh": "领取免费代币"},
     "tokens.faucet_hint":    {"en": "+100 IDEA for new users", "zh": "新用户 +100 IDEA"},
+    "tokens.faucet_limited": {"en": "Faucet rate-limited: 1 hour cooldown or max 10 claims.", "zh": "已限流：每小时只能领取 1 次，最多 10 次。"},
+    "tokens.faucet_got":     {"en": "Faucet: +100 IDEA received.", "zh": "已领取 100 IDEA。"},
     "tokens.payment_history": {"en": "Payment History",    "zh": "支付历史"},
     "tokens.no_payments":    {"en": "No payments yet.",    "zh": "暂无支付记录。"},
     # Submissions
@@ -779,7 +781,7 @@ def render_random(db: LeaderboardDB, path: str,
     dim = EvalDimension(params["dim"]) if params.get("dim") else None
     dom = Domain(params["domain"]) if params.get("domain") else None
     count = min(int(params.get("count", 10)), 50)
-    viewer = params.get("viewer", viewer_addr or "web_viewer")
+    viewer = params.get("viewer", viewer_addr) if viewer_addr else ""
     paid = params.get("paid", "")
 
     dim_opts = "".join(
@@ -791,7 +793,8 @@ def render_random(db: LeaderboardDB, path: str,
         for d in Domain
     )
 
-    base_params = f"dim={dim.value if dim else ''}&domain={dom.value if dom else ''}&count={count}&viewer={_esc(viewer)}&lang={lang}"
+    viewer_qs = f"&viewer={_esc(viewer)}" if viewer else ""
+    base_params = f"dim={dim.value if dim else ''}&domain={dom.value if dom else ''}&count={count}{viewer_qs}&lang={lang}"
 
     cards = ""
     draw_info = ""
@@ -989,7 +992,11 @@ def render_entry(db: LeaderboardDB, combo_id: str,
 # ------------------------------------------------------------------
 
 def render_token_dashboard(db: LeaderboardDB, token_gate=None,
-                           viewer_addr: str = "", lang: str = "en") -> str:
+                           viewer_addr: str = "", lang: str = "en",
+                           path: str = "") -> str:
+    from urllib.parse import parse_qs
+    params = _parse_query(path) if path else {}
+    msg = params.get("msg", "")
     summary = token_gate.get_viewer_summary(viewer_addr) if token_gate else {
         "address": viewer_addr, "balance": 0, "staked": 0,
         "total_earned": 0, "total_slashed": 0,
@@ -1026,6 +1033,8 @@ def render_token_dashboard(db: LeaderboardDB, token_gate=None,
         <input type="hidden" name="redirect" value="/web/tokens?viewer={_esc(viewer_addr)}&lang={lang}">
         <button type="submit" style="background:#22c55e;">{_t("tokens.faucet", lang)}</button>
         <span style="font-size:12px;color:#999;margin-left:8px;">{_t("tokens.faucet_hint", lang)}</span>
+        {f'<p style="color:#22c55e;font-size:13px;margin:4px 0;">{_t("tokens.faucet_got", lang)}</p>' if msg == "faucet_ok" else ''}
+        {f'<p style="color:#ef4444;font-size:13px;margin:4px 0;">{_t("tokens.faucet_limited", lang)}</p>' if msg == "faucet_limited" else ''}
     </form>
     """
     if payment_rows:

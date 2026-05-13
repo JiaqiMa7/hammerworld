@@ -283,7 +283,9 @@ class LeaderboardDB:
                     total_slashed INTEGER DEFAULT 0,
                     consecutive_correct INTEGER DEFAULT 0,
                     total_classifications INTEGER DEFAULT 0,
-                    correct_classifications INTEGER DEFAULT 0
+                    correct_classifications INTEGER DEFAULT 0,
+                    last_faucet_at REAL DEFAULT 0,
+                    faucet_count INTEGER DEFAULT 0
                 );
 
                 CREATE TABLE IF NOT EXISTS stake_records (
@@ -330,6 +332,13 @@ class LeaderboardDB:
                 UNIQUE(viewer_addr, combo_id)
             );
         """)
+        # Migration: faucet tracking columns on token_accounts
+        for col, col_type in [("last_faucet_at", "REAL DEFAULT 0"),
+                               ("faucet_count", "INTEGER DEFAULT 0")]:
+            try:
+                conn.execute(f"ALTER TABLE token_accounts ADD COLUMN {col} {col_type}")
+            except sqlite3.OperationalError:
+                pass
         conn.commit()
         # Migration: convert math_solutions to tree nodes (schema v0 -> v1)
         self._migrate_math_to_tree(conn)

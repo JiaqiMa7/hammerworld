@@ -36,9 +36,27 @@ class SimulatedToken:
             row = conn.execute("SELECT COALESCE(SUM(balance), 0) FROM token_accounts").fetchone()
             return row[0]
 
-    def faucet(self, address: str, amount: int = 1000) -> None:
-        self.db.get_or_create_account(address)
+    FAUCET_COOLDOWN = 3600  # seconds between faucet claims (1 hour)
+    FAUCET_MAX = 10          # max faucet claims per address
+
+    def faucet(self, address: str, amount: int = 1000) -> int:
+        """Mint free tokens with cooldown and per-address limit.
+        Returns the amount minted, or 0 if rate-limited."""
+        acct = self.db.get_or_create_account(address)
+        now = time.time()
+        last_faucet = acct.get("last_faucet_at", 0)
+        faucet_count = acct.get("faucet_count", 0)
+        if now - last_faucet < self.FAUCET_COOLDOWN:
+            return 0
+        if faucet_count >= self.FAUCET_MAX:
+            return 0
         self.mint(address, amount)
+        with self.db._connect() as conn:
+            conn.execute(
+                "UPDATE token_accounts SET last_faucet_at = ?, faucet_count = faucet_count + 1 WHERE address = ?",
+                (now, address),
+            )
+        return amount
 
 
 class StakingContract:

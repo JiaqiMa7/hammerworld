@@ -177,6 +177,7 @@ class PeerManager:
     def _run_loop(self):
         last_peer_exchange = time.time()
         last_discovery_heartbeat = time.time()
+        last_discovery_fetch = time.time()
         while self._running:
             try:
                 # Pull from a random peer
@@ -206,6 +207,20 @@ class PeerManager:
                 for url in self.config.discovery_urls:
                     try:
                         heartbeat_to_discovery(url, self._peer_id)
+                    except Exception:
+                        pass
+
+            # Re-discover peers from discovery servers every 60s
+            if now - last_discovery_fetch > 60.0:
+                last_discovery_fetch = now
+                from src.hub.discovery import discover_peers
+                for url in self.config.discovery_urls:
+                    try:
+                        discovered = discover_peers(url)
+                        for p in discovered:
+                            pid = p.get("peer_id", "")
+                            if pid and pid != self._peer_id:
+                                self.add_peer(p["address"], p["port"], pid)
                     except Exception:
                         pass
 
