@@ -33,6 +33,38 @@ class _HubHandler(BaseHTTPRequestHandler):
     def _remote_ip(self) -> str:
         return self.client_address[0]
 
+    @property
+    def _lang(self) -> str:
+        """Extract language preference from query string."""
+        from urllib.parse import parse_qs
+        qs = self.path.split("?", 1)[1] if "?" in self.path else ""
+        for pair in qs.split("&"):
+            if pair.startswith("lang="):
+                lang = pair.split("=", 1)[1]
+                return lang if lang in ("en", "zh") else "en"
+        return "en"
+
+    def _cookie_addr(self) -> str:
+        """Extract hammerworld_addr from Cookie header."""
+        cookie_header = self.headers.get("Cookie", "")
+        for part in cookie_header.replace(";", " ").split():
+            if part.startswith("hammerworld_addr="):
+                return part.split("=", 1)[1]
+        return ""
+
+    def _set_cookie(self, addr: str = "", clear: bool = False) -> None:
+        """Set or clear the hammerworld_addr session cookie."""
+        if clear or not addr:
+            self.send_header("Set-Cookie",
+                "hammerworld_addr=; Path=/; Max-Age=0; SameSite=Lax")
+        else:
+            self.send_header("Set-Cookie",
+                f"hammerworld_addr={addr}; Path=/; SameSite=Lax")
+
+    def _viewer_for_page(self, query_params: dict[str, str]) -> str:
+        """Get viewer address: cookie > query param > empty."""
+        return self._cookie_addr() or query_params.get("viewer", "")
+
     def _check_rate_limit(self) -> bool:
         """Check rate limit for discovery endpoints. Sends 429 if limited."""
         from src.hub.discovery import get_discovery_server
@@ -85,8 +117,13 @@ class _HubHandler(BaseHTTPRequestHandler):
         elif self.path.startswith("/combinations"):
             self._send_json(self.api.handle_get_combinations(self.path))
         # Web UI endpoints
-        elif self.path == "/" or path == "/web":
+        elif path == "/" or path == "/web":
             self._serve_web("dashboard")
+        elif path == "/web/logout":
+            self.send_response(302)
+            self._set_cookie(clear=True)
+            self.send_header("Location", "/")
+            self.end_headers()
         elif path.startswith("/web/"):
             self._serve_web(path)
         else:
@@ -101,6 +138,7 @@ class _HubHandler(BaseHTTPRequestHandler):
             render_collections, render_collection_new, render_collection_detail,
             render_math_home, render_math_new, render_math_problem,
             render_math_method_zone, render_math_solution, render_math_unlock,
+            render_math_tree, render_math_tree_node,
             render_buffer_dashboard, render_buffer_pending,
             render_buffer_classify, render_buffer_submissions,
             render_buffer_submission_detail, render_buffer_tokens,
@@ -112,29 +150,30 @@ class _HubHandler(BaseHTTPRequestHandler):
         assert db is not None and pm is not None
 
         params = _parse_query(self.path)
-        viewer = params.get("viewer", "")
+        viewer = self._viewer_for_page(params)
+        lang = params.get("lang", "en")
 
         if path in ("/", "/web", "dashboard"):
-            html = render_dashboard(db, pm)
+            html = render_dashboard(db, pm, lang=lang, viewer_addr=viewer)
         elif path.startswith("/web/leaderboard"):
-            html = render_leaderboard(db, self.path, viewer_addr=viewer, token_gate=tg)
+            html = render_leaderboard(db, self.path, viewer_addr=viewer, token_gate=tg, lang=lang)
         elif path.startswith("/web/search"):
-            html = render_search(db, self.path)
+            html = render_search(db, self.path, lang=lang)
         elif path.startswith("/web/random"):
-            html = render_random(db, self.path, viewer_addr=viewer, token_gate=tg)
+            html = render_random(db, self.path, viewer_addr=viewer, token_gate=tg, lang=lang)
         elif path.startswith("/web/peers"):
-            html = render_peers(pm)
+            html = render_peers(pm, lang=lang)
         elif path.startswith("/web/entry/"):
             combo_id = path.split("/web/entry/", 1)[1]
-            html = render_entry(db, combo_id, viewer_addr=viewer, token_gate=tg)
+            html = render_entry(db, combo_id, viewer_addr=viewer, token_gate=tg, lang=lang)
         elif path == "/web/tokens":
-            html = render_token_dashboard(db, token_gate=tg, viewer_addr=viewer)
+            html = render_token_dashboard(db, token_gate=tg, viewer_addr=viewer, lang=lang)
         elif path == "/web/submit":
-            html = render_submit_home()
+            html = render_submit_home(lang=lang)
         elif path == "/web/submit/method":
-            html = render_submit_method()
+            html = render_submit_method(lang=lang)
         elif path == "/web/submit/problem":
-            html = render_submit_problem()
+            html = render_submit_problem(lang=lang)
         elif path.startswith("/web/submissions"):
             self._handle_submissions(path)
             return
@@ -143,10 +182,10 @@ class _HubHandler(BaseHTTPRequestHandler):
             self._handle_collection_star(path)
             return
         elif path == "/web/collections/new":
-            html = render_collection_new()
+            html = render_collection_new(lang=lang)
         elif path.startswith("/web/collections/new"):
             # Nothing else matches this prefix besides the exact path above
-            html = render_collection_new()
+            html = render_collection_new(lang=lang)
         elif _match_collection_detail(path):
             ctype, cid_str = _parse_collection_path(path)
             try:
@@ -154,42 +193,48 @@ class _HubHandler(BaseHTTPRequestHandler):
             except ValueError:
                 self._send_json({"error": "invalid collection id"}, 404)
                 return
-            html = render_collection_detail(db, ctype, cid, starrer="")
+            html = render_collection_detail(db, ctype, cid, starrer="", lang=lang)
         elif path.startswith("/web/collections"):
-            html = render_collections(db, self.path)
+            html = render_collections(db, self.path, lang=lang)
         # Math Research Zone routes
         elif path == "/web/math":
-            html = render_math_home(db)
+            html = render_math_home(db, lang=lang)
         elif path == "/web/math/new":
-            html = render_math_new()
+            html = render_math_new(lang=lang)
+        elif _match_math_tree_node(path):
+            pid, mid, nid = _parse_math_tree_node(path)
+            html = render_math_tree_node(db, pid, mid, nid, self.path, lang=lang)
+        elif _match_math_tree(path):
+            pid, mid = _parse_math_tree(path)
+            html = render_math_tree(db, pid, mid, self.path, lang=lang)
         elif _match_math_solution(path):
             pid, mid, sid = _parse_math_solution(path)
-            html = render_math_solution(db, pid, mid, sid, self.path)
+            html = render_math_solution(db, pid, mid, sid, self.path, lang=lang)
         elif _match_math_method_zone(path):
             pid, mid = _parse_math_method_zone(path)
-            html = render_math_method_zone(db, pid, mid, self.path)
+            html = render_math_method_zone(db, pid, mid, self.path, lang=lang)
         elif _match_math_problem(path):
             pid = _parse_math_problem_id(path)
-            html = render_math_problem(db, pid, self.path)
+            html = render_math_problem(db, pid, self.path, lang=lang)
         # Blockchain Buffer Zone routes
         elif path == "/web/buffer" or path == "/web/buffer/":
-            html = render_buffer_dashboard(db)
+            html = render_buffer_dashboard(db, lang=lang)
         elif path.startswith("/web/buffer/pending"):
-            html = render_buffer_pending(db, self.path)
+            html = render_buffer_pending(db, self.path, lang=lang)
         elif _match_buffer_classify(path):
             sub_id = _parse_buffer_classify(path)
-            html = render_buffer_classify(db, sub_id, self.path)
+            html = render_buffer_classify(db, sub_id, self.path, lang=lang)
         elif _match_buffer_detail(path):
             sub_id = _parse_buffer_detail(path)
-            html = render_buffer_submission_detail(db, sub_id)
+            html = render_buffer_submission_detail(db, sub_id, lang=lang)
         elif path.startswith("/web/buffer/submissions"):
             params = _parse_query(self.path)
             addr = params.get("address", "0xVIEWER")
-            html = render_buffer_submissions(db, addr)
+            html = render_buffer_submissions(db, addr, lang=lang)
         elif path.startswith("/web/buffer/tokens"):
             params = _parse_query(self.path)
             addr = params.get("address", "0xVIEWER")
-            html = render_buffer_tokens(db, addr)
+            html = render_buffer_tokens(db, addr, lang=lang)
         elif path.startswith("/web/buffer/leaderboard"):
             html = render_buffer_leaderboard(db)
         else:
@@ -207,9 +252,9 @@ class _HubHandler(BaseHTTPRequestHandler):
         from src.hub.web import render_submit_method, render_submit_problem
         if result.get("ok"):
             if "method" in form_path:
-                html = render_submit_method(success=f"Method submitted! ID: {result['id']}")
+                html = render_submit_method(success=f"Method submitted! ID: {result['id']}", lang=self._lang)
             else:
-                html = render_submit_problem(success=f"Problem submitted! ID: {result['id']}")
+                html = render_submit_problem(success=f"Problem submitted! ID: {result['id']}", lang=self._lang)
         else:
             # Re-render form with errors and submitted data
             from urllib.parse import parse_qs
@@ -219,9 +264,9 @@ class _HubHandler(BaseHTTPRequestHandler):
                 form_data = {}
             errors = result.get("errors", [])
             if "method" in form_path:
-                html = render_submit_method(form=form_data, errors=errors)
+                html = render_submit_method(form=form_data, errors=errors, lang=self._lang)
             else:
-                html = render_submit_problem(form=form_data, errors=errors)
+                html = render_submit_problem(form=form_data, errors=errors, lang=self._lang)
         self._send_html(html)
 
     def _handle_submissions(self, path: str):
@@ -238,13 +283,13 @@ class _HubHandler(BaseHTTPRequestHandler):
                 sub_id = int(params["approve"][0])
                 data = db.approve_submission(sub_id)
                 if data:
-                    self._send_html(render_submissions(db))
+                    self._send_html(render_submissions(db, lang=self._lang))
                     return
             elif "reject" in params:
                 sub_id = int(params["reject"][0])
                 db.reject_submission(sub_id)
 
-        self._send_html(render_submissions(db))
+        self._send_html(render_submissions(db, lang=self._lang))
 
     def _handle_collection_star(self, path: str):
         """Handle star toggle for a collection."""
@@ -273,7 +318,7 @@ class _HubHandler(BaseHTTPRequestHandler):
             pass
 
         # Redirect back to the detail page
-        html = render_collection_detail(db, ctype, cid, starrer=starrer, starred=True)
+        html = render_collection_detail(db, ctype, cid, starrer=starrer, starred=True, lang=self._lang)
         self._send_html(html)
 
     def _handle_create_collection(self, body: bytes):
@@ -323,7 +368,7 @@ class _HubHandler(BaseHTTPRequestHandler):
             if "json" in ct:
                 self._send_json({"ok": False, "errors": errors})
             else:
-                html = render_collection_new(form=data, errors=errors)
+                html = render_collection_new(form=data, errors=errors, lang=self._lang)
                 self._send_html(html)
             return
 
@@ -334,7 +379,7 @@ class _HubHandler(BaseHTTPRequestHandler):
         else:
             # Redirect to the new collection detail
             from src.hub.web import render_collection_detail
-            html = render_collection_detail(db, ctype, cid, starrer=creator)
+            html = render_collection_detail(db, ctype, cid, starrer=creator, lang=self._lang)
             self._send_html(html)
 
     def _handle_create_math_problem(self, body: bytes):
@@ -358,14 +403,14 @@ class _HubHandler(BaseHTTPRequestHandler):
             errors.append("Title is required.")
 
         if errors:
-            html = render_math_new(form=data, errors=errors)
+            html = render_math_new(form=data, errors=errors, lang=self._lang)
             self._send_html(html)
             return
 
         pid = db.create_math_problem(title, description, category, creator)
         # Redirect to the new problem page
         from src.hub.web import render_math_problem
-        html = render_math_problem(db, pid, self.path)
+        html = render_math_problem(db, pid, self.path, lang=self._lang)
         self._send_html(html)
 
     def _handle_fork_math_solution(self, pid: int, mid: int, sid: int, body: bytes):
@@ -411,7 +456,7 @@ class _HubHandler(BaseHTTPRequestHandler):
 
         if errors:
             from src.hub.web import render_math_solution
-            html = render_math_solution(db, pid, mid, sid, self.path)
+            html = render_math_solution(db, pid, mid, sid, self.path, lang=lang)
             self._send_html(html)
             return
 
@@ -431,18 +476,112 @@ class _HubHandler(BaseHTTPRequestHandler):
 
         decoded = parse_qs(body.decode())
         data = {k: v[0] if len(v) == 1 else v for k, v in decoded.items()}
-        user_address = data.get("user_address", "").strip()
+        user_address = data.get("user_address", "").strip() or self._cookie_addr()
         combo_id = data.get("combo_id", "").strip()
 
         if not user_address or not combo_id:
-            html = render_math_unlock(db, pid, mid, self.path)
+            html = render_math_unlock(db, pid, mid, self.path, lang=self._lang)
             self._send_html(html)
             return
 
         db.grant_math_access(pid, mid, user_address, combo_id)
-        # Redirect to method zone
         self.send_response(302)
-        self.send_header("Location", f"/web/math/{pid}/{mid}?user_address={user_address}")
+        self._set_cookie(user_address)
+        self.send_header("Location", f"/web/math/{pid}/{mid}")
+        self.end_headers()
+
+    # -- Math tree POST handlers -------------------------------------------------
+
+    def _handle_add_tree_child(self, pid: int, mid: int, nid: int, body: bytes):
+        """Handle POST to add a child node to a tree node."""
+        from urllib.parse import parse_qs
+
+        db = self.db
+        assert db is not None
+
+        decoded = parse_qs(body.decode())
+        data = {k: v[0] if len(v) == 1 else v for k, v in decoded.items()}
+        content = data.get("content", "").strip()
+        action_label = data.get("action_label", "").strip()
+        action_description = data.get("action_description", "").strip()
+        user_address = data.get("user_address", "0xTREE").strip()
+        node_type = data.get("node_type", "normal").strip()
+        reward_str = data.get("reward", "0.0").strip()
+
+        if not content:
+            # re-render node page with error
+            from src.hub.web import render_math_tree_node
+            html = render_math_tree_node(db, pid, mid, nid, self.path,
+                                         errors=["Content is required."],
+                                         lang=self._lang)
+            self._send_html(html)
+            return
+
+        try:
+            reward = float(reward_str)
+        except ValueError:
+            reward = 0.0
+
+        child_id = db.create_tree_node(
+            pid, mid, user_address, content, node_type, reward=reward,
+        )
+        db.create_tree_edge(nid, child_id, action_label, action_description)
+
+        if node_type in ("terminal_success", "terminal_failure"):
+            db.backpropagate(child_id, reward)
+
+        self.send_response(302)
+        self.send_header("Location", f"/web/math/{pid}/{mid}/tree/node/{nid}")
+        self.end_headers()
+
+    def _handle_backpropagate(self, pid: int, mid: int, nid: int, body: bytes):
+        """Handle POST to set terminal reward and backpropagate."""
+        from urllib.parse import parse_qs
+
+        db = self.db
+        assert db is not None
+
+        decoded = parse_qs(body.decode())
+        data = {k: v[0] if len(v) == 1 else v for k, v in decoded.items()}
+        reward_str = data.get("reward", "1.0").strip()
+        terminal_type = data.get("terminal_type", "terminal_success").strip()
+
+        try:
+            reward = float(reward_str)
+        except ValueError:
+            reward = 1.0
+        reward = max(0.0, min(1.0, reward))
+
+        db.update_tree_node(nid, node_type=terminal_type, reward=reward)
+        db.backpropagate(nid, reward)
+
+        self.send_response(302)
+        self.send_header("Location", f"/web/math/{pid}/{mid}/tree/node/{nid}")
+        self.end_headers()
+
+    def _handle_prune_node(self, pid: int, mid: int, nid: int, body: bytes):
+        """Handle POST to prune a tree node."""
+        db = self.db
+        assert db is not None
+
+        db.prune_node(nid)
+
+        self.send_response(302)
+        self.send_header("Location", f"/web/math/{pid}/{mid}/tree")
+        self.end_headers()
+
+    def _handle_login(self, body: bytes):
+        """Handle POST to set session cookie."""
+        from urllib.parse import parse_qs
+        decoded = parse_qs(body.decode())
+        data = {k: v[0] if len(v) == 1 else v for k, v in decoded.items()}
+        addr = data.get("address", data.get("viewer_addr", "")).strip()
+        redirect = data.get("redirect", "/")
+
+        self.send_response(302)
+        if addr:
+            self._set_cookie(addr)
+        self.send_header("Location", redirect)
         self.end_headers()
 
     def _handle_pay_view(self, combo_id: str, body: bytes):
@@ -450,7 +589,7 @@ class _HubHandler(BaseHTTPRequestHandler):
         from urllib.parse import parse_qs
         decoded = parse_qs(body.decode())
         data = {k: v[0] if len(v) == 1 else v for k, v in decoded.items()}
-        viewer_addr = data.get("viewer_addr_input", data.get("viewer_addr", "")).strip()
+        viewer_addr = data.get("viewer_addr_input", data.get("viewer_addr", "")).strip() or self._cookie_addr()
         redirect = data.get("redirect", f"/web/entry/{combo_id}")
 
         tg = self.token_gate
@@ -458,7 +597,9 @@ class _HubHandler(BaseHTTPRequestHandler):
             tg.pay_for_view(viewer_addr, combo_id)
 
         self.send_response(302)
-        self.send_header("Location", f"{redirect}&viewer={viewer_addr}" if "?" in redirect else f"{redirect}?viewer={viewer_addr}")
+        if viewer_addr:
+            self._set_cookie(viewer_addr)
+        self.send_header("Location", redirect)
         self.end_headers()
 
     def _handle_pay_leaderboard(self, board_name: str, body: bytes):
@@ -466,7 +607,7 @@ class _HubHandler(BaseHTTPRequestHandler):
         from urllib.parse import parse_qs
         decoded = parse_qs(body.decode())
         data = {k: v[0] if len(v) == 1 else v for k, v in decoded.items()}
-        viewer_addr = data.get("viewer_addr_input", data.get("viewer_addr", "")).strip()
+        viewer_addr = data.get("viewer_addr_input", data.get("viewer_addr", "")).strip() or self._cookie_addr()
         redirect = data.get("redirect", "/web/leaderboard")
 
         tg = self.token_gate
@@ -474,7 +615,9 @@ class _HubHandler(BaseHTTPRequestHandler):
             tg.pay_for_leaderboard(viewer_addr, board_name)
 
         self.send_response(302)
-        self.send_header("Location", f"{redirect}&viewer={viewer_addr}" if "?" in redirect else f"{redirect}?viewer={viewer_addr}")
+        if viewer_addr:
+            self._set_cookie(viewer_addr)
+        self.send_header("Location", redirect)
         self.end_headers()
 
     def _handle_pay_draw(self, body: bytes):
@@ -482,7 +625,7 @@ class _HubHandler(BaseHTTPRequestHandler):
         from urllib.parse import parse_qs
         decoded = parse_qs(body.decode())
         data = {k: v[0] if len(v) == 1 else v for k, v in decoded.items()}
-        viewer_addr = data.get("viewer_addr_input", data.get("viewer_addr", "")).strip()
+        viewer_addr = data.get("viewer_addr_input", data.get("viewer_addr", "")).strip() or self._cookie_addr()
         redirect = data.get("redirect", "/web/random")
 
         tg = self.token_gate
@@ -490,7 +633,9 @@ class _HubHandler(BaseHTTPRequestHandler):
             tg.pay_for_random_draw(viewer_addr)
 
         self.send_response(302)
-        self.send_header("Location", f"{redirect}&viewer={viewer_addr}" if "?" in redirect else f"{redirect}?viewer={viewer_addr}")
+        if viewer_addr:
+            self._set_cookie(viewer_addr)
+        self.send_header("Location", redirect)
         self.end_headers()
 
     def _handle_rate(self, combo_id: str, body: bytes):
@@ -498,7 +643,7 @@ class _HubHandler(BaseHTTPRequestHandler):
         from urllib.parse import parse_qs
         decoded = parse_qs(body.decode())
         data = {k: v[0] if len(v) == 1 else v for k, v in decoded.items()}
-        viewer_addr = data.get("viewer_addr", "").strip()
+        viewer_addr = data.get("viewer_addr", "").strip() or self._cookie_addr()
         redirect = data.get("redirect", f"/web/entry/{combo_id}")
         rating_str = data.get("rating", "")
         comment = data.get("comment", "").strip()
@@ -511,7 +656,9 @@ class _HubHandler(BaseHTTPRequestHandler):
                 pass
 
         self.send_response(302)
-        self.send_header("Location", f"{redirect}&viewer={viewer_addr}" if "?" in redirect else f"{redirect}?viewer={viewer_addr}")
+        if viewer_addr:
+            self._set_cookie(viewer_addr)
+        self.send_header("Location", redirect)
         self.end_headers()
 
     def _handle_faucet(self, body: bytes):
@@ -519,7 +666,7 @@ class _HubHandler(BaseHTTPRequestHandler):
         from urllib.parse import parse_qs
         decoded = parse_qs(body.decode())
         data = {k: v[0] if len(v) == 1 else v for k, v in decoded.items()}
-        viewer_addr = data.get("viewer_addr", "").strip()
+        viewer_addr = data.get("viewer_addr", "").strip() or self._cookie_addr()
         redirect = data.get("redirect", "/web/tokens")
 
         tg = self.token_gate
@@ -527,7 +674,9 @@ class _HubHandler(BaseHTTPRequestHandler):
             tg.token.faucet(viewer_addr, tg.FAUCET_AMOUNT)
 
         self.send_response(302)
-        self.send_header("Location", f"{redirect}&viewer={viewer_addr}" if "?" in redirect else f"{redirect}?viewer={viewer_addr}")
+        if viewer_addr:
+            self._set_cookie(viewer_addr)
+        self.send_header("Location", redirect)
         self.end_headers()
 
     def _handle_buffer_classify(self, sub_id: str, body: bytes):
@@ -554,7 +703,7 @@ class _HubHandler(BaseHTTPRequestHandler):
         result = buffer_zone.classify(sub_id, classifier_addr, domain, is_nsfw, is_spam, notes)
 
         if not result.get("ok"):
-            html = render_buffer_classify(db, sub_id, self.path)
+            html = render_buffer_classify(db, sub_id, self.path, lang=lang)
             self._send_html(html)
             return
 
@@ -612,6 +761,15 @@ class _HubHandler(BaseHTTPRequestHandler):
             self._handle_create_collection(body)
         elif self.path == "/web/math/new":
             self._handle_create_math_problem(body)
+        elif _match_add_tree_child(self.path):
+            pid, mid, nid = _parse_tree_action_node(self.path)
+            self._handle_add_tree_child(pid, mid, nid, body)
+        elif _match_backpropagate(self.path):
+            pid, mid, nid = _parse_tree_action_node(self.path)
+            self._handle_backpropagate(pid, mid, nid, body)
+        elif _match_prune_node(self.path):
+            pid, mid, nid = _parse_tree_action_node(self.path)
+            self._handle_prune_node(pid, mid, nid, body)
         elif _match_math_solution_fork(self.path):
             pid, mid, sid = _parse_math_solution_fork(self.path)
             self._handle_fork_math_solution(pid, mid, sid, body)
@@ -635,6 +793,8 @@ class _HubHandler(BaseHTTPRequestHandler):
         elif _match_rate_post(self.path):
             combo_id = _parse_rate_post(self.path)
             self._handle_rate(combo_id, body)
+        elif self.path == "/web/login":
+            self._handle_login(body)
         elif self.path == "/web/faucet":
             self._handle_faucet(body)
         else:
@@ -765,6 +925,82 @@ def _parse_math_solution_submit(path: str) -> tuple[int, int, int]:
     rest = path.split("/web/math/", 1)[1]
     parts = rest.split("/")
     return int(parts[0]), int(parts[1]), int(parts[2])
+
+
+# -- Math tree matchers (must match before _match_math_method_zone) ---------------
+
+def _match_math_tree_node(path: str) -> bool:
+    """Check if path matches /web/math/{pid}/{mid}/tree/node/{nid}."""
+    if not path.startswith("/web/math/"):
+        return False
+    rest = path.split("/web/math/", 1)[1]
+    parts = rest.split("/")
+    return (len(parts) == 5 and parts[0].isdigit() and parts[1].isdigit()
+            and parts[2] == "tree" and parts[3] == "node" and parts[4].isdigit())
+
+
+def _parse_math_tree_node(path: str) -> tuple[int, int, int]:
+    """Extract (pid, mid, nid) from tree node path."""
+    rest = path.split("/web/math/", 1)[1]
+    parts = rest.split("/")
+    return int(parts[0]), int(parts[1]), int(parts[4])
+
+
+def _match_math_tree(path: str) -> bool:
+    """Check if path matches /web/math/{pid}/{mid}/tree."""
+    if not path.startswith("/web/math/"):
+        return False
+    rest = path.split("/web/math/", 1)[1]
+    parts = rest.split("/")
+    return (len(parts) == 3 and parts[0].isdigit() and parts[1].isdigit()
+            and parts[2] == "tree")
+
+
+def _parse_math_tree(path: str) -> tuple[int, int]:
+    """Extract (pid, mid) from tree path."""
+    rest = path.split("/web/math/", 1)[1]
+    parts = rest.split("/")
+    return int(parts[0]), int(parts[1])
+
+
+def _match_add_tree_child(path: str) -> bool:
+    """Check if path matches /web/math/{pid}/{mid}/tree/node/{nid}/add_child."""
+    if not path.startswith("/web/math/"):
+        return False
+    rest = path.split("/web/math/", 1)[1]
+    parts = rest.split("/")
+    return (len(parts) == 6 and parts[0].isdigit() and parts[1].isdigit()
+            and parts[2] == "tree" and parts[3] == "node"
+            and parts[4].isdigit() and parts[5] == "add_child")
+
+
+def _match_backpropagate(path: str) -> bool:
+    """Check if path matches /web/math/{pid}/{mid}/tree/node/{nid}/backpropagate."""
+    if not path.startswith("/web/math/"):
+        return False
+    rest = path.split("/web/math/", 1)[1]
+    parts = rest.split("/")
+    return (len(parts) == 6 and parts[0].isdigit() and parts[1].isdigit()
+            and parts[2] == "tree" and parts[3] == "node"
+            and parts[4].isdigit() and parts[5] == "backpropagate")
+
+
+def _match_prune_node(path: str) -> bool:
+    """Check if path matches /web/math/{pid}/{mid}/tree/node/{nid}/prune."""
+    if not path.startswith("/web/math/"):
+        return False
+    rest = path.split("/web/math/", 1)[1]
+    parts = rest.split("/")
+    return (len(parts) == 6 and parts[0].isdigit() and parts[1].isdigit()
+            and parts[2] == "tree" and parts[3] == "node"
+            and parts[4].isdigit() and parts[5] == "prune")
+
+
+def _parse_tree_action_node(path: str) -> tuple[int, int, int]:
+    """Extract (pid, mid, nid) from tree action path."""
+    rest = path.split("/web/math/", 1)[1]
+    parts = rest.split("/")
+    return int(parts[0]), int(parts[1]), int(parts[4])
 
 
 def _match_buffer_classify(path: str) -> bool:

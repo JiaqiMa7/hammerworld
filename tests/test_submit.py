@@ -137,7 +137,7 @@ class TestSubmissionWebPages(unittest.TestCase):
 
     def test_nav_includes_submit(self):
         html = render_submit_home()
-        assert 'href="/web/submit"' in html
+        assert 'href="/web/submit' in html
         assert "Submit" in html
 
 

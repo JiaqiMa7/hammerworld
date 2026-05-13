@@ -1,13 +1,81 @@
 """CLI tools for the Idea Mining Network."""
 
+from __future__ import annotations
+
 import argparse
 import json
+import os
 import signal
 import sys
 from pathlib import Path
 
 # Add project root to path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
+
+
+def _load_user_config():
+    """Load key=value config from ~/.hammerworld/config (same format as providers.py)."""
+    config = {}
+    config_path = Path.home() / ".hammerworld" / "config"
+    if config_path.exists():
+        for line in config_path.read_text().splitlines():
+            line = line.strip()
+            if not line or line.startswith("#") or "=" not in line:
+                continue
+            k, v = line.split("=", 1)
+            k = k.strip()
+            v = v.strip().strip('"').strip("'")
+            config[k] = v
+    return config
+
+
+_ADDR_UNSET = object()
+
+
+def _get_user_address(args, fallback: str = "0xMINER", auto_generate: bool = True) -> str:
+    """Return the user's address: CLI flag > config file > auto-generate > fallback default.
+
+    On first run, generates an Ed25519 keypair and derives a unique address from
+    the public key: ``0x + SHA-256(pubkey)[:40]``.  The private key is stored in
+    ``~/.hammerworld/identity`` (mode 0600) so the user can prove ownership.
+    Falls back to a random seed if the ``cryptography`` library is not installed.
+    """
+    addr = getattr(args, 'address', _ADDR_UNSET)
+    if addr is not _ADDR_UNSET and addr is not None and addr != "":
+        return addr
+    config = _load_user_config()
+    val = config.get("HAMMERWORLD_ADDRESS", "")
+    if val:
+        return val
+    if auto_generate:
+        from src.hub.user_identity import ensure_user_identity, get_user_address
+        identity = ensure_user_identity()
+        new_addr = get_user_address(identity)
+        _save_user_config("HAMMERWORLD_ADDRESS", new_addr)
+        return new_addr
+    return fallback
+
+
+def _save_user_config(key: str, value: str) -> None:
+    """Write or update a key=value pair in ~/.hammerworld/config."""
+    config_path = Path.home() / ".hammerworld"
+    config_path.mkdir(parents=True, exist_ok=True)
+    config_file = config_path / "config"
+    lines = []
+    found = False
+    if config_file.exists():
+        for line in config_file.read_text().splitlines():
+            stripped = line.strip()
+            if stripped and not stripped.startswith("#") and "=" in stripped:
+                k, _ = stripped.split("=", 1)
+                if k.strip() == key:
+                    lines.append(f"{key}={value}")
+                    found = True
+                    continue
+            lines.append(line)
+    if not found:
+        lines.append(f"{key}={value}")
+    config_file.write_text("\n".join(lines) + "\n")
 
 
 def _make_triz_agent():
@@ -46,6 +114,8 @@ def cmd_mine(args):
         print("", file=sys.stderr)
         print("Compatible providers: OpenAI, Anthropic (via compatible proxy), local LLM, etc.", file=sys.stderr)
         sys.exit(1)
+
+    address = _get_user_address(args, "0xMINER")
 
     # Open DB for collection loading and later saving
     db = LeaderboardDB(args.db)
@@ -106,7 +176,7 @@ def cmd_mine(args):
     combos = generate_combinations(
         methods, problems,
         block_height=args.block_height,
-        user_address=args.address,
+        user_address=_get_user_address(args, "0xMINER"),
         nonce=args.nonce,
         batch_size=args.batch,
         method_step=args.method_step,
@@ -157,7 +227,7 @@ def cmd_mine(args):
     saved = 0
     for r in results:
         try:
-            db.insert(r.combination, miner_addr=args.address)
+            db.insert(r.combination, miner_addr=address)
             saved += 1
             dims = [d.value for d in r.high_dimensions]
             print(f"  [{r.combination.id}] {r.combination.method.name} × {r.combination.problem.title} "
@@ -210,7 +280,7 @@ def cmd_random(args):
     dim = EvalDimension(args.dimension) if args.dimension else None
     dom = Domain(args.domain) if args.domain else None
     db = LeaderboardDB(args.db)
-    result = db.random_draw(dimension=dim, domain=dom, draw_count=args.count, viewer_addr=args.address)
+    result = db.random_draw(dimension=dim, domain=dom, draw_count=args.count, viewer_addr=_get_user_address(args, "0xVIEWER"))
 
     print(f"Random draw from {result.board_name} board ({result.total_in_board} available):")
     for e in result.entries:
@@ -370,6 +440,47 @@ def cmd_keygen(args):
     print(f"")
     print(f"Use with:  --identity {path}")
 
+    if args.set_identity:
+        import hashlib, shutil
+        addr = "0x" + hashlib.sha256(im.public_key_bytes).hexdigest()[:40]
+        _save_user_config("HAMMERWORLD_ADDRESS", addr)
+        # Also copy the private key to ~/.hammerworld/identity
+        identity_path = Path.home() / ".hammerworld" / "identity"
+        identity_path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copy2(path, str(identity_path))
+        os.chmod(str(identity_path), 0o600)
+        print(f"Address derived from key: {addr}")
+        print(f"Identity key: {identity_path}")
+        print(f"Stored in ~/.hammerworld/config")
+
+
+def cmd_identity(args):
+    """Show or set the current user identity address."""
+    config_path = Path.home() / ".hammerworld" / "config"
+    identity_path = Path.home() / ".hammerworld" / "identity"
+
+    if args.set_address:
+        _save_user_config("HAMMERWORLD_ADDRESS", args.set_address)
+        print(f"Identity set: {args.set_address}")
+        print(f"Stored in: {config_path}")
+        print(f"NOTE: This manually-set address is NOT backed by a private key.")
+        print(f"      For a key-backed address, use: hammerworld keygen --set-identity")
+    else:
+        config = _load_user_config()
+        addr = config.get("HAMMERWORLD_ADDRESS")
+        if addr:
+            has_key = identity_path.exists()
+            print(f"Current address: {addr}")
+            if has_key:
+                print(f"Backed by: Ed25519 private key ({identity_path})")
+            else:
+                print(f"Backed by: none (no private key found)")
+                print(f"Generate a key-backed address with: hammerworld keygen --set-identity")
+        else:
+            print("No address configured.")
+            print(f"Set one with: hammerworld identity set <address>")
+        print(f"Config file: {config_path}")
+
 
 def cmd_hub(args):
     """Start a P2P hub server."""
@@ -427,6 +538,7 @@ def cmd_math_mine(args):
         print("ERROR: No API key configured.", file=sys.stderr)
         sys.exit(1)
 
+    address = _get_user_address(args, "0xMINER")
     db = LeaderboardDB(args.db)
 
     # Load math problem
@@ -472,7 +584,7 @@ def cmd_math_mine(args):
     combos = generate_combinations(
         methods, [problem],
         block_height=args.block_height,
-        user_address=args.address,
+        user_address=_get_user_address(args, "0xMINER"),
         nonce=args.nonce,
         batch_size=args.batch,
         method_step=args.method_step,
@@ -517,7 +629,7 @@ def cmd_math_mine(args):
     access_granted = False
     for r in results:
         try:
-            entry = db.insert(r.combination, miner_addr=args.address)
+            entry = db.insert(r.combination, miner_addr=address)
             saved += 1
             # Auto-grant access on first successful save
             if not access_granted:
@@ -528,10 +640,15 @@ def cmd_math_mine(args):
                 }, ensure_ascii=False)
                 db.grant_math_access(
                     problem_entry["id"], coll["id"],
-                    args.address, r.combination.id, analysis_json,
+                    address, r.combination.id, analysis_json,
                 )
                 access_granted = True
                 print(f"  Access granted! You can now view: /web/math/{problem_entry['id']}/{coll['id']}")
+                # Auto-create root tree node
+                try:
+                    db.get_root_node(problem_entry["id"], coll["id"])
+                except Exception:
+                    pass  # root creation is best-effort
         except Exception as exc:
             print(f"  error saving: {exc}")
 
@@ -570,7 +687,7 @@ def cmd_math_submit(args):
     sid = db.submit_math_solution(
         problem_id=args.problem_id,
         method_collection_id=args.method_collection_id,
-        user_address=args.address,
+        user_address=_get_user_address(args, "0xSOLVER"),
         steps=steps,
         parent_id=args.parent_id,
     )
@@ -583,12 +700,79 @@ def cmd_math_submit(args):
     print(f"  Max correct step: {db._calc_max_correct_step(steps)}")
 
 
+def cmd_math_tree_add(args):
+    """Add a child node to an existing MCTS tree node."""
+    from src.hub.leaderboard import LeaderboardDB
+
+    db = LeaderboardDB(args.db)
+    parent = db.get_tree_node(args.parent_node_id)
+    if not parent:
+        print(f"ERROR: Parent node #{args.parent_node_id} not found.", file=sys.stderr)
+        sys.exit(1)
+
+    reward = args.reward if args.reward is not None else (
+        1.0 if args.type == "terminal_success" else 0.0)
+
+    node_id = db.create_tree_node(
+        problem_id=parent["problem_id"],
+        method_collection_id=parent["method_collection_id"],
+        user_address=_get_user_address(args, "0xEXPLORER"),
+        content=args.content,
+        node_type=args.type,
+        reward=reward,
+    )
+    edge_id = db.create_tree_edge(
+        parent_node_id=args.parent_node_id,
+        child_node_id=node_id,
+        action_label=args.action,
+        action_description=args.description or "",
+    )
+    print(f"Created node #{node_id} (edge #{edge_id}) under node #{args.parent_node_id}")
+    print(f"  Content: {args.content[:60]}")
+    print(f"  Type: {args.type}")
+    print(f"  Action: {args.action}")
+
+    if args.type in ("terminal_success", "terminal_failure"):
+        db.backpropagate(node_id, reward)
+        print(f"  Backpropagated reward={reward} to root")
+
+
+def cmd_math_tree_status(args):
+    """Show MCTS tree statistics for a (problem, method) zone."""
+    from src.hub.leaderboard import LeaderboardDB
+
+    db = LeaderboardDB(args.db)
+    nodes = db.get_tree_nodes_for_zone(args.problem_id, args.method_collection_id)
+    root = db.get_root_node(args.problem_id, args.method_collection_id)
+    terminals = db.get_terminal_nodes(args.problem_id, args.method_collection_id)
+    success_terminals = [n for n in terminals if n["node_type"] == "terminal_success"]
+
+    print(f"Tree for problem #{args.problem_id} / method #{args.method_collection_id}:")
+    print(f"  Total nodes: {len(nodes)}")
+    print(f"  Root node: #{root['id'] if root else 'N/A'}")
+    print(f"  Terminal nodes: {len(terminals)} ({len(success_terminals)} success)")
+    if root:
+        print(f"  Root Q-value: {root['q_value']:.4f}")
+        print(f"  Root visits: {root['visit_count']}")
+
+    # Show UCT for root children
+    if root:
+        uct = db.get_uct_scores(root["id"])
+        if uct:
+            print(f"  Children (UCT order):")
+            for c in uct[:5]:
+                uct_str = f"{c.get('uct_score', 0):.3f}" if c.get("uct_score") != float('inf') else "inf"
+                print(f"    #{c['child_id']}: {c['action_label'][:30]} "
+                      f"Q={c['child_q_value']:.3f} N={c['child_visit_count']} UCT={uct_str}")
+
+
 def cmd_buffer_submit(args):
     """Submit an AI analysis to the blockchain buffer zone."""
     from src.hub.leaderboard import LeaderboardDB
     from src.blockchain.contracts import SimulatedToken, StakingContract
     from src.blockchain.buffer import BufferZone
 
+    address = _get_user_address(args, "0xBUFFER")
     db = LeaderboardDB(args.db)
     token = SimulatedToken(db)
     staking = StakingContract(db, token)
@@ -608,7 +792,7 @@ def cmd_buffer_submit(args):
         method_name=args.method_name,
         problem_id=args.problem_id,
         problem_title=args.problem_title,
-        submitter=args.address,
+        submitter=address,
         analysis_json=analysis_json,
         analysis_text=args.analysis_text,
     )
@@ -625,6 +809,7 @@ def cmd_buffer_classify(args):
     from src.blockchain.contracts import SimulatedToken, StakingContract
     from src.blockchain.buffer import BufferZone
 
+    address = _get_user_address(args, "0xCLASSIFIER")
     db = LeaderboardDB(args.db)
     token = SimulatedToken(db)
     staking = StakingContract(db, token)
@@ -632,7 +817,7 @@ def cmd_buffer_classify(args):
 
     result = buffer_zone.classify(
         submission_id=args.submission_id,
-        classifier_addr=args.address,
+        classifier_addr=address,
         domain_label=args.domain,
         is_nsfw=args.nsfw,
         is_spam=args.spam,
@@ -645,7 +830,7 @@ def cmd_buffer_classify(args):
     consensus = result.get("consensus", {})
     print(f"Classification submitted.")
     print(f"  Submission: {args.submission_id}")
-    print(f"  Classifier: {args.address}")
+    print(f"  Classifier: {address}")
     print(f"  Domain: {args.domain}")
     print(f"  Votes: {consensus.get('total', 1)}")
     if consensus.get("reached"):
@@ -660,6 +845,7 @@ def cmd_buffer_status(args):
     """Check buffer submission status."""
     from src.hub.leaderboard import LeaderboardDB
 
+    address = _get_user_address(args, "0xVIEWER")
     db = LeaderboardDB(args.db)
 
     if args.submission_id:
@@ -687,11 +873,11 @@ def cmd_buffer_status(args):
                 match = "✓" if c.get("matched_consensus") else "✗"
                 print(f"    {c['classifier_addr'][:14]} | {c['domain_label']} | {match} | +{c.get('reward_earned', 0)}")
     elif args.address:
-        entries = db.get_buffer_entries_by_submitter(args.address)
+        entries = db.get_buffer_entries_by_submitter(address)
         if not entries:
-            print(f"No submissions from {args.address}.")
+            print(f"No submissions from {address}.")
         else:
-            print(f"Submissions from {args.address} ({len(entries)}):")
+            print(f"Submissions from {address} ({len(entries)}):")
             for e in entries:
                 print(f"  {e['id']} | {e['status']:12} | {e['method_name']} × {e['problem_title']}")
     else:
@@ -709,22 +895,23 @@ def cmd_buffer_stake(args):
     from src.hub.leaderboard import LeaderboardDB
     from src.blockchain.contracts import SimulatedToken, StakingContract
 
+    address = _get_user_address(args, "0xVIEWER")
     db = LeaderboardDB(args.db)
     token = SimulatedToken(db)
     staking = StakingContract(db, token)
 
     if args.action == "stake":
-        sid = staking.stake(args.address, args.amount)
+        sid = staking.stake(address, args.amount)
         if sid < 0:
-            print(f"ERROR: Insufficient balance. Current: {token.balance_of(args.address)} IDEA", file=sys.stderr)
+            print(f"ERROR: Insufficient balance. Current: {token.balance_of(address)} IDEA", file=sys.stderr)
             sys.exit(1)
         print(f"Staked {args.amount} IDEA (stake ID: {sid})")
-        print(f"  Balance: {token.balance_of(args.address)} IDEA")
-        print(f"  Total staked: {staking.get_active_stake(args.address)} IDEA")
+        print(f"  Balance: {token.balance_of(address)} IDEA")
+        print(f"  Total staked: {staking.get_active_stake(address)} IDEA")
     else:
-        stakes = db.get_active_stakes(args.address)
+        stakes = db.get_active_stakes(address)
         if not stakes:
-            print(f"No active stakes for {args.address}.")
+            print(f"No active stakes for {address}.")
             return
         total_released = 0
         for s in stakes:
@@ -732,7 +919,7 @@ def cmd_buffer_stake(args):
                 total_released += s["amount"]
         if total_released > 0:
             print(f"Released {total_released} IDEA from staking.")
-            print(f"  Balance: {token.balance_of(args.address)} IDEA")
+            print(f"  Balance: {token.balance_of(address)} IDEA")
         else:
             print("No stakes to release.")
 
@@ -743,13 +930,14 @@ def cmd_buffer_tokens(args):
     from src.blockchain.contracts import SimulatedToken, StakingContract
     from src.blockchain.buffer import BufferZone
 
+    address = _get_user_address(args, "0xVIEWER")
     db = LeaderboardDB(args.db)
     token = SimulatedToken(db)
     staking = StakingContract(db, token)
     buffer_zone = BufferZone(db, token, staking)
 
-    stats = buffer_zone.get_classifier_stats(args.address)
-    print(f"Account: {args.address}")
+    stats = buffer_zone.get_classifier_stats(address)
+    print(f"Account: {address}")
     print(f"  Token: {token.name} ({token.symbol})")
     print(f"  Balance: {stats['balance']} {token.symbol}")
     print(f"  Staked: {stats['staked']} {token.symbol}")
@@ -765,15 +953,16 @@ def cmd_pay_view(args):
     from src.blockchain.contracts import SimulatedToken
     from src.hub.token_layer import TokenGate
 
+    address = _get_user_address(args, "0xVIEWER")
     db = LeaderboardDB(args.db)
     token = SimulatedToken(db)
     tg = TokenGate(db, token)
 
-    result = tg.pay_for_view(args.address, args.combo_id)
+    result = tg.pay_for_view(address, args.combo_id)
     if not result.get("ok"):
         print(f"ERROR: {result.get('error', 'pay failed')}", file=sys.stderr)
         sys.exit(1)
-    bal = token.balance_of(args.address)
+    bal = token.balance_of(address)
     print(f"Payment: {TokenGate.VIEW_FEE_N} IDEA")
     print(f"  Status: {result.get('status', 'paid')}")
     print(f"  Combo: {args.combo_id}")
@@ -786,16 +975,17 @@ def cmd_pay_leaderboard(args):
     from src.blockchain.contracts import SimulatedToken
     from src.hub.token_layer import TokenGate
 
+    address = _get_user_address(args, "0xVIEWER")
     db = LeaderboardDB(args.db)
     token = SimulatedToken(db)
     tg = TokenGate(db, token)
 
     board_name = f"{args.dimension}_{args.domain}"
-    result = tg.pay_for_leaderboard(args.address, board_name)
+    result = tg.pay_for_leaderboard(address, board_name)
     if not result.get("ok"):
         print(f"ERROR: {result.get('error', 'pay failed')}", file=sys.stderr)
         sys.exit(1)
-    bal = token.balance_of(args.address)
+    bal = token.balance_of(address)
     print(f"Payment: {TokenGate.LEADERBOARD_FEE_P} IDEA")
     print(f"  Board: {board_name}")
     print(f"  Status: {result.get('status', 'unlocked')}")
@@ -809,15 +999,16 @@ def cmd_pay_draw(args):
     from src.blockchain.contracts import SimulatedToken
     from src.hub.token_layer import TokenGate
 
+    address = _get_user_address(args, "0xVIEWER")
     db = LeaderboardDB(args.db)
     token = SimulatedToken(db)
     tg = TokenGate(db, token)
 
-    result = tg.pay_for_random_draw(args.address)
+    result = tg.pay_for_random_draw(address)
     if not result.get("ok"):
         print(f"ERROR: {result.get('error', 'pay failed')}", file=sys.stderr)
         sys.exit(1)
-    bal = token.balance_of(args.address)
+    bal = token.balance_of(address)
     print(f"Payment: {TokenGate.DRAW_FEE_Q} IDEA")
     print(f"  Status: {result.get('status', 'paid')}")
     print(f"  Remaining Balance: {bal} IDEA")
@@ -828,7 +1019,7 @@ def cmd_pay_draw(args):
         dim = EvalDimension(args.dimension) if args.dimension else None
         dom = Domain(args.domain) if args.domain else None
         draw = db.random_draw(dimension=dim, domain=dom,
-                             draw_count=args.count, viewer_addr=args.address)
+                             draw_count=args.count, viewer_addr=address)
         print(f"\nRandom draw from {draw.board_name} board ({draw.total_in_board} available):")
         for e in draw.entries:
             print(f"  [{e.best_dimension}={e.best_score:.1f}] {e.method_name} × {e.problem_title}")
@@ -840,12 +1031,13 @@ def cmd_token_balance(args):
     from src.blockchain.contracts import SimulatedToken
     from src.hub.token_layer import TokenGate
 
+    address = _get_user_address(args, "0xVIEWER")
     db = LeaderboardDB(args.db)
     token = SimulatedToken(db)
     tg = TokenGate(db, token)
 
-    summary = tg.get_viewer_summary(args.address)
-    print(f"Account: {args.address}")
+    summary = tg.get_viewer_summary(address)
+    print(f"Account: {address}")
     print(f"  Token: {token.name} ({token.symbol})")
     print(f"  Balance: {summary['balance']} {token.symbol}")
     print(f"  Staked: {summary['staked']} {token.symbol}")
@@ -860,7 +1052,7 @@ def main():
     sub = parser.add_subparsers(dest="command")
 
     p_mine = sub.add_parser("mine", help="Generate method×problem combinations (requires API key)")
-    p_mine.add_argument("--address", default="0xMINER", help="Miner address")
+    p_mine.add_argument("--address", default=None, help="Miner address (reads from config if not set)")
     p_mine.add_argument("--block-height", type=int, default=1, help="Block height for seed")
     p_mine.add_argument("--nonce", type=int, default=0, help="Nonce")
     p_mine.add_argument("--batch", type=int, default=10, help="Batch size")
@@ -895,7 +1087,7 @@ def main():
     p_random.add_argument("--dimension", default=None)
     p_random.add_argument("--domain", default=None)
     p_random.add_argument("--count", type=int, default=10)
-    p_random.add_argument("--address", default="0xVIEWER")
+    p_random.add_argument("--address", default=None, help="Viewer address (reads from config if not set)")
     p_random.add_argument("--db", default="data/leaderboard.db")
 
     p_hub = sub.add_parser("hub", help="Start a P2P hub server")
@@ -933,6 +1125,12 @@ def main():
                           help="Output path for the private key file")
     p_keygen.add_argument("--force", "-f", action="store_true",
                           help="Overwrite existing file")
+    p_keygen.add_argument("--set-identity", action="store_true",
+                          help="After keygen, set derived address as HAMMERWORLD_ADDRESS in config")
+
+    p_identity = sub.add_parser("identity", help="Show or set your identity address")
+    p_identity.add_argument("--set", dest="set_address", default=None,
+                            help="Set address (e.g. '0xABC123...'). Omit to show current.")
 
     p_smethod = sub.add_parser("submit-method", help="Submit a new method to the matrix")
     p_smethod.add_argument("--name", required=True, help="Method name")
@@ -961,7 +1159,7 @@ def main():
     p_math_mine = sub.add_parser("math-mine", help="Generate seed analysis to unlock a math problem zone")
     p_math_mine.add_argument("--problem-id", type=int, required=True, help="Math problem ID")
     p_math_mine.add_argument("--methods-collection", required=True, help="Math method collection name")
-    p_math_mine.add_argument("--address", default="0xMINER", help="Miner address")
+    p_math_mine.add_argument("--address", default=None, help="Miner address (reads from config if not set)")
     p_math_mine.add_argument("--block-height", type=int, default=1)
     p_math_mine.add_argument("--nonce", type=int, default=0)
     p_math_mine.add_argument("--batch", type=int, default=3, help="Number of combos to generate")
@@ -978,8 +1176,23 @@ def main():
     p_math_submit.add_argument("--method-collection-id", type=int, required=True)
     p_math_submit.add_argument("--steps-json", required=True, help="JSON array of solution steps")
     p_math_submit.add_argument("--parent-id", type=int, default=None, help="Solution ID to fork from")
-    p_math_submit.add_argument("--address", default="0xSOLVER")
+    p_math_submit.add_argument("--address", default=None, help="Solver address (reads from config if not set)")
     p_math_submit.add_argument("--db", default="data/leaderboard.db")
+
+    p_math_tree_add = sub.add_parser("math-tree-add", help="Add a child node in the MCTS tree")
+    p_math_tree_add.add_argument("--parent-node-id", type=int, required=True, help="Parent node ID")
+    p_math_tree_add.add_argument("--action", required=True, help="Action label (method/operation name)")
+    p_math_tree_add.add_argument("--content", required=True, help="Mathematical content of the new node")
+    p_math_tree_add.add_argument("--type", choices=["normal", "terminal_success", "terminal_failure", "pruned"], default="normal")
+    p_math_tree_add.add_argument("--reward", type=float, default=None, help="Reward (1.0 success, 0.0 failure)")
+    p_math_tree_add.add_argument("--description", default="", help="Edge description")
+    p_math_tree_add.add_argument("--address", default=None, help="Explorer address (reads from config if not set)")
+    p_math_tree_add.add_argument("--db", default="data/leaderboard.db")
+
+    p_math_tree_status = sub.add_parser("math-tree-status", help="Show MCTS tree stats")
+    p_math_tree_status.add_argument("--problem-id", type=int, required=True)
+    p_math_tree_status.add_argument("--method-collection-id", type=int, required=True)
+    p_math_tree_status.add_argument("--db", default="data/leaderboard.db")
 
     p_buf_submit = sub.add_parser("buffer-submit", help="Submit an AI analysis to the blockchain buffer zone")
     p_buf_submit.add_argument("--combo-id", required=True, help="Combination ID")
@@ -990,7 +1203,7 @@ def main():
     p_buf_submit.add_argument("--analysis-json", default="{}", help="Analysis JSON string")
     p_buf_submit.add_argument("--analysis-file", default=None, help="Read analysis JSON from file")
     p_buf_submit.add_argument("--analysis-text", default="", help="Analysis summary text")
-    p_buf_submit.add_argument("--address", default="0xBUFFER", help="Submitter address")
+    p_buf_submit.add_argument("--address", default=None, help="Submitter address (reads from config if not set)")
     p_buf_submit.add_argument("--db", default="data/leaderboard.db")
 
     p_buf_classify = sub.add_parser("buffer-classify", help="Classify a pending buffer submission")
@@ -999,7 +1212,7 @@ def main():
     p_buf_classify.add_argument("--nsfw", action="store_true", help="Mark as NSFW")
     p_buf_classify.add_argument("--spam", action="store_true", help="Mark as spam / AI hallucination")
     p_buf_classify.add_argument("--notes", default="", help="Optional classification notes")
-    p_buf_classify.add_argument("--address", default="0xCLASSIFIER", help="Classifier address")
+    p_buf_classify.add_argument("--address", default=None, help="Classifier address (reads from config if not set)")
     p_buf_classify.add_argument("--db", default="data/leaderboard.db")
 
     p_buf_status = sub.add_parser("buffer-status", help="Check submission status in buffer zone")
@@ -1008,35 +1221,35 @@ def main():
     p_buf_status.add_argument("--db", default="data/leaderboard.db")
 
     p_buf_stake = sub.add_parser("buffer-stake", help="Manage token staking")
-    p_buf_stake.add_argument("--address", required=True, help="Staker address")
+    p_buf_stake.add_argument("--address", default=None, help="Staker address (reads from config if not set)")
     p_buf_stake.add_argument("--amount", type=int, default=100, help="Amount to stake/unstake")
     p_buf_stake.add_argument("--action", choices=["stake", "unstake"], default="stake")
     p_buf_stake.add_argument("--db", default="data/leaderboard.db")
 
     p_buf_tokens = sub.add_parser("buffer-tokens", help="View token balance and classifier stats")
-    p_buf_tokens.add_argument("--address", default="0xVIEWER", help="Address to query")
+    p_buf_tokens.add_argument("--address", default=None, help="Address to query (reads from config if not set)")
     p_buf_tokens.add_argument("--db", default="data/leaderboard.db")
 
     p_pay_view = sub.add_parser("pay-view", help="Pay IDEA tokens to view an AI analysis")
     p_pay_view.add_argument("--combo-id", required=True, help="Combo ID to view")
-    p_pay_view.add_argument("--address", required=True, help="Viewer address")
+    p_pay_view.add_argument("--address", default=None, help="Viewer address (reads from config if not set)")
     p_pay_view.add_argument("--db", default="data/leaderboard.db")
 
     p_pay_leaderboard = sub.add_parser("pay-leaderboard", help="Pay IDEA tokens to unlock a leaderboard for 24h")
     p_pay_leaderboard.add_argument("--dimension", default="elegance", help="Leaderboard dimension (default: elegance)")
     p_pay_leaderboard.add_argument("--domain", default="medicine", help="Leaderboard domain (default: medicine)")
-    p_pay_leaderboard.add_argument("--address", required=True, help="Viewer address")
+    p_pay_leaderboard.add_argument("--address", default=None, help="Viewer address (reads from config if not set)")
     p_pay_leaderboard.add_argument("--db", default="data/leaderboard.db")
 
     p_pay_draw = sub.add_parser("pay-draw", help="Pay IDEA tokens for a random draw")
     p_pay_draw.add_argument("--dimension", default=None, help="Optional dimension filter")
     p_pay_draw.add_argument("--domain", default=None, help="Optional domain filter")
     p_pay_draw.add_argument("--count", type=int, default=10, help="Number of entries to draw (default: 10)")
-    p_pay_draw.add_argument("--address", required=True, help="Viewer address")
+    p_pay_draw.add_argument("--address", default=None, help="Viewer address (reads from config if not set)")
     p_pay_draw.add_argument("--db", default="data/leaderboard.db")
 
     p_token_balance = sub.add_parser("token-balance", help="Check token balance and viewer summary")
-    p_token_balance.add_argument("--address", default="0xVIEWER", help="Address to query")
+    p_token_balance.add_argument("--address", default=None, help="Address to query (reads from config if not set)")
     p_token_balance.add_argument("--db", default="data/leaderboard.db")
 
     args = parser.parse_args()
@@ -1052,6 +1265,8 @@ def main():
         cmd_hub(args)
     elif args.command == "keygen":
         cmd_keygen(args)
+    elif args.command == "identity":
+        cmd_identity(args)
     elif args.command == "web":
         args.web = True
         cmd_hub(args)
@@ -1065,6 +1280,10 @@ def main():
         cmd_math_mine(args)
     elif args.command == "math-submit":
         cmd_math_submit(args)
+    elif args.command == "math-tree-add":
+        cmd_math_tree_add(args)
+    elif args.command == "math-tree-status":
+        cmd_math_tree_status(args)
     elif args.command == "buffer-submit":
         cmd_buffer_submit(args)
     elif args.command == "buffer-classify":

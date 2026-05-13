@@ -125,5 +125,71 @@ class TestWebUI(unittest.TestCase):
         self.assertIn("&lt;script&gt;", html)
 
 
+class TestLoginWidget(unittest.TestCase):
+    """Tests for the login/logout widget and cookie-based session."""
+
+    def test_login_widget_logged_out(self):
+        from src.hub.web import _login_widget
+        html = _login_widget("", "en")
+        self.assertIn('action="/web/login"', html)
+        self.assertIn('name="address"', html)
+
+    def test_login_widget_logged_in(self):
+        from src.hub.web import _login_widget
+        html = _login_widget("0xABCDEF1234567890", "en")
+        self.assertIn("0xABCDEF", html)
+        self.assertIn('href="/web/logout"', html)
+
+    def test_login_widget_chinese(self):
+        from src.hub.web import _login_widget
+        html = _login_widget("", "zh")
+        self.assertIn('action="/web/login"', html)
+
+    def test_login_widget_short_address(self):
+        from src.hub.web import _login_widget
+        html = _login_widget("0xAB", "en")
+        self.assertIn("0xAB", html)
+
+    def test_base_page_includes_login_widget(self):
+        from src.hub.web import _base_page
+        html = _base_page("Test", "<p>content</p>", lang="en", viewer_addr="0xUSER")
+        self.assertIn("login-widget", html)
+        self.assertIn("0xUSER", html)
+
+    def test_base_page_no_viewer(self):
+        from src.hub.web import _base_page
+        html = _base_page("Test", "<p>content</p>", lang="en")
+        self.assertIn("login-widget", html)
+        self.assertIn('action="/web/login"', html)
+
+    def test_dashboard_passes_viewer(self):
+        from src.hub.peer import PeerManager, PeerConfig
+        db = LeaderboardDB(":memory:")
+        pm = PeerManager(PeerConfig(port=9999))
+        html = render_dashboard(db, pm, lang="en", viewer_addr="0xDASH")
+        self.assertIn("0xDASH", html)
+
+    def test_leaderboard_includes_viewer(self):
+        db = LeaderboardDB(":memory:")
+        html = render_leaderboard(db, "/web/leaderboard", viewer_addr="0xLB", lang="en")
+        self.assertIn("login-widget", html)
+
+    def test_entry_includes_viewer(self):
+        db = LeaderboardDB(":memory:")
+        entry = LeaderboardEntry(
+            rank=0, combo_id="test_login_entry", method_name="M",
+            method_domain="D", method_level=1,
+            problem_title="P", problem_domain="medicine",
+            best_dimension="elegance", best_score=5.0,
+            elegance=5.0, weirdness=5.0, human_feasibility=5.0,
+            ai_feasibility=5.0, novelty=5.0, analogy_distance=5.0,
+            scaling_potential=5.0, side_effects=5.0,
+            miner_address="0xM", created_at=time.time(),
+        )
+        db.insert_from_sync(entry)
+        html = render_entry(db, "test_login_entry", viewer_addr="0xENTRY")
+        self.assertIn("0xENTRY", html)
+
+
 if __name__ == "__main__":
     unittest.main()

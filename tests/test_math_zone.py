@@ -15,6 +15,8 @@ from src.hub.leaderboard import LeaderboardDB
 from src.hub.web import (
     render_math_home, render_math_new, render_math_problem,
     render_math_method_zone, render_math_solution, render_math_unlock,
+    render_math_tree, render_math_tree_node,
+    _render_tree_stats, _render_tree_recursive,
 )
 
 
@@ -197,7 +199,7 @@ class TestMathWebPages(unittest.TestCase):
         html = render_math_home(db)
         self.assertIn("Math Research Zone", html)
         self.assertIn("No math problem zones yet", html)
-        self.assertIn('href="/web/math/new"', html)
+        self.assertIn('href="/web/math/new', html)
 
     def test_math_home_with_problems(self):
         db = LeaderboardDB(":memory:")
@@ -291,7 +293,7 @@ class TestMathWebPages(unittest.TestCase):
     def test_nav_includes_math_zone(self):
         db = LeaderboardDB(":memory:")
         html = render_math_home(db)
-        self.assertIn('href="/web/math"', html)
+        self.assertIn('href="/web/math', html)
         self.assertIn("Math Zone", html)
 
 
@@ -445,6 +447,268 @@ class TestMathCLI(unittest.TestCase):
         finally:
             sys.stderr = old_stderr
         self.assertEqual(ctx.exception.code, 1)
+
+
+class TestMathTreeNodeCRUD(unittest.TestCase):
+    """Tests for MCTS tree node and edge CRUD."""
+
+    def setUp(self):
+        self.db = LeaderboardDB(":memory:")
+        self.pid = self.db.create_math_problem("Tree Problem", "desc", "algebra", "alice")
+        self.cid = self.db.create_collection(
+            "method", "Tree Tools", "desc", "mathematics", "bob",
+            [{"name": "M1", "domain": "mathematics", "level": 1, "description": "d"}])
+
+    def test_create_and_get_node(self):
+        nid = self.db.create_tree_node(self.pid, self.cid, "0xT", "State 1", "normal", 0.5, 10)
+        self.assertGreater(nid, 0)
+        node = self.db.get_tree_node(nid)
+        self.assertEqual(node["content"], "State 1")
+        self.assertEqual(node["q_value"], 0.5)
+        self.assertEqual(node["visit_count"], 10)
+        self.assertEqual(node["node_type"], "normal")
+
+    def test_get_root_node_auto_create(self):
+        root = self.db.get_root_node(self.pid, self.cid)
+        self.assertIsNotNone(root)
+        self.assertEqual(root["is_root"], 1)
+        self.assertEqual(root["content"], "Tree Problem")
+        # Second call returns same root
+        root2 = self.db.get_root_node(self.pid, self.cid)
+        self.assertEqual(root["id"], root2["id"])
+
+    def test_create_edge(self):
+        n1 = self.db.create_tree_node(self.pid, self.cid, "0xT", "Parent")
+        n2 = self.db.create_tree_node(self.pid, self.cid, "0xT", "Child")
+        eid = self.db.create_tree_edge(n1, n2, "因式分解", "Factor the expression")
+        self.assertGreater(eid, 0)
+        children = self.db.get_children(n1)
+        self.assertEqual(len(children), 1)
+        self.assertEqual(children[0]["action_label"], "因式分解")
+        self.assertEqual(children[0]["child_content"], "Child")
+
+    def test_edge_cycle_prevention(self):
+        n1 = self.db.create_tree_node(self.pid, self.cid, "0xT", "Parent")
+        n2 = self.db.create_tree_node(self.pid, self.cid, "0xT", "Child")
+        self.db.create_tree_edge(n1, n2, "step")
+        with self.assertRaises(ValueError):
+            self.db.create_tree_edge(n2, n1, "back-edge")
+
+    def test_update_tree_node(self):
+        nid = self.db.create_tree_node(self.pid, self.cid, "0xT", "Test")
+        self.db.update_tree_node(nid, q_value=0.75, visit_count=20, node_type="terminal_success", reward=1.0)
+        node = self.db.get_tree_node(nid)
+        self.assertEqual(node["q_value"], 0.75)
+        self.assertEqual(node["visit_count"], 20)
+        self.assertEqual(node["node_type"], "terminal_success")
+        self.assertEqual(node["reward"], 1.0)
+
+    def test_get_terminal_nodes(self):
+        n1 = self.db.create_tree_node(self.pid, self.cid, "0xT", "Normal")
+        n2 = self.db.create_tree_node(self.pid, self.cid, "0xT", "Success", "terminal_success", reward=1.0)
+        n3 = self.db.create_tree_node(self.pid, self.cid, "0xT", "Failure", "terminal_failure", reward=0.0)
+        terms = self.db.get_terminal_nodes(self.pid, self.cid)
+        self.assertEqual(len(terms), 2)
+
+    def test_get_tree_nodes_for_zone(self):
+        self.db.create_tree_node(self.pid, self.cid, "0xA", "N1")
+        self.db.create_tree_node(self.pid, self.cid, "0xB", "N2")
+        nodes = self.db.get_tree_nodes_for_zone(self.pid, self.cid)
+        self.assertEqual(len(nodes), 2)
+
+    def test_count_children(self):
+        n1 = self.db.create_tree_node(self.pid, self.cid, "0xT", "Parent")
+        n2 = self.db.create_tree_node(self.pid, self.cid, "0xT", "Child1")
+        n3 = self.db.create_tree_node(self.pid, self.cid, "0xT", "Child2")
+        self.db.create_tree_edge(n1, n2, "a")
+        self.db.create_tree_edge(n1, n3, "b")
+        self.assertEqual(self.db.count_children(n1), 2)
+
+    def test_get_parent_node(self):
+        n1 = self.db.create_tree_node(self.pid, self.cid, "0xT", "Parent")
+        n2 = self.db.create_tree_node(self.pid, self.cid, "0xT", "Child")
+        self.db.create_tree_edge(n1, n2, "edge")
+        parent = self.db._get_parent_node(n2)
+        self.assertIsNotNone(parent)
+        self.assertEqual(parent["id"], n1)
+
+    def test_get_path_to_root(self):
+        root = self.db.get_root_node(self.pid, self.cid)
+        n1 = self.db.create_tree_node(self.pid, self.cid, "0xT", "N1")
+        n2 = self.db.create_tree_node(self.pid, self.cid, "0xT", "N2")
+        self.db.create_tree_edge(root["id"], n1, "a")
+        self.db.create_tree_edge(n1, n2, "b")
+        path = self.db._get_path_to_root(n2)
+        self.assertEqual(path, [n2, n1, root["id"]])
+
+
+class TestMCTSBackpropagation(unittest.TestCase):
+    """Tests for MCTS backpropagation and Q-value updates."""
+
+    def setUp(self):
+        self.db = LeaderboardDB(":memory:")
+        self.pid = self.db.create_math_problem("Backprop Test", "desc", "algebra", "me")
+        self.cid = self.db.create_collection(
+            "method", "BP Tools", "desc", "mathematics", "u",
+            [{"name": "M", "domain": "mathematics", "level": 1, "description": "d"}])
+        self.root = self.db.get_root_node(self.pid, self.cid)
+
+    def test_single_path_backprop(self):
+        # root -> n1 (terminal success)
+        n1 = self.db.create_tree_node(self.pid, self.cid, "0xT", "Success",
+                                       "terminal_success", reward=1.0)
+        self.db.create_tree_edge(self.root["id"], n1, "prove")
+        self.db.backpropagate(n1, 1.0)
+
+        n1_after = self.db.get_tree_node(n1)
+        self.assertEqual(n1_after["q_value"], 1.0)
+        self.assertEqual(n1_after["visit_count"], 1)
+
+        root_after = self.db.get_tree_node(self.root["id"])
+        self.assertEqual(root_after["q_value"], 1.0)
+        self.assertEqual(root_after["visit_count"], 1)
+
+    def test_two_paths_backprop(self):
+        # root -> n1 (success, reward=1.0)
+        # root -> n2 (failure, reward=0.0)
+        n1 = self.db.create_tree_node(self.pid, self.cid, "0xT", "Success",
+                                       "terminal_success", reward=1.0)
+        n2 = self.db.create_tree_node(self.pid, self.cid, "0xT", "Failure",
+                                       "terminal_failure", reward=0.0)
+        self.db.create_tree_edge(self.root["id"], n1, "good path")
+        self.db.create_tree_edge(self.root["id"], n2, "bad path")
+
+        self.db.backpropagate(n1, 1.0)
+        self.db.backpropagate(n2, 0.0)
+
+        root_after = self.db.get_tree_node(self.root["id"])
+        # Root should have Q = (1.0 + 0.0) / 2 = 0.5, N = 2
+        self.assertAlmostEqual(root_after["q_value"], 0.5, places=3)
+        self.assertEqual(root_after["visit_count"], 2)
+
+    def test_deep_path_backprop(self):
+        # root -> n1 -> n2 -> n3 (success)
+        n1 = self.db.create_tree_node(self.pid, self.cid, "0xT", "Step 1")
+        n2 = self.db.create_tree_node(self.pid, self.cid, "0xT", "Step 2")
+        n3 = self.db.create_tree_node(self.pid, self.cid, "0xT", "Proved",
+                                       "terminal_success", reward=1.0)
+        self.db.create_tree_edge(self.root["id"], n1, "expand")
+        self.db.create_tree_edge(n1, n2, "factor")
+        self.db.create_tree_edge(n2, n3, "conclude")
+
+        self.db.backpropagate(n3, 1.0)
+
+        # All ancestors should get Q=1.0, N=1
+        for nid in [n3, n2, n1, self.root["id"]]:
+            node = self.db.get_tree_node(nid)
+            self.assertAlmostEqual(node["q_value"], 1.0, places=3)
+            self.assertEqual(node["visit_count"], 1)
+
+    def test_prune_node(self):
+        n1 = self.db.create_tree_node(self.pid, self.cid, "0xT", "PruneMe")
+        self.db.create_tree_edge(self.root["id"], n1, "dead end")
+        self.db.prune_node(n1)
+
+        pruned = self.db.get_tree_node(n1)
+        self.assertEqual(pruned["node_type"], "pruned")
+        # Root got backpropagated with 0.0 reward
+        root_after = self.db.get_tree_node(self.root["id"])
+        self.assertAlmostEqual(root_after["q_value"], 0.0, places=3)
+
+    def test_uct_scores_unvisited_children(self):
+        n1 = self.db.create_tree_node(self.pid, self.cid, "0xT", "Visited",
+                                       visit_count=10)
+        n2 = self.db.create_tree_node(self.pid, self.cid, "0xT", "Unvisited",
+                                       visit_count=0)
+        self.db.create_tree_edge(self.root["id"], n1, "explored")
+        self.db.create_tree_edge(self.root["id"], n2, "unexplored")
+        # Give root some visits so UCT is meaningful
+        self.db.update_tree_node(self.root["id"], visit_count=15)
+
+        uct = self.db.get_uct_scores(self.root["id"])
+        # Unvisited node should have UCT=inf (highest priority)
+        self.assertEqual(len(uct), 2)
+        uct_values = {c["action_label"]: c.get("uct_score") for c in uct}
+        self.assertEqual(uct_values["unexplored"], float('inf'))
+
+
+class TestTreeWebPages(unittest.TestCase):
+    """Tests for tree web page rendering."""
+
+    def setUp(self):
+        self.db = LeaderboardDB(":memory:")
+        self.pid = self.db.create_math_problem("Riemann Hypothesis",
+            "Prove all non-trivial zeros...", "number_theory", "alice")
+        self.cid = self.db.create_collection(
+            "method", "Complex Analysis", "Tools for complex analysis",
+            "mathematics", "bob",
+            [{"name": "Contour Integration", "domain": "mathematics", "level": 3, "description": "..."}])
+
+    def test_tree_page_renders(self):
+        self.db.get_root_node(self.pid, self.cid)  # ensure root exists
+        html = render_math_tree(self.db, self.pid, self.cid, "/web/math/1/1/tree")
+        self.assertIn("tree-node", html)
+        self.assertIn("Riemann Hypothesis", html)
+        self.assertIn("Complex Analysis", html)
+
+    def test_tree_page_empty(self):
+        """Tree page without a problem shows not found."""
+        html = render_math_tree(self.db, 999, 999, "/web/math/999/999/tree")
+        self.assertIn("Not Found", html)
+
+    def test_tree_node_page_renders(self):
+        root = self.db.get_root_node(self.pid, self.cid)
+        html = render_math_tree_node(self.db, self.pid, self.cid, root["id"],
+                                      f"/web/math/{self.pid}/{self.cid}/tree/node/{root['id']}")
+        self.assertIn("tree-node", html)
+        self.assertIn("Riemann Hypothesis", html)
+        self.assertIn("Add Child Node", html)
+        self.assertIn("backpropagate", html)
+
+    def test_tree_node_page_with_errors(self):
+        root = self.db.get_root_node(self.pid, self.cid)
+        html = render_math_tree_node(self.db, self.pid, self.cid, root["id"],
+                                      "/web/math/1/1/tree/node/1",
+                                      errors=["Content is required."])
+        self.assertIn("Content is required.", html)
+
+    def test_tree_node_page_not_found(self):
+        html = render_math_tree_node(self.db, 999, 999, 999, "/web/math/999/999/tree/node/999")
+        self.assertIn("Not Found", html)
+
+    def test_tree_stats(self):
+        root = self.db.get_root_node(self.pid, self.cid)
+        n1 = self.db.create_tree_node(self.pid, self.cid, "0xT", "Success",
+                                       "terminal_success", reward=1.0)
+        self.db.create_tree_edge(root["id"], n1, "prove")
+        stats = _render_tree_stats(self.db, self.pid, self.cid)
+        self.assertIn("States", stats)
+        self.assertIn("Proofs", stats)
+
+    def test_tree_recursive_empty(self):
+        root = self.db.get_root_node(self.pid, self.cid)
+        rec = _render_tree_recursive(self.db, root["id"])
+        self.assertIn("tree-node", rec)
+        self.assertIn("Riemann Hypothesis", rec)
+
+    def test_tree_recursive_with_children(self):
+        root = self.db.get_root_node(self.pid, self.cid)
+        n1 = self.db.create_tree_node(self.pid, self.cid, "0xT", "Step 1")
+        self.db.create_tree_edge(root["id"], n1, "因式分解")
+        rec = _render_tree_recursive(self.db, root["id"])
+        self.assertIn("因式分解", rec)
+        self.assertIn("Step 1", rec)
+
+    def test_method_zone_has_tree_link(self):
+        html = render_math_method_zone(self.db, self.pid, self.cid, "/web/math/1/1")
+        self.assertIn("Tree View", html)
+
+    def test_solution_page_has_deprecation_banner(self):
+        steps = [{"step_num": 1, "content": "s1", "verified": True}]
+        sid = self.db.submit_math_solution(self.pid, self.cid, "0xSOLVER", steps)
+        html = render_math_solution(self.db, self.pid, self.cid, sid, f"/web/math/1/1/{sid}")
+        self.assertIn("deprecated", html.lower())
+        self.assertIn("Tree View", html)
 
 
 if __name__ == "__main__":

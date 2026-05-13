@@ -195,6 +195,46 @@ class LeaderboardDB:
                 CREATE INDEX IF NOT EXISTS idx_math_access_check
                     ON math_access_log(problem_id, method_collection_id, user_address);
 
+                CREATE TABLE IF NOT EXISTS math_tree_nodes (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    problem_id INTEGER NOT NULL,
+                    method_collection_id INTEGER NOT NULL,
+                    user_address TEXT DEFAULT '',
+                    content TEXT NOT NULL,
+                    node_type TEXT NOT NULL DEFAULT 'normal',
+                    q_value REAL NOT NULL DEFAULT 0.0,
+                    visit_count INTEGER NOT NULL DEFAULT 0,
+                    reward REAL DEFAULT 0.0,
+                    is_root INTEGER NOT NULL DEFAULT 0,
+                    metadata_json TEXT DEFAULT '{}',
+                    created_at REAL DEFAULT 0,
+                    updated_at REAL DEFAULT 0
+                );
+                CREATE INDEX IF NOT EXISTS idx_tree_nodes_problem
+                    ON math_tree_nodes(problem_id, method_collection_id);
+                CREATE INDEX IF NOT EXISTS idx_tree_nodes_root
+                    ON math_tree_nodes(problem_id, method_collection_id, is_root);
+
+                CREATE TABLE IF NOT EXISTS math_tree_edges (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    parent_node_id INTEGER NOT NULL,
+                    child_node_id INTEGER NOT NULL,
+                    action_label TEXT NOT NULL,
+                    action_description TEXT DEFAULT '',
+                    created_at REAL DEFAULT 0,
+                    FOREIGN KEY (parent_node_id) REFERENCES math_tree_nodes(id),
+                    FOREIGN KEY (child_node_id) REFERENCES math_tree_nodes(id)
+                );
+                CREATE INDEX IF NOT EXISTS idx_tree_edges_parent
+                    ON math_tree_edges(parent_node_id);
+                CREATE INDEX IF NOT EXISTS idx_tree_edges_child
+                    ON math_tree_edges(child_node_id);
+
+                CREATE TABLE IF NOT EXISTS _schema_version (
+                    version INTEGER PRIMARY KEY
+                );
+                INSERT OR IGNORE INTO _schema_version (version) VALUES (0);
+
                 CREATE TABLE IF NOT EXISTS buffer_submissions (
                     id TEXT PRIMARY KEY,
                     combo_id TEXT NOT NULL,
@@ -290,6 +330,10 @@ class LeaderboardDB:
                 UNIQUE(viewer_addr, combo_id)
             );
         """)
+        conn.commit()
+        # Migration: convert math_solutions to tree nodes (schema v0 -> v1)
+        self._migrate_math_to_tree(conn)
+        conn.commit()
         if self.db_path == ":memory:":
             self._persistent_conn = conn
         else:
@@ -982,6 +1026,308 @@ class LeaderboardDB:
                 (problem_id, user_address),
             ).fetchall()
             return [dict(r) for r in rows]
+
+    # ------------------------------------------------------------------
+    # MCTS Math Tree
+    # ------------------------------------------------------------------
+
+    def _migrate_math_to_tree(self, conn: sqlite3.Connection) -> None:
+        """Migrate old math_solutions rows into tree nodes/edges (v0 -> v1)."""
+        row = conn.execute(
+            "SELECT version FROM _schema_version WHERE version >= 1"
+        ).fetchone()
+        if row:
+            return  # already migrated
+
+        rows = conn.execute("SELECT * FROM math_solutions ORDER BY id").fetchall()
+        if not rows:
+            conn.execute("UPDATE _schema_version SET version = 1")
+            return
+
+        for sol in rows:
+            pid = sol["problem_id"]
+            mid = sol["method_collection_id"]
+            uaddr = sol["user_address"] or ""
+            steps = json.loads(sol["steps_json"]) if sol["steps_json"] else []
+            max_correct = sol["max_correct_step"] or 0
+            now = sol["created_at"] or time.time()
+
+            # Create root node from the problem title
+            prob_row = conn.execute(
+                "SELECT title FROM math_problems WHERE id = ?", (pid,)
+            ).fetchone()
+            root_content = prob_row["title"] if prob_row else f"Problem #{pid}"
+            cur = conn.execute(
+                "INSERT INTO math_tree_nodes (problem_id, method_collection_id, "
+                "user_address, content, node_type, q_value, visit_count, is_root, "
+                "created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, 1, ?, ?)",
+                (pid, mid, uaddr, root_content, "normal", 0.0, 0, now, now),
+            )
+            root_id = cur.lastrowid
+
+            # Create nodes for each step, linked sequentially
+            parent_id = root_id
+            for i, step in enumerate(steps):
+                step_num = step.get("step_num", i + 1)
+                content = step.get("content", f"Step {step_num}")
+                verified = step.get("verified", False)
+                is_last = (i == len(steps) - 1)
+                node_type = "terminal_success" if (is_last and verified and max_correct == len(steps)) else "normal"
+                q_val = 1.0 if node_type == "terminal_success" else (max_correct / len(steps) if len(steps) > 0 else 0.0)
+                visit = 1 if node_type == "terminal_success" else 0
+
+                cur = conn.execute(
+                    "INSERT INTO math_tree_nodes (problem_id, method_collection_id, "
+                    "user_address, content, node_type, q_value, visit_count, reward, "
+                    "created_at, updated_at) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    (pid, mid, uaddr, content, node_type, q_val, visit,
+                     1.0 if node_type == "terminal_success" else 0.0, now, now),
+                )
+                child_id = cur.lastrowid
+                conn.execute(
+                    "INSERT INTO math_tree_edges (parent_node_id, child_node_id, "
+                    "action_label, created_at) VALUES (?, ?, ?, ?)",
+                    (parent_id, child_id, f"step_{step_num}", now),
+                )
+                parent_id = child_id
+
+        conn.execute("UPDATE _schema_version SET version = 1")
+        conn.commit()
+
+    # -- Node CRUD ----------------------------------------------------------------
+
+    def create_tree_node(self, problem_id: int, method_collection_id: int,
+                         user_address: str = "", content: str = "",
+                         node_type: str = "normal", q_value: float = 0.0,
+                         visit_count: int = 0, reward: float = 0.0,
+                         is_root: int = 0, metadata_json: str = "{}") -> int:
+        now = time.time()
+        with self._connect() as conn:
+            cur = conn.execute(
+                "INSERT INTO math_tree_nodes (problem_id, method_collection_id, "
+                "user_address, content, node_type, q_value, visit_count, reward, "
+                "is_root, metadata_json, created_at, updated_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (problem_id, method_collection_id, user_address, content,
+                 node_type, q_value, visit_count, reward, is_root, metadata_json,
+                 now, now),
+            )
+            return cur.lastrowid
+
+    def get_tree_node(self, node_id: int) -> dict | None:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM math_tree_nodes WHERE id = ?", (node_id,)
+            ).fetchone()
+            return dict(row) if row else None
+
+    def get_root_node(self, problem_id: int, method_collection_id: int) -> dict | None:
+        """Get the root node for a zone, auto-creating one if missing."""
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM math_tree_nodes WHERE problem_id = ? "
+                "AND method_collection_id = ? AND is_root = 1",
+                (problem_id, method_collection_id),
+            ).fetchone()
+            if row:
+                return dict(row)
+
+            # Auto-create root from problem title
+            prob = conn.execute(
+                "SELECT title FROM math_problems WHERE id = ?", (problem_id,)
+            ).fetchone()
+            if not prob:
+                return None
+            now = time.time()
+            cur = conn.execute(
+                "INSERT INTO math_tree_nodes (problem_id, method_collection_id, "
+                "content, node_type, is_root, created_at, updated_at) "
+                "VALUES (?, ?, ?, 'normal', 1, ?, ?)",
+                (problem_id, method_collection_id, prob["title"], now, now),
+            )
+            new_id = cur.lastrowid
+        # re-fetch outside the with block so the INSERT is committed
+        return self.get_tree_node(new_id)
+
+    def get_tree_nodes_for_zone(self, problem_id: int,
+                                method_collection_id: int) -> list[dict]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM math_tree_nodes WHERE problem_id = ? "
+                "AND method_collection_id = ? ORDER BY created_at",
+                (problem_id, method_collection_id),
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    def update_tree_node(self, node_id: int, **kwargs) -> None:
+        allowed = {"q_value", "visit_count", "node_type", "reward",
+                   "metadata_json", "content"}
+        updates = {k: v for k, v in kwargs.items() if k in allowed and v is not None}
+        if not updates:
+            return
+        updates["updated_at"] = time.time()
+        set_clause = ", ".join(f"{k} = ?" for k in updates)
+        values = list(updates.values()) + [node_id]
+        with self._connect() as conn:
+            conn.execute(
+                f"UPDATE math_tree_nodes SET {set_clause} WHERE id = ?", values,
+            )
+
+    def get_terminal_nodes(self, problem_id: int,
+                           method_collection_id: int) -> list[dict]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM math_tree_nodes WHERE problem_id = ? "
+                "AND method_collection_id = ? AND node_type LIKE 'terminal_%'",
+                (problem_id, method_collection_id),
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    # -- Edge CRUD ---------------------------------------------------------------
+
+    def create_tree_edge(self, parent_node_id: int, child_node_id: int,
+                         action_label: str, action_description: str = "") -> int:
+        now = time.time()
+        with self._connect() as conn:
+            # Prevent cycles: check parent is not a descendant of child
+            if self._is_ancestor(parent_node_id, child_node_id):
+                raise ValueError("Cannot create cycle in tree")
+            cur = conn.execute(
+                "INSERT INTO math_tree_edges (parent_node_id, child_node_id, "
+                "action_label, action_description, created_at) "
+                "VALUES (?, ?, ?, ?, ?)",
+                (parent_node_id, child_node_id, action_label, action_description, now),
+            )
+            return cur.lastrowid
+
+    def _is_ancestor(self, node_id: int, candidate_ancestor_id: int) -> bool:
+        """Check if candidate_ancestor_id is an ancestor of node_id."""
+        with self._connect() as conn:
+            current = node_id
+            for _ in range(100):  # safety limit
+                row = conn.execute(
+                    "SELECT e.parent_node_id FROM math_tree_edges e "
+                    "WHERE e.child_node_id = ?", (current,)
+                ).fetchone()
+                if not row:
+                    return False
+                if row["parent_node_id"] == candidate_ancestor_id:
+                    return True
+                current = row["parent_node_id"]
+            return True  # too deep, assume cycle to be safe
+
+    def get_children(self, node_id: int) -> list[dict]:
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT e.id as edge_id, e.action_label, e.action_description, "
+                "e.created_at as edge_created_at, "
+                "n.id as child_id, n.content as child_content, "
+                "n.node_type as child_node_type, n.q_value as child_q_value, "
+                "n.visit_count as child_visit_count, n.reward as child_reward, "
+                "n.user_address as child_user_address "
+                "FROM math_tree_edges e JOIN math_tree_nodes n "
+                "ON e.child_node_id = n.id "
+                "WHERE e.parent_node_id = ? ORDER BY n.q_value DESC",
+                (node_id,),
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    def count_children(self, node_id: int) -> int:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT COUNT(*) as cnt FROM math_tree_edges "
+                "WHERE parent_node_id = ?", (node_id,)
+            ).fetchone()
+            return row["cnt"] if row else 0
+
+    def _get_parent_node(self, child_node_id: int) -> dict | None:
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT n.* FROM math_tree_nodes n JOIN math_tree_edges e "
+                "ON n.id = e.parent_node_id WHERE e.child_node_id = ?",
+                (child_node_id,),
+            ).fetchone()
+            return dict(row) if row else None
+
+    def _get_path_to_root(self, node_id: int) -> list[int]:
+        """Return list of node IDs from node_id up to (and including) root."""
+        path = [node_id]
+        with self._connect() as conn:
+            current = node_id
+            for _ in range(100):
+                row = conn.execute(
+                    "SELECT parent_node_id FROM math_tree_edges "
+                    "WHERE child_node_id = ?", (current,)
+                ).fetchone()
+                if not row:
+                    break
+                path.append(row["parent_node_id"])
+                current = row["parent_node_id"]
+        return path
+
+    # -- MCTS Operations ---------------------------------------------------------
+
+    def backpropagate(self, node_id: int, reward: float) -> None:
+        """Walk from node_id to root, updating Q and visit_count atomically."""
+        path = self._get_path_to_root(node_id)
+        with self._connect() as conn:
+            for nid in path:
+                conn.execute(
+                    "UPDATE math_tree_nodes SET "
+                    "q_value = (q_value * visit_count + ?) / (visit_count + 1), "
+                    "visit_count = visit_count + 1, "
+                    "updated_at = ? WHERE id = ?",
+                    (reward, time.time(), nid),
+                )
+            # Also update the terminal node's reward
+            conn.execute(
+                "UPDATE math_tree_nodes SET reward = ?, "
+                "node_type = CASE WHEN ? >= 0.5 THEN 'terminal_success' "
+                "ELSE 'terminal_failure' END, "
+                "updated_at = ? WHERE id = ?",
+                (reward, reward, time.time(), node_id),
+            )
+
+    def get_uct_scores(self, node_id: int, exploration_constant: float = 1.414
+                       ) -> list[dict]:
+        """Compute UCT scores for all children of a node."""
+        parent = self.get_tree_node(node_id)
+        children = self.get_children(node_id)
+        if not parent:
+            return children
+        parent_n = parent["visit_count"] or 1
+        result = []
+        for c in children:
+            q = c["child_q_value"] or 0.0
+            n = c["child_visit_count"] or 0
+            if n == 0:
+                uct = float('inf')  # unvisited nodes get priority
+            else:
+                import math
+                uct = q + exploration_constant * math.sqrt(math.log(parent_n) / n)
+            c["uct_score"] = uct
+            result.append(c)
+        result.sort(key=lambda x: x.get("uct_score", 0), reverse=True)
+        return result
+
+    def prune_node(self, node_id: int) -> None:
+        """Mark a node as pruned and backpropagate neutral reward."""
+        self.backpropagate(node_id, 0.0)
+        with self._connect() as conn:
+            conn.execute(
+                "UPDATE math_tree_nodes SET node_type = 'pruned', "
+                "updated_at = ? WHERE id = ?",
+                (time.time(), node_id),
+            )
+
+    # -- Migration helper (public for testing) -----------------------------------
+
+    def migrate_math_solutions_to_tree(self) -> int:
+        """Public wrapper: run migration and return number of solutions migrated."""
+        with self._connect() as conn:
+            count = conn.execute("SELECT COUNT(*) as c FROM math_solutions").fetchone()["c"]
+            self._migrate_math_to_tree(conn)
+            return count
 
     # ------------------------------------------------------------------
     # Blockchain Buffer Zone

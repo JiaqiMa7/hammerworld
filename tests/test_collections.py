@@ -206,7 +206,7 @@ class TestCollectionWebPages(unittest.TestCase):
     def test_nav_includes_collections(self):
         db = LeaderboardDB(":memory:")
         html = render_collections(db, "/web/collections")
-        self.assertIn('href="/web/collections"', html)
+        self.assertIn('href="/web/collections', html)
 
 
 class TestCollectionAPI(unittest.TestCase):

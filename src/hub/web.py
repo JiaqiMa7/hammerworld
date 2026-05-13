@@ -11,6 +11,373 @@ from src.engine.models import EvalDimension, Domain, MethodLevel
 
 
 # ------------------------------------------------------------------
+# Translation System (EN / ZH)
+# ------------------------------------------------------------------
+
+_T = {
+    # Nav
+    "nav.dashboard":         {"en": "Dashboard",          "zh": "仪表板"},
+    "nav.leaderboard":       {"en": "Leaderboard",        "zh": "排行榜"},
+    "nav.search":            {"en": "Search",             "zh": "搜索"},
+    "nav.random_draw":       {"en": "Random Draw",        "zh": "随机抽取"},
+    "nav.peers":             {"en": "Peers",              "zh": "节点"},
+    "nav.tokens":            {"en": "Tokens",             "zh": "代币"},
+    "nav.math_zone":         {"en": "Math Zone",          "zh": "数学区"},
+    "nav.collections":       {"en": "Collections",        "zh": "合集"},
+    "nav.buffer_zone":       {"en": "Buffer Zone",        "zh": "缓冲区"},
+    "nav.submit":            {"en": "Submit",             "zh": "提交"},
+    # Common
+    "common.home":           {"en": "Idea Mining Network", "zh": "创意挖矿网络"},
+    "common.footer":         {"en": "Idea Mining Network — Phase 2 MVP", "zh": "创意挖矿网络 — 第二阶段 MVP"},
+    "common.lang_toggle":    {"en": "中文",                "zh": "EN"},
+    "common.no_entries":     {"en": "No entries found.",   "zh": "暂无条目。"},
+    "common.not_found":      {"en": "Entry not found.",    "zh": "条目未找到。"},
+    "common.no_results":     {"en": "No results for",      "zh": "未找到结果："},
+    "common.enter_search":   {"en": "Enter a search term to find combinations.", "zh": "输入关键词搜索组合。"},
+    "common.unknown":        {"en": "Unknown",             "zh": "未知"},
+    "common.anonymous":      {"en": "anonymous",           "zh": "匿名"},
+    "common.back":            {"en": "Back",                "zh": "返回"},
+    "common.none":           {"en": "None",                "zh": "无"},
+    # Dashboard
+    "dash.title":            {"en": "Dashboard",           "zh": "仪表板"},
+    "dash.entries":          {"en": "Entries",             "zh": "条目"},
+    "dash.peers":            {"en": "Peers",               "zh": "节点"},
+    "dash.uptime":           {"en": "Uptime",              "zh": "运行时间"},
+    "dash.by_dimension":     {"en": "By Dimension",        "zh": "按维度"},
+    "dash.by_domain":        {"en": "By Domain",           "zh": "按领域"},
+    "dash.top_entries":      {"en": "Top Entries",         "zh": "热门条目"},
+    # Leaderboard
+    "lb.title":              {"en": "Leaderboard",         "zh": "排行榜"},
+    "lb.showing":            {"en": "Showing",             "zh": "筛选"},
+    "lb.results":            {"en": "results",             "zh": "条结果"},
+    "lb.offset":             {"en": "offset",              "zh": "偏移"},
+    "lb.all_dimensions":     {"en": "All Dimensions",      "zh": "全部维度"},
+    "lb.all_domains":        {"en": "All Domains",         "zh": "全部领域"},
+    "lb.filter":             {"en": "Filter",              "zh": "筛选"},
+    "lb.previous":           {"en": "Previous",            "zh": "上一页"},
+    "lb.next":               {"en": "Next",                "zh": "下一页"},
+    "lb.dimension":          {"en": "Dimension",           "zh": "维度"},
+    "lb.domain":             {"en": "Domain",              "zh": "领域"},
+    "lb.level":              {"en": "Level",               "zh": "等级"},
+    "lb.locked":             {"en": "This leaderboard is locked.", "zh": "此排行榜已锁定。"},
+    "lb.pay_unlock":         {"en": "Pay {fee} IDEA to Unlock (24h)", "zh": "支付 {fee} IDEA 解锁 (24小时)"},
+    "lb.unlock":             {"en": "Unlock",              "zh": "解锁"},
+    # Table headers
+    "th.rank":               {"en": "#",                   "zh": "#"},
+    "th.score":              {"en": "Score",               "zh": "评分"},
+    "th.dim":                {"en": "Dim",                 "zh": "维度"},
+    "th.method":             {"en": "Method",              "zh": "方法"},
+    "th.problem":            {"en": "Problem",             "zh": "问题"},
+    "th.domain":             {"en": "Domain",              "zh": "领域"},
+    "th.miner":              {"en": "Miner",               "zh": "矿工"},
+    "th.peer_id":            {"en": "Peer ID",             "zh": "节点 ID"},
+    "th.address":            {"en": "Address",             "zh": "地址"},
+    "th.last_seen":          {"en": "Last Seen",           "zh": "最后在线"},
+    "th.action":             {"en": "Action",              "zh": "操作"},
+    "th.status":             {"en": "Status",              "zh": "状态"},
+    "th.type":               {"en": "Type",                "zh": "类型"},
+    "th.preview":            {"en": "Preview",             "zh": "预览"},
+    "th.submitter":          {"en": "Submitter",           "zh": "提交者"},
+    "th.user":               {"en": "User",                "zh": "用户"},
+    "th.steps":              {"en": "Steps",               "zh": "步骤"},
+    "th.content":            {"en": "Content",             "zh": "内容"},
+    "th.verified":           {"en": "Verified",            "zh": "已验证"},
+    "th.notes":              {"en": "Notes",               "zh": "备注"},
+    "th.accuracy":           {"en": "Accuracy",            "zh": "准确率"},
+    "th.streak":             {"en": "Streak",              "zh": "连击"},
+    "th.amount":             {"en": "Amount",              "zh": "金额"},
+    "th.votes":              {"en": "Votes",               "zh": "票数"},
+    "th.classifier":         {"en": "Classifier",          "zh": "分类员"},
+    "th.nsfw":               {"en": "NSFW",                "zh": "违规"},
+    "th.spam":               {"en": "Spam",                "zh": "垃圾"},
+    "th.match":              {"en": "Match",               "zh": "匹配"},
+    "th.reward":             {"en": "Reward",              "zh": "奖励"},
+    "th.balance":            {"en": "Balance",             "zh": "余额"},
+    "th.staked":             {"en": "Staked",              "zh": "质押"},
+    "th.earned":             {"en": "Earned",              "zh": "已赚"},
+    "th.combo":              {"en": "Combo",               "zh": "组合"},
+    "th.paid_at":            {"en": "Paid At",             "zh": "支付时间"},
+    "th.analyzer":           {"en": "Analyzer",            "zh": "分析者"},
+    "th.description":        {"en": "Description",         "zh": "描述"},
+    "th.access":             {"en": "Access",              "zh": "访问"},
+    "th.top_step":           {"en": "Top Step",            "zh": "最高步骤"},
+    "th.solutions":          {"en": "Solutions",           "zh": "解法"},
+    "th.max_correct_step":   {"en": "Max Correct Step",    "zh": "最大正确步骤"},
+    # Search
+    "search.title":          {"en": "Search",              "zh": "搜索"},
+    "search.placeholder":    {"en": "Search methods, problems, domains...", "zh": "搜索方法、问题、领域..."},
+    "search.button":         {"en": "Search",              "zh": "搜索"},
+    # Random Draw
+    "random.title":          {"en": "Random Draw",         "zh": "随机抽取"},
+    "random.draw":           {"en": "Draw",                "zh": "抽取"},
+    "random.count":          {"en": "Count",               "zh": "数量"},
+    "random.board":          {"en": "Board",               "zh": "面板"},
+    "random.available":      {"en": "Available",           "zh": "可用"},
+    "random.seed":           {"en": "Seed",                "zh": "种子"},
+    "random.no_entries":     {"en": "No entries available for this board.", "zh": "此面板暂无条目。"},
+    "random.cost":           {"en": "Random draw costs {fee} IDEA per use.", "zh": "随机抽取每次消耗 {fee} IDEA。"},
+    "random.pay_draw":       {"en": "Pay {fee} IDEA to Draw", "zh": "支付 {fee} IDEA 抽取"},
+    # Peers
+    "peers.title":           {"en": "Peers",               "zh": "节点"},
+    "peers.connected":       {"en": "Connected Peers",     "zh": "已连接节点"},
+    "peers.this_hub":        {"en": "This Hub",            "zh": "本 Hub"},
+    "peers.port":            {"en": "Port",                "zh": "端口"},
+    "peers.no_peers":        {"en": "No peers connected. Start another hub with --bootstrap to join.", "zh": "暂无节点连接。用 --bootstrap 启动另一个 hub 加入。"},
+    "peers.s_ago":            {"en": "{n}s ago",            "zh": "{n}秒前"},
+    "peers.m_ago":            {"en": "{n}m ago",            "zh": "{n}分钟前"},
+    # Entry detail
+    "entry.title":           {"en": "Entry Detail",        "zh": "条目详情"},
+    "entry.combo_id":        {"en": "Combo ID",            "zh": "组合 ID"},
+    "entry.method":          {"en": "Method",              "zh": "方法"},
+    "entry.method_domain":   {"en": "Method Domain",       "zh": "方法领域"},
+    "entry.method_level":    {"en": "Method Level",        "zh": "方法等级"},
+    "entry.problem_title":   {"en": "Problem",             "zh": "问题"},
+    "entry.problem_domain":  {"en": "Problem Domain",      "zh": "问题领域"},
+    "entry.best_dimension":  {"en": "Best Dimension",      "zh": "最佳维度"},
+    "entry.best_score":      {"en": "Best Score",          "zh": "最佳评分"},
+    "entry.miner":           {"en": "Miner",               "zh": "矿工"},
+    "entry.ai_analysis":     {"en": "AI Analysis",         "zh": "AI 分析"},
+    "entry.scores":          {"en": "Scores",              "zh": "评分"},
+    "entry.ratings":         {"en": "Ratings",             "zh": "评价"},
+    "entry.no_analysis":     {"en": "No analysis text available.", "zh": "暂无分析文本。"},
+    "entry.paywalled":       {"en": "AI analysis is paywalled.", "zh": "AI 分析需付费查看。"},
+    "entry.pay_view":        {"en": "Pay {fee} IDEA to View Analysis", "zh": "支付 {fee} IDEA 查看分析"},
+    "entry.no_ratings":      {"en": "No ratings yet.",     "zh": "暂无评价。"},
+    "entry.avg_rating":      {"en": "Avg Rating",          "zh": "平均评分"},
+    "entry.from_n_viewers":  {"en": "from {n} viewer(s)",  "zh": "来自 {n} 位观众"},
+    "entry.rate_placeholder": {"en": "Rate...",            "zh": "评分..."},
+    "entry.excellent":       {"en": "Excellent",           "zh": "优秀"},
+    "entry.good":            {"en": "Good",                "zh": "好"},
+    "entry.average":         {"en": "Average",             "zh": "一般"},
+    "entry.poor":            {"en": "Poor",                "zh": "差"},
+    "entry.terrible":        {"en": "Terrible",            "zh": "很差"},
+    "entry.optional_comment": {"en": "Optional comment",   "zh": "评论（可选）"},
+    "entry.submit_rating":   {"en": "Submit Rating",       "zh": "提交评价"},
+    "entry.your_address":    {"en": "Your address (0x...)", "zh": "你的地址 (0x...)"},
+    # Tokens
+    "tokens.title":          {"en": "Tokens",              "zh": "代币"},
+    "tokens.address_label":  {"en": "Address",             "zh": "地址"},
+    "tokens.balance_idea":   {"en": "Balance (IDEA)",      "zh": "余额 (IDEA)"},
+    "tokens.staked":         {"en": "Staked",              "zh": "已质押"},
+    "tokens.total_earned":   {"en": "Total Earned",        "zh": "累计赚取"},
+    "tokens.slashed":        {"en": "Slashed",             "zh": "被罚没"},
+    "tokens.total_spent":    {"en": "Total Spent",         "zh": "累计花费"},
+    "tokens.payments":       {"en": "Payments",            "zh": "支付次数"},
+    "tokens.faucet":         {"en": "Get Free Tokens (Faucet)", "zh": "领取免费代币"},
+    "tokens.faucet_hint":    {"en": "+100 IDEA for new users", "zh": "新用户 +100 IDEA"},
+    "tokens.payment_history": {"en": "Payment History",    "zh": "支付历史"},
+    "tokens.no_payments":    {"en": "No payments yet.",    "zh": "暂无支付记录。"},
+    # Submissions
+    "submit.title":          {"en": "Community Submit",    "zh": "社区提交"},
+    "submit.home_title":     {"en": "Community Submit",    "zh": "社区提交"},
+    "submit.home_desc":      {"en": "All submissions are reviewed before joining the active matrix.", "zh": "所有提交在加入活跃矩阵前需经过审核。"},
+    "submit.method.card":    {"en": "Submit a new thinking method to the matrix", "zh": "提交一个新的思维方法到矩阵"},
+    "submit.problem.card":   {"en": "Submit an unsolved problem for the matrix", "zh": "提交一个未解决的问题到矩阵"},
+    "submit.method_btn":     {"en": "Submit Method",       "zh": "提交方法"},
+    "submit.problem_btn":    {"en": "Submit Problem",      "zh": "提交问题"},
+    "submit.method_title":   {"en": "Submit Method",       "zh": "提交方法"},
+    "submit.problem_title":  {"en": "Submit Problem",      "zh": "提交问题"},
+    "submit.name":           {"en": "Name",                "zh": "名称"},
+    "submit.domain":         {"en": "Domain",              "zh": "领域"},
+    "submit.level":          {"en": "Level",               "zh": "等级"},
+    "submit.description":    {"en": "Description",         "zh": "描述"},
+    "submit.examples":       {"en": "Examples",            "zh": "示例"},
+    "submit.prerequisites":  {"en": "Prerequisites",       "zh": "前置条件"},
+    "submit.compatible_with": {"en": "Compatible With",    "zh": "兼容方法"},
+    "submit.submitter":      {"en": "Submitter",           "zh": "提交者"},
+    "submit.title_label":    {"en": "Title",               "zh": "标题"},
+    "submit.maturity":       {"en": "Maturity",            "zh": "成熟度"},
+    "submit.constraints":    {"en": "Constraint Types",    "zh": "约束类型"},
+    "submit.create_btn":     {"en": "Submit Method",       "zh": "提交方法"},
+    "submit.problem_btn2":   {"en": "Submit Problem",      "zh": "提交问题"},
+    "submit.pending_title":  {"en": "Submissions",         "zh": "待审核提交"},
+    "submit.pending_count":  {"en": "{n} pending submission(s)", "zh": "{n} 条待审核"},
+    "submit.approve":        {"en": "Approve",             "zh": "通过"},
+    "submit.reject":         {"en": "Reject",              "zh": "拒绝"},
+    "submit.no_pending":     {"en": "No pending submissions.", "zh": "暂无待审核提交。"},
+    "submit.placeholder":    {"en": "comma-separated",     "zh": "逗号分隔"},
+    "submit.placeholder_ids": {"en": "comma-separated method IDs", "zh": "逗号分隔方法 ID"},
+    "submit.placeholder_examples": {"en": "comma-separated", "zh": "逗号分隔"},
+    # Collections
+    "collections.title":     {"en": "Collections",          "zh": "合集"},
+    "collections.methods":   {"en": "Methods",              "zh": "方法"},
+    "collections.problems":  {"en": "Problems",             "zh": "问题"},
+    "collections.stars":     {"en": "Stars",                "zh": "收藏"},
+    "collections.imports":   {"en": "Imports",              "zh": "导入"},
+    "collections.newest":    {"en": "Newest",               "zh": "最新"},
+    "collections.import":    {"en": "import",               "zh": "次导入"},
+    "collections.imports_label": {"en": "imports",          "zh": "次导入"},
+    "collections.items":     {"en": "items",                "zh": "项"},
+    "collections.by":        {"en": "by",                   "zh": "作者"},
+    "collections.my":        {"en": "My Collections",       "zh": "我的合集"},
+    "collections.all":       {"en": "All Collections",      "zh": "全部合集"},
+    "collections.new":       {"en": "New Collection",       "zh": "新建合集"},
+    "collections.create":    {"en": "Create Collection",    "zh": "创建合集"},
+    "collections.no_collections": {"en": "No collections found.", "zh": "暂无合集。"},
+    "collections.create_first": {"en": "Create the first one", "zh": "创建第一个合集"},
+    "collections.sort":      {"en": "Sort",                 "zh": "排序"},
+    "collections.type":      {"en": "Type",                 "zh": "类型"},
+    "collections.category":  {"en": "Category",             "zh": "分类"},
+    "collections.creator":   {"en": "Creator",              "zh": "创建者"},
+    "collections.items_json": {"en": "Items (JSON)",        "zh": "项目 (JSON)"},
+    "collections.json_hint": {"en": "Paste a JSON array of method or problem objects.", "zh": "粘贴方法或问题对象的 JSON 数组。"},
+    "collections.json_placeholder": {"en": "Describe what this collection is about...", "zh": "描述这个合集的内容..."},
+    "collections.star":      {"en": "Star",                 "zh": "收藏"},
+    "collections.unstar":    {"en": "Unstar",               "zh": "取消收藏"},
+    "collections.back":      {"en": "Back to Collections",  "zh": "返回合集列表"},
+    "collections.import_hint": {"en": "Use this command to mine with this collection:", "zh": "使用此命令用本合集进行挖掘："},
+    "collections.no_items":  {"en": "No items in this collection.", "zh": "此合集暂无项目。"},
+    "collections.quantity":  {"en": "items",                "zh": "项"},
+    "collections.method_col": {"en": "Method Collection",   "zh": "方法合集"},
+    "collections.problem_col": {"en": "Problem Collection", "zh": "问题合集"},
+    "collections.name_placeholder": {"en": "e.g. Quantum Methods Pack", "zh": "例如：量子方法包"},
+    "collections.required":  {"en": "required",             "zh": "必填"},
+    # Math Zone
+    "math.title":            {"en": "Math Research Zone",   "zh": "数学研究区"},
+    "math.new_problem":      {"en": "New Problem",          "zh": "新建问题"},
+    "math.no_problems":      {"en": "No math problem zones yet.", "zh": "暂无数学问题区。"},
+    "math.apply_first":      {"en": "Apply to create the first one", "zh": "申请创建第一个"},
+    "math.solutions_count":  {"en": "{n} solution(s)",      "zh": "{n} 个解法"},
+    "math.method_zones":     {"en": "Method Zones",         "zh": "方法区"},
+    "math.check_access":     {"en": "Check Access",         "zh": "检查权限"},
+    "math.unlocked":         {"en": "Unlocked",             "zh": "已解锁"},
+    "math.locked_status":    {"en": "Locked — Unlock",      "zh": "已锁定 — 解锁"},
+    "math.tools":            {"en": "tools",                "zh": "工具"},
+    "math.no_method_zones":  {"en": "No math method collections yet.", "zh": "暂无数学方法合集。"},
+    "math.create_one":       {"en": "Create one",           "zh": "创建一个"},
+    "math.with_category":    {"en": "with category \"mathematics\".", "zh": "分类选 \"mathematics\"。"},
+    "math.access_required":  {"en": "Access Required",      "zh": "需要权限"},
+    "math.must_unlock":      {"en": "You must unlock this zone before viewing solutions.", "zh": "你必须解锁此区域才能查看解法。"},
+    "math.manual_unlock":    {"en": "Manual Unlock",        "zh": "手动解锁"},
+    "math.unlock_title":     {"en": "Unlock Zone",          "zh": "解锁区域"},
+    "math.unlock_desc":      {"en": "To view solutions in this zone, you must first run a <b>math-mine</b> operation.", "zh": "要查看此区域的解法，你需要先运行 <b>math-mine</b> 操作。"},
+    "math.step1":            {"en": "Step 1: Run CLI command", "zh": "步骤 1：运行 CLI 命令"},
+    "math.step2":            {"en": "Step 2: Manual unlock (if needed)", "zh": "步骤 2：手动解锁（如需）"},
+    "math.unlock_btn":       {"en": "Unlock",               "zh": "解锁"},
+    "math.already_unlocked": {"en": "Zone Already Unlocked", "zh": "区域已解锁"},
+    "math.has_access":       {"en": "You have access to this zone.", "zh": "你已有此区域的访问权限。"},
+    "math.go_zone":          {"en": "Go to Method Zone",    "zh": "前往方法区"},
+    "math.back_problem":     {"en": "Back to Problem",      "zh": "返回问题"},
+    "math.back_zone":        {"en": "Back to Math Zone",    "zh": "返回数学区"},
+    "math.back_method_zone": {"en": "Back to Method Zone",  "zh": "返回方法区"},
+    "math.no_solutions":     {"en": "No solutions yet.",    "zh": "暂无解法。"},
+    "math.submit_first":     {"en": "Submit the first one", "zh": "提交第一个解法"},
+    "math.fork":             {"en": "Fork",                 "zh": "派生"},
+    "math.fork_solution":    {"en": "Fork Solution",        "zh": "派生解法"},
+    "math.fork_desc":        {"en": "This will create a copy of all {n} steps as your own solution.", "zh": "这将复制全部 {n} 个步骤作为你的解法。"},
+    "math.confirm_fork":     {"en": "Confirm Fork",         "zh": "确认派生"},
+    "math.submit_improvement": {"en": "Submit Improvement", "zh": "提交改进"},
+    "math.submit_update":    {"en": "Submit Update",        "zh": "提交更新"},
+    "math.edit_hint":        {"en": "Edit the JSON above and submit. max_correct_step will be recalculated.", "zh": "编辑上方 JSON 提交，max_correct_step 将重新计算。"},
+    "math.forked_from":      {"en": "Forked from",          "zh": "派生自"},
+    "math.new_math_problem": {"en": "New Math Problem",     "zh": "新建数学问题"},
+    "math.create_zone":      {"en": "Create Problem Zone",  "zh": "创建问题区"},
+    "math.title_placeholder": {"en": "e.g. Riemann Hypothesis", "zh": "例如：黎曼猜想"},
+    "math.desc_placeholder": {"en": "Describe the problem...", "zh": "描述问题..."},
+    "math.problem_not_found": {"en": "Math problem not found.", "zh": "数学问题未找到。"},
+    "math.collection_not_found": {"en": "Problem or method collection not found.", "zh": "问题或方法合集未找到。"},
+    "math.solution_not_found": {"en": "Solution not found.", "zh": "解法未找到。"},
+    "math.solution_label":   {"en": "Solution",             "zh": "解法"},
+    "math.tree.title":       {"en": "Exploration Tree",     "zh": "探索树"},
+    "math.tree.root_detail": {"en": "Root Node Detail",     "zh": "根节点详情"},
+    "math.tree.add_child":   {"en": "Add Child Node",       "zh": "添加子节点"},
+    "math.tree.backprop":    {"en": "Mark Terminal & Backpropagate", "zh": "标记终点并反向传播"},
+    "math.tree.prune":       {"en": "Prune Node",           "zh": "剪枝"},
+    "math.tree.prune_desc":  {"en": "Mark as pruned (complexity explosion, contradiction, etc.) — backpropagates neutral reward.", "zh": "标记为剪枝（复杂度爆炸、矛盾等）— 反向传播中性奖励。"},
+    "math.tree.state":       {"en": "State",                "zh": "状态"},
+    "math.tree.action":      {"en": "Action",               "zh": "动作"},
+    # Buffer Zone
+    "buffer.title":          {"en": "Buffer Zone",          "zh": "区块链缓冲区"},
+    "buffer.desc":           {"en": "Submit AI analysis → Community classification → Consensus → Publish to leaderboard", "zh": "提交 AI 分析 → 社区分类 → 共识达成 → 发布至排行榜"},
+    "buffer.pending":        {"en": "Pending",              "zh": "待分类"},
+    "buffer.classified":     {"en": "Classified",           "zh": "已分类"},
+    "buffer.disputed":       {"en": "Disputed",             "zh": "争议中"},
+    "buffer.published":      {"en": "Published",            "zh": "已发布"},
+    "buffer.classify_pending": {"en": "Classify Pending",   "zh": "分类待处理"},
+    "buffer.token_dashboard": {"en": "Token Dashboard",     "zh": "代币面板"},
+    "buffer.classifier_lb":  {"en": "Classifier Leaderboard", "zh": "分类员排行榜"},
+    "buffer.top_classifiers": {"en": "Top Classifiers",     "zh": "顶级分类员"},
+    "buffer.no_pending":     {"en": "No pending submissions to classify.", "zh": "暂无待分类提交。"},
+    "buffer.no_classifiers": {"en": "No classifiers yet.",  "zh": "暂无分类员。"},
+    "buffer.classify_title": {"en": "Classify Submission",  "zh": "分类提交"},
+    "buffer.classify_submit": {"en": "Submit Classification", "zh": "提交分类"},
+    "buffer.classify_hint":  {"en": "Classification requires a stake of 10 IDEA tokens (auto-faucet for new users).", "zh": "分类需要质押 10 IDEA 代币（新用户自动领取）。"},
+    "buffer.domain_label":   {"en": "Domain Label",         "zh": "领域标签"},
+    "buffer.mark_nsfw":      {"en": "Mark as NSFW",         "zh": "标记为违规"},
+    "buffer.mark_spam":      {"en": "Mark as Spam / AI Hallucination", "zh": "标记为垃圾 / AI 幻觉"},
+    "buffer.your_address":   {"en": "Your Address",         "zh": "你的地址"},
+    "buffer.analysis_data":  {"en": "Analysis Data",        "zh": "分析数据"},
+    "buffer.existing_classifications": {"en": "Existing Classifications ({n})", "zh": "已有分类 ({n})"},
+    "buffer.submission_detail": {"en": "Submission Detail", "zh": "提交详情"},
+    "buffer.submission_id":  {"en": "Submission ID",        "zh": "提交 ID"},
+    "buffer.my_submissions": {"en": "My Submissions",       "zh": "我的提交"},
+    "buffer.no_submissions": {"en": "No submissions from {addr}.", "zh": "{addr} 暂无提交。"},
+    "buffer.no_entry":       {"en": "Submission not found.", "zh": "提交未找到。"},
+    "buffer.classifier_leaderboard": {"en": "Classifier Leaderboard", "zh": "分类员排行榜"},
+    "buffer.top_50":         {"en": "Top 50 classifiers by token balance", "zh": "按代币余额排名前 50 分类员"},
+    "buffer.classifications": {"en": "Classifications",     "zh": "分类记录"},
+    "buffer.consensus_domain": {"en": "Consensus Domain",   "zh": "共识领域"},
+    "buffer.active_stakes":  {"en": "Active Stakes",        "zh": "活跃质押"},
+    "buffer.stake_id":       {"en": "Stake ID",             "zh": "质押 ID"},
+    "buffer.submission":     {"en": "Submission",           "zh": "提交"},
+    "buffer.consecutive_streak": {"en": "Consecutive Streak", "zh": "连续正确"},
+    "buffer.pending_classifications": {"en": "Pending Classifications", "zh": "待分类项目"},
+    "buffer.awaiting":       {"en": "{n} submission(s) awaiting classification", "zh": "{n} 条提交等待分类"},
+    # Token Dashboard (buffer)
+    "tokendash.title":       {"en": "Token Dashboard",      "zh": "代币面板"},
+    "tokendash.balance_idea": {"en": "Balance (IDEA)",      "zh": "余额 (IDEA)"},
+    "tokendash.staked":      {"en": "Staked",               "zh": "已质押"},
+    "tokendash.total_earned": {"en": "Total Earned",        "zh": "累计赚取"},
+    "tokendash.slashed":     {"en": "Slashed",              "zh": "被罚没"},
+    # Error messages
+    "error.form.name_required":      {"en": "Name is required.", "zh": "名称为必填。"},
+    "error.form.domain_required":    {"en": "Domain is required.", "zh": "领域为必填。"},
+    "error.form.level_required":     {"en": "Level must be 1-4.", "zh": "等级必须为 1-4。"},
+    "error.form.level_number":       {"en": "Level must be a number 1-4.", "zh": "等级必须是 1-4 的数字。"},
+    "error.form.description_required": {"en": "Description is required.", "zh": "描述为必填。"},
+    "error.form.title_required":     {"en": "Title is required.", "zh": "标题为必填。"},
+    "error.form.items_array":        {"en": "Items must be a JSON array.", "zh": "项目必须是 JSON 数组。"},
+    "error.form.items_one":          {"en": "At least one item is required.", "zh": "至少需要一个项目。"},
+    "error.form.invalid_json":       {"en": "Invalid JSON.", "zh": "JSON 格式无效。"},
+    "error.form.type_required":      {"en": "Type must be 'method' or 'problem'.", "zh": "类型必须是 'method' 或 'problem'。"},
+    "error.form.steps_array":        {"en": "Steps must be a JSON array.", "zh": "步骤必须是 JSON 数组。"},
+    "error.form.invalid_json_item":  {"en": "Invalid JSON in items: {e}", "zh": "项目 JSON 无效：{e}"},
+    "error.form.invalid_json_generic": {"en": "Invalid JSON", "zh": "JSON 格式无效"},
+    # Misc
+    "form.required_hint":    {"en": "Required fields are marked with *", "zh": "带 * 的为必填项"},
+    # Login
+    "login.login":           {"en": "Login",                   "zh": "登录"},
+    "login.logout":          {"en": "Logout",                  "zh": "退出"},
+    "login.logged_in":       {"en": "",                        "zh": ""},
+    "login.placeholder":     {"en": "Your address (0x...)",    "zh": "你的地址 (0x...)"},
+}
+
+
+def _t(key: str, lang: str = "en", **kwargs) -> str:
+    """Look up a translation key for *lang* (``"en"`` or ``"zh"``).
+    Falls back to English when a key or language entry is missing.
+    ``**kwargs`` are used to format the translated template string.
+    """
+    entry = _T.get(key, {})
+    text = entry.get(lang) or entry.get("en")
+    if text is None:
+        return key
+    if kwargs:
+        try:
+            text = text.format(**kwargs)
+        except KeyError:
+            pass
+    return text
+
+
+def _lang_toggle(lang: str) -> str:
+    """Return the HTML link that toggles between English and Chinese."""
+    next_lang = "zh" if lang == "en" else "en"
+    label = _t("common.lang_toggle", lang)
+    return f'<a href="?lang={next_lang}" class="lang-toggle" title="Switch language">{label}</a>'
+
+
+# ------------------------------------------------------------------
 # CSS (shared across all pages)
 # ------------------------------------------------------------------
 
@@ -80,39 +447,92 @@ button:hover { background: #1d4ed8; }
 .empty { text-align: center; color: #999; padding: 40px; font-size: 15px; }
 footer { text-align: center; padding: 20px; color: #999; font-size: 12px; border-top: 1px solid #e5e7eb; margin-top: 30px; }
 .dim-label { font-size: 11px; color: #999; }
+.lang-toggle {
+    margin-left: auto; padding: 6px 16px; border-radius: 6px;
+    background: #2563eb; color: #fff; font-size: 13px; font-weight: 500;
+    border: 1px solid #2563eb; transition: background 0.15s, opacity 0.15s;
+}
+.lang-toggle:hover { background: #1d4ed8; border-color: #1d4ed8; color: #fff; text-decoration: none; }
+.login-widget { display: inline-flex; align-items: center; gap: 6px; }
+.login-input { padding: 4px 8px; border: 1px solid #d1d5db; border-radius: 4px; font-size: 13px; width: 180px; background: #fff; color: #1f2937; }
+.login-btn { padding: 4px 10px; border: 1px solid #6b7280; border-radius: 4px; font-size: 12px; cursor: pointer; background: #f9fafb; color: #374151; text-decoration: none; white-space: nowrap; }
+.login-btn:hover { background: #e5e7eb; }
+.logout-btn { color: #dc2626; border-color: #dc2626; }
+.login-addr { font-size: 12px; color: #2563eb; font-weight: 500; }
+.tree-container { margin: 16px 0; }
+.tree-node { border-left: 3px solid #2563eb; padding: 8px 12px; margin: 6px 0; background: #f8faff; border-radius: 4px; }
+.tree-node.terminal-success { border-left-color: #22c55e; background: #f0fdf4; }
+.tree-node.terminal-failure { border-left-color: #ef4444; background: #fef2f2; }
+.tree-node.pruned { border-left-color: #9ca3af; background: #f9fafb; }
+.node-type-badge { display: inline-block; padding: 1px 8px; border-radius: 3px; font-size: 11px; font-weight: 600; }
+.node-type-badge.success { background: #dcfce7; color: #166534; }
+.node-type-badge.failure { background: #fee2e2; color: #991b1b; }
+.node-type-badge.pruned { background: #f3f4f6; color: #4b5563; }
+.node-type-badge.normal { background: #e8f0fe; color: #2563eb; }
+.tree-child-list { margin-left: 24px; padding-left: 12px; border-left: 1px dashed #d1d5db; }
+.tree-child-wrapper { margin: 4px 0; }
+.edge-label { display: inline-block; font-size: 11px; color: #6b7280; background: #f3f4f6; padding: 1px 8px; border-radius: 3px; margin: 2px 0; }
+.tree-toggle { cursor: pointer; user-select: none; font-size: 12px; color: #6b7280; display: block; margin: 4px 0; }
+.tree-toggle::before { content: "[-] "; }
+.tree-toggle.collapsed::before { content: "[+] "; }
+.tree-collapsible { display: block; }
+.tree-toggle.collapsed + input[type=checkbox] + .tree-collapsible { display: none; }
+input[type=checkbox]:checked + .tree-collapsible { display: block; }
+input[type=checkbox]:not(:checked) + .tree-collapsible { display: none; }
 """
 
 
-def _base_page(title: str, content: str, active_nav: str = "") -> str:
+def _login_widget(viewer_addr: str, lang: str) -> str:
+    """Render the login/logout widget for the nav bar."""
+    if viewer_addr:
+        short = viewer_addr[:8] + "..." + viewer_addr[-4:] if len(viewer_addr) > 14 else viewer_addr
+        return (
+            f'<span class="login-widget">'
+            f'<span class="login-addr" title="{viewer_addr}">{_t("login.logged_in", lang)} {short}</span>'
+            f'<a href="/web/logout" class="login-btn logout-btn">{_t("login.logout", lang)}</a>'
+            f'</span>'
+        )
+    else:
+        return (
+            f'<form action="/web/login" method="post" class="login-widget" style="display:inline;">'
+            f'<input type="hidden" name="redirect" value="">'
+            f'<input type="text" name="address" placeholder="{_t("login.placeholder", lang)}" class="login-input">'
+            f'<button type="submit" class="login-btn">{_t("login.login", lang)}</button>'
+            f'</form>'
+        )
+
+
+def _base_page(title: str, content: str, active_nav: str = "", lang: str = "en",
+               viewer_addr: str = "") -> str:
     nav_items = [
-        ("/", "Dashboard", "dashboard"),
-        ("/web/leaderboard", "Leaderboard", "leaderboard"),
-        ("/web/search", "Search", "search"),
-        ("/web/random", "Random Draw", "random"),
-        ("/web/peers", "Peers", "peers"),
-        ("/web/tokens", "Tokens", "tokens"),
-        ("/web/math", "Math Zone", "math"),
-        ("/web/collections", "Collections", "collections"),
-        ("/web/buffer", "Buffer Zone", "buffer"),
-        ("/web/submit", "Submit", "submit"),
+        ("/", _t("nav.dashboard", lang), "dashboard"),
+        ("/web/leaderboard", _t("nav.leaderboard", lang), "leaderboard"),
+        ("/web/search", _t("nav.search", lang), "search"),
+        ("/web/random", _t("nav.random_draw", lang), "random"),
+        ("/web/peers", _t("nav.peers", lang), "peers"),
+        ("/web/tokens", _t("nav.tokens", lang), "tokens"),
+        ("/web/math", _t("nav.math_zone", lang), "math"),
+        ("/web/collections", _t("nav.collections", lang), "collections"),
+        ("/web/buffer", _t("nav.buffer_zone", lang), "buffer"),
+        ("/web/submit", _t("nav.submit", lang), "submit"),
     ]
     nav_html = "\n".join(
-        f'<a href="{url}" class="{"active" if key == active_nav else ""}">{label}</a>'
+        f'<a href="{url}?lang={lang}" class="{"active" if key == active_nav else ""}">{label}</a>'
         for url, label, key in nav_items
     )
     return f"""<!DOCTYPE html>
-<html lang="en">
+<html lang="{lang}">
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>{_esc(title)} — Idea Mining Network</title>
+<title>{_esc(title)} — {_t("common.home", lang)}</title>
 <style>{_CSS}</style>
 </head>
 <body>
-<nav>{nav_html}</nav>
+<nav>{nav_html}{_login_widget(viewer_addr, lang)}{_lang_toggle(lang)}</nav>
 <h1>{_esc(title)}</h1>
 {content}
-<footer>Idea Mining Network &mdash; Phase 2 MVP</footer>
+<footer>{_t("common.footer", lang)}</footer>
 </body>
 </html>"""
 
@@ -128,9 +548,9 @@ def _score_bar(score: float, max_score: float = 10.0) -> str:
     return f'<span class="bar-bg"><span class="bar-fill {cls}" style="width:{pct:.0f}%"></span></span>{score:.1f}'
 
 
-def _entry_table(entries: list[LeaderboardEntry], start_rank: int = 1) -> str:
+def _entry_table(entries: list[LeaderboardEntry], start_rank: int = 1, lang: str = "en") -> str:
     if not entries:
-        return '<div class="empty">No entries found.</div>'
+        return f'<div class="empty">{_t("common.no_entries", lang)}</div>'
 
     rows = []
     for i, e in enumerate(entries):
@@ -139,7 +559,7 @@ def _entry_table(entries: list[LeaderboardEntry], start_rank: int = 1) -> str:
             f"<td>{start_rank + i}</td>"
             f"<td>{_score_bar(e.best_score)}</td>"
             f"<td>{e.best_dimension}</td>"
-            f"<td><a href='/web/entry/{e.combo_id}'>{_esc(e.method_name[:30])}</a></td>"
+            f"<td><a href='/web/entry/{e.combo_id}?lang={lang}'>{_esc(e.method_name[:30])}</a></td>"
             f"<td>{_esc(e.problem_title[:40])}</td>"
             f"<td><span class='dim-label'>{e.problem_domain}</span></td>"
             f"<td><span class='dim-label'>{_esc(e.miner_address[:12])}...</span></td>"
@@ -150,8 +570,8 @@ def _entry_table(entries: list[LeaderboardEntry], start_rank: int = 1) -> str:
     return f"""
     <table>
     <thead><tr>
-        <th>#</th><th>Score</th><th>Dim</th><th>Method</th><th>Problem</th>
-        <th>Domain</th><th>Miner</th>
+        <th>{_t("th.rank", lang)}</th><th>{_t("th.score", lang)}</th><th>{_t("th.dim", lang)}</th><th>{_t("th.method", lang)}</th><th>{_t("th.problem", lang)}</th>
+        <th>{_t("th.domain", lang)}</th><th>{_t("th.miner", lang)}</th>
     </tr></thead>
     <tbody>{"".join(rows)}</tbody>
     </table>"""
@@ -176,7 +596,7 @@ def _parse_query(path: str) -> dict[str, str]:
 # Page renderers
 # ------------------------------------------------------------------
 
-def render_dashboard(db: LeaderboardDB, pm: PeerManager) -> str:
+def render_dashboard(db: LeaderboardDB, pm: PeerManager, lang: str = "en", viewer_addr: str = "") -> str:
     total = db.total_entries()
     peers = len(pm.get_peers())
     uptime_m = int(pm.uptime / 60)
@@ -187,35 +607,35 @@ def render_dashboard(db: LeaderboardDB, pm: PeerManager) -> str:
 
     # Quick links
     dim_links = "".join(
-        f'<a href="/web/leaderboard?dim={d.value}">{d.value.title()}</a>'
+        f'<a href="/web/leaderboard?dim={d.value}&lang={lang}">{d.value.title()}</a>'
         for d in EvalDimension
     )
     domain_links = "".join(
-        f'<a href="/web/leaderboard?domain={d.value}">{d.value.title()}</a>'
+        f'<a href="/web/leaderboard?domain={d.value}&lang={lang}">{d.value.title()}</a>'
         for d in Domain
     )
 
     content = f"""
     <div class="stats">
-        <div class="stat-card"><div class="num">{total}</div><div class="label">Entries</div></div>
-        <div class="stat-card"><div class="num">{peers}</div><div class="label">Peers</div></div>
-        <div class="stat-card"><div class="num">{uptime_str}</div><div class="label">Uptime</div></div>
+        <div class="stat-card"><div class="num">{total}</div><div class="label">{_t("dash.entries", lang)}</div></div>
+        <div class="stat-card"><div class="num">{peers}</div><div class="label">{_t("dash.peers", lang)}</div></div>
+        <div class="stat-card"><div class="num">{uptime_str}</div><div class="label">{_t("dash.uptime", lang)}</div></div>
     </div>
 
-    <h2>By Dimension</h2>
+    <h2>{_t("dash.by_dimension", lang)}</h2>
     <div class="quick-links">{dim_links}</div>
 
-    <h2>By Domain</h2>
+    <h2>{_t("dash.by_domain", lang)}</h2>
     <div class="quick-links">{domain_links}</div>
 
-    <h2>Top Entries</h2>
-    {_entry_table(top)}
+    <h2>{_t("dash.top_entries", lang)}</h2>
+    {_entry_table(top, lang=lang)}
     """
-    return _base_page("Dashboard", content, "dashboard")
+    return _base_page(_t("dash.title", lang), content, "dashboard", lang=lang, viewer_addr=viewer_addr)
 
 
 def render_leaderboard(db: LeaderboardDB, path: str,
-                       viewer_addr: str = "", token_gate=None) -> str:
+                       viewer_addr: str = "", token_gate=None, lang: str = "en") -> str:
     params = _parse_query(path)
     dim = EvalDimension(params["dim"]) if params.get("dim") else None
     dom = Domain(params["domain"]) if params.get("domain") else None
@@ -242,11 +662,11 @@ def render_leaderboard(db: LeaderboardDB, path: str,
 
     active_filters = []
     if dim:
-        active_filters.append(f"Dimension: {dim.value}")
+        active_filters.append(f"{_t('lb.dimension', lang)}: {dim.value}")
     if dom:
-        active_filters.append(f"Domain: {dom.value}")
+        active_filters.append(f"{_t('lb.domain', lang)}: {dom.value}")
     if lvl:
-        active_filters.append(f"Level: {lvl.value}")
+        active_filters.append(f"{_t('lb.level', lang)}: {lvl.value}")
     filter_text = " &mdash; ".join(active_filters) if active_filters else "All"
 
     # Build filter links (keep current params)
@@ -260,55 +680,57 @@ def render_leaderboard(db: LeaderboardDB, path: str,
             p["level"] = str(lvl.value)
         p.update(overrides)
         p["limit"] = str(limit)
+        p["lang"] = lang
         return "/web/leaderboard?" + "&".join(f"{k}={v}" for k, v in p.items())
 
     prev_link = ""
     if offset > 0:
         prev_offset = max(0, offset - limit)
-        prev_link = f'<a href="{_filter_url(**{"offset": str(prev_offset)})}">&larr; Previous</a>'
+        prev_link = f'<a href="{_filter_url(**{"offset": str(prev_offset)})}">&larr; {_t("lb.previous", lang)}</a>'
 
     next_link = ""
     if len(entries) == limit:
         next_offset = offset + limit
-        next_link = f'<a href="{_filter_url(**{"offset": str(next_offset)})}">Next &rarr;</a>'
+        next_link = f'<a href="{_filter_url(**{"offset": str(next_offset)})}">{_t("lb.next", lang)} &rarr;</a>'
 
-    base_params = f"dim={dim.value if dim else ''}&domain={dom.value if dom else ''}&limit={limit}&offset={offset}&viewer={_esc(viewer_addr)}"
+    base_params = f"dim={dim.value if dim else ''}&domain={dom.value if dom else ''}&limit={limit}&offset={offset}&viewer={_esc(viewer_addr)}&lang={lang}"
 
     unlock_html = ""
     if not has_access:
         fee = token_gate.LEADERBOARD_FEE_P if token_gate else 20
         unlock_html = f"""
         <div class="card" style="text-align:center;padding:32px;margin-bottom:20px;">
-            <p style="font-size:16px;color:#555;margin-bottom:16px;">This leaderboard is locked.</p>
+            <p style="font-size:16px;color:#555;margin-bottom:16px;">{_t("lb.locked", lang)}</p>
             <form method="post" action="/web/pay/leaderboard/{board_name}">
                 <input type="hidden" name="viewer_addr" value="{_esc(viewer_addr)}">
                 <input type="hidden" name="redirect" value="/web/leaderboard?{base_params}">
-                <input type="text" name="viewer_addr_input" value="{_esc(viewer_addr)}" placeholder="Your address (0x...)" style="width:260px;margin-bottom:8px;display:block;margin-left:auto;margin-right:auto;">
-                <button type="submit" style="font-size:15px;padding:10px 32px;">Pay {fee} IDEA to Unlock (24h)</button>
+                <input type="text" name="viewer_addr_input" value="{_esc(viewer_addr)}" placeholder="{_t("entry.your_address", lang)}" style="width:260px;margin-bottom:8px;display:block;margin-left:auto;margin-right:auto;">
+                <button type="submit" style="font-size:15px;padding:10px 32px;">{_t("lb.pay_unlock", lang, fee=fee)}</button>
             </form>
         </div>"""
 
     content = f"""
-    <p style="color:#777;margin-bottom:12px;">Showing: {filter_text} &mdash; {len(entries) if has_access else 0} results (offset {offset})</p>
+    <p style="color:#777;margin-bottom:12px;">{_t("lb.showing", lang)}: {filter_text} &mdash; {len(entries) if has_access else 0} {_t("lb.results", lang)} ({_t("lb.offset", lang)} {offset})</p>
 
     <form method="get" action="/web/leaderboard">
-        <select name="dim"><option value="">All Dimensions</option>{dim_opts}</select>
-        <select name="domain"><option value="">All Domains</option>{domain_opts}</select>
+        <select name="dim"><option value="">{_t("lb.all_dimensions", lang)}</option>{dim_opts}</select>
+        <select name="domain"><option value="">{_t("lb.all_domains", lang)}</option>{domain_opts}</select>
         <input type="number" name="limit" value="{limit}" min="10" max="200" style="width:80px;" placeholder="Limit">
         <input type="hidden" name="viewer" value="{_esc(viewer_addr)}">
-        <button type="submit">Filter</button>
+        <input type="hidden" name="lang" value="{lang}">
+        <button type="submit">{_t("lb.filter", lang)}</button>
     </form>
 
     {unlock_html}
 
-    {_entry_table(entries, start_rank=offset + 1) if has_access else ''}
+    {_entry_table(entries, start_rank=offset + 1, lang=lang) if has_access else ''}
 
     <div class="pagination">{prev_link if has_access else ''}{next_link if has_access else ''}</div>
     """
-    return _base_page("Leaderboard", content, "leaderboard")
+    return _base_page(_t("lb.title", lang), content, "leaderboard", lang=lang, viewer_addr=viewer_addr)
 
 
-def render_search(db: LeaderboardDB, path: str) -> str:
+def render_search(db: LeaderboardDB, path: str, lang: str = "en") -> str:
     params = _parse_query(path)
     query = params.get("q", "")
     dim = EvalDimension(params["dim"]) if params.get("dim") else None
@@ -324,25 +746,26 @@ def render_search(db: LeaderboardDB, path: str) -> str:
     result_html = ""
     if query:
         if entries:
-            result_html = f"<p style='color:#777;margin-bottom:12px;'>{len(entries)} results for '<b>{_esc(query)}</b>'</p>" + _entry_table(entries)
+            result_html = f"<p style='color:#777;margin-bottom:12px;'>{len(entries)} {_t('search.title', lang).lower()} {_t('lb.results', lang)} '<b>{_esc(query)}</b>'</p>" + _entry_table(entries, lang=lang)
         else:
-            result_html = f"<div class='empty'>No results for '<b>{_esc(query)}</b>'.</div>"
+            result_html = f"<div class='empty'>{_t('common.no_results', lang)} '<b>{_esc(query)}</b>'.</div>"
     else:
-        result_html = "<div class='empty'>Enter a search term to find combinations.</div>"
+        result_html = f"<div class='empty'>{_t('common.enter_search', lang)}</div>"
 
     content = f"""
     <form method="get" action="/web/search">
-        <input type="text" name="q" value="{_esc(query)}" placeholder="Search methods, problems, domains..." style="flex:1;min-width:300px;">
-        <select name="dim"><option value="">All Dimensions</option>{dim_opts}</select>
-        <button type="submit">Search</button>
+        <input type="text" name="q" value="{_esc(query)}" placeholder="{_t('search.placeholder', lang)}" style="flex:1;min-width:300px;">
+        <select name="dim"><option value="">{_t('lb.all_dimensions', lang)}</option>{dim_opts}</select>
+        <input type="hidden" name="lang" value="{lang}">
+        <button type="submit">{_t('search.button', lang)}</button>
     </form>
     {result_html}
     """
-    return _base_page("Search", content, "search")
+    return _base_page(_t("search.title", lang), content, "search", lang=lang)
 
 
 def render_random(db: LeaderboardDB, path: str,
-                   viewer_addr: str = "", token_gate=None) -> str:
+                   viewer_addr: str = "", token_gate=None, lang: str = "en") -> str:
     params = _parse_query(path)
     dim = EvalDimension(params["dim"]) if params.get("dim") else None
     dom = Domain(params["domain"]) if params.get("domain") else None
@@ -359,7 +782,7 @@ def render_random(db: LeaderboardDB, path: str,
         for d in Domain
     )
 
-    base_params = f"dim={dim.value if dim else ''}&domain={dom.value if dom else ''}&count={count}&viewer={_esc(viewer)}"
+    base_params = f"dim={dim.value if dim else ''}&domain={dom.value if dom else ''}&count={count}&viewer={_esc(viewer)}&lang={lang}"
 
     cards = ""
     draw_info = ""
@@ -369,21 +792,21 @@ def render_random(db: LeaderboardDB, path: str,
         fee = token_gate.DRAW_FEE_Q
         unpaid_html = f"""
         <div class="card" style="text-align:center;padding:32px;margin-bottom:20px;">
-            <p style="font-size:16px;color:#555;margin-bottom:16px;">Random draw costs {fee} IDEA per use.</p>
+            <p style="font-size:16px;color:#555;margin-bottom:16px;">{_t("random.cost", lang, fee=fee)}</p>
             <form method="post" action="/web/pay/draw">
                 <input type="hidden" name="viewer_addr" value="{_esc(viewer_addr)}">
                 <input type="hidden" name="redirect" value="/web/random?paid=1&{base_params}">
-                <input type="text" name="viewer_addr_input" value="{_esc(viewer_addr)}" placeholder="Your address (0x...)" style="width:260px;margin-bottom:8px;display:block;margin-left:auto;margin-right:auto;">
-                <button type="submit" style="font-size:15px;padding:10px 32px;">Pay {fee} IDEA to Draw</button>
+                <input type="text" name="viewer_addr_input" value="{_esc(viewer_addr)}" placeholder="{_t("entry.your_address", lang)}" style="width:260px;margin-bottom:8px;display:block;margin-left:auto;margin-right:auto;">
+                <button type="submit" style="font-size:15px;padding:10px 32px;">{_t("random.pay_draw", lang, fee=fee)}</button>
             </form>
         </div>"""
     else:
         draw = db.random_draw(dimension=dim, domain=dom, draw_count=count, viewer_addr=viewer)
         draw_info = f"""
         <p style="color:#777;margin:12px 0;">
-            Board: <b>{draw.board_name}</b> &mdash;
-            Available: <b>{draw.total_in_board}</b> &mdash;
-            Seed: <b>{draw.draw_seed}</b>
+            {_t("random.board", lang)}: <b>{draw.board_name}</b> &mdash;
+            {_t("random.available", lang)}: <b>{draw.total_in_board}</b> &mdash;
+            {_t("random.seed", lang)}: <b>{draw.draw_seed}</b>
         </p>"""
 
         for e in draw.entries:
@@ -398,35 +821,36 @@ def render_random(db: LeaderboardDB, path: str,
             )
             cards += f"""
             <div class="card">
-                <h3><a href="/web/entry/{e.combo_id}">{_esc(e.method_name)} &times; {_esc(e.problem_title)}</a></h3>
-                <p style="color:#777;font-size:13px;">Best: <b>{e.best_dimension}</b> = {_score_bar(e.best_score)} | Domain: {e.problem_domain} | Level: {e.method_level}</p>
+                <h3><a href="/web/entry/{e.combo_id}?lang={lang}">{_esc(e.method_name)} &times; {_esc(e.problem_title)}</a></h3>
+                <p style="color:#777;font-size:13px;">Best: <b>{e.best_dimension}</b> = {_score_bar(e.best_score)} | {_t("th.domain", lang)}: {e.problem_domain} | {_t("lb.level", lang)}: {e.method_level}</p>
                 <div class="scores">{scores_html}</div>
             </div>"""
 
     content = f"""
     <form method="get" action="/web/random">
-        <select name="dim"><option value="">All Dimensions</option>{dim_opts}</select>
-        <select name="domain"><option value="">All Domains</option>{domain_opts}</select>
-        <input type="number" name="count" value="{count}" min="1" max="50" style="width:80px;" placeholder="Count">
+        <select name="dim"><option value="">{_t("lb.all_dimensions", lang)}</option>{dim_opts}</select>
+        <select name="domain"><option value="">{_t("lb.all_domains", lang)}</option>{domain_opts}</select>
+        <input type="number" name="count" value="{count}" min="1" max="50" style="width:80px;" placeholder="{_t("random.count", lang)}">
         <input type="hidden" name="viewer" value="{_esc(viewer)}">
-        <button type="submit">Draw</button>
+        <input type="hidden" name="lang" value="{lang}">
+        <button type="submit">{_t("random.draw", lang)}</button>
     </form>
 
     {unpaid_html}
     {draw_info}
-    {cards if cards else ('<div class="empty">No entries available for this board.</div>' if not unpaid_html else '')}
+    {cards if cards else (f'<div class="empty">{_t("random.no_entries", lang)}</div>' if not unpaid_html else '')}
     """
-    return _base_page("Random Draw", content, "random")
+    return _base_page(_t("random.title", lang), content, "random", lang=lang, viewer_addr=viewer_addr)
 
 
-def render_peers(pm: PeerManager) -> str:
+def render_peers(pm: PeerManager, lang: str = "en") -> str:
     peers = pm.get_peers()
     now = time.time()
 
     rows = []
     for i, p in enumerate(peers):
         ago = int(now - p.last_seen)
-        ago_str = f"{ago}s ago" if ago < 60 else f"{ago // 60}m ago"
+        ago_str = _t("peers.s_ago", lang, n=ago) if ago < 60 else _t("peers.m_ago", lang, n=ago // 60)
         rows.append(
             f"<tr><td>{i + 1}</td><td>{p.peer_id}</td>"
             f"<td>{p.address}:{p.port}</td><td>{ago_str}</td></tr>"
@@ -434,24 +858,24 @@ def render_peers(pm: PeerManager) -> str:
 
     content = f"""
     <div class="stats">
-        <div class="stat-card"><div class="num">{len(peers)}</div><div class="label">Connected Peers</div></div>
-        <div class="stat-card"><div class="num">{pm.peer_id[:12]}...</div><div class="label">This Hub</div></div>
-        <div class="stat-card"><div class="num">{pm.port}</div><div class="label">Port</div></div>
+        <div class="stat-card"><div class="num">{len(peers)}</div><div class="label">{_t("peers.connected", lang)}</div></div>
+        <div class="stat-card"><div class="num">{pm.peer_id[:12]}...</div><div class="label">{_t("peers.this_hub", lang)}</div></div>
+        <div class="stat-card"><div class="num">{pm.port}</div><div class="label">{_t("peers.port", lang)}</div></div>
     </div>
     <table>
-    <thead><tr><th>#</th><th>Peer ID</th><th>Address</th><th>Last Seen</th></tr></thead>
-    <tbody>{"".join(rows) if rows else '<tr><td colspan="4" class="empty">No peers connected. Start another hub with --bootstrap to join.</td></tr>'}</tbody>
+    <thead><tr><th>{_t("th.rank", lang)}</th><th>{_t("th.peer_id", lang)}</th><th>{_t("th.address", lang)}</th><th>{_t("th.last_seen", lang)}</th></tr></thead>
+    <tbody>{"".join(rows) if rows else f'<tr><td colspan="4" class="empty">{_t("peers.no_peers", lang)}</td></tr>'}</tbody>
     </table>
     """
-    return _base_page("Peers", content, "peers")
+    return _base_page(_t("peers.title", lang), content, "peers", lang=lang)
 
 
 def render_entry(db: LeaderboardDB, combo_id: str,
-                 viewer_addr: str = "", token_gate=None) -> str:
+                 viewer_addr: str = "", token_gate=None, lang: str = "en") -> str:
     entry = db._get_by_id(combo_id)
     if not entry:
-        content = '<div class="empty">Entry not found.</div>'
-        return _base_page("Not Found", content)
+        content = f'<div class="empty">{_t("common.not_found", lang)}</div>'
+        return _base_page(_t("entry.title", lang), content, lang=lang, viewer_addr=viewer_addr)
 
     scores = [
         ("Elegance", entry.elegance),
@@ -475,18 +899,18 @@ def render_entry(db: LeaderboardDB, combo_id: str,
     if access in ("own", "paid"):
         analysis_html = f"""
         <div class="card" style="line-height:1.8;font-size:14px;">
-            <p>{_esc(entry.analysis_text) if entry.analysis_text else '<span class="empty" style="padding:0;">No analysis text available.</span>'}</p>
+            <p>{_esc(entry.analysis_text) if entry.analysis_text else f'<span class="empty" style="padding:0;">{_t("entry.no_analysis", lang)}</span>'}</p>
         </div>"""
     else:
         fee = token_gate.VIEW_FEE_N if token_gate else 10
         analysis_html = f"""
         <div class="card" style="text-align:center;padding:32px;">
-            <p style="font-size:16px;color:#555;margin-bottom:16px;">AI analysis is paywalled.</p>
+            <p style="font-size:16px;color:#555;margin-bottom:16px;">{_t("entry.paywalled", lang)}</p>
             <form method="post" action="/web/pay/view/{combo_id}">
                 <input type="hidden" name="viewer_addr" value="{_esc(viewer_addr)}">
-                <input type="hidden" name="redirect" value="/web/entry/{combo_id}?viewer={_esc(viewer_addr)}">
-                <input type="text" name="viewer_addr_input" value="{_esc(viewer_addr)}" placeholder="Your address (0x...)" style="width:260px;margin-bottom:8px;display:block;margin-left:auto;margin-right:auto;">
-                <button type="submit" style="font-size:15px;padding:10px 32px;">Pay {fee} IDEA to View Analysis</button>
+                <input type="hidden" name="redirect" value="/web/entry/{combo_id}?viewer={_esc(viewer_addr)}&lang={lang}">
+                <input type="text" name="viewer_addr_input" value="{_esc(viewer_addr)}" placeholder="{_t("entry.your_address", lang)}" style="width:260px;margin-bottom:8px;display:block;margin-left:auto;margin-right:auto;">
+                <button type="submit" style="font-size:15px;padding:10px 32px;">{_t("entry.pay_view", lang, fee=fee)}</button>
             </form>
         </div>"""
 
@@ -496,7 +920,7 @@ def render_entry(db: LeaderboardDB, combo_id: str,
     ratings_html = ""
     if ratings:
         stars = "&#x2605;" * int(avg_rating) + "&#x2606;" * (5 - int(avg_rating))
-        ratings_html = f'<p style="margin-bottom:8px;">Avg Rating: <b>{stars}</b> ({avg_rating}/5 from {len(ratings)} viewer(s))</p>'
+        ratings_html = f'<p style="margin-bottom:8px;">{_t("entry.avg_rating", lang)}: <b>{stars}</b> ({avg_rating}/5 {_t("entry.from_n_viewers", lang, n=len(ratings))})</p>'
         for r in ratings[:10]:
             r_stars = "&#x2605;" * r["rating"] + "&#x2606;" * (5 - r["rating"])
             comment = _esc(r.get("comment", ""))
@@ -507,48 +931,48 @@ def render_entry(db: LeaderboardDB, combo_id: str,
         rate_form = f"""
         <form method="post" action="/web/rate/{combo_id}" style="margin-top:12px;">
             <input type="hidden" name="viewer_addr" value="{_esc(viewer_addr)}">
-            <input type="hidden" name="redirect" value="/web/entry/{combo_id}?viewer={_esc(viewer_addr)}">
+            <input type="hidden" name="redirect" value="/web/entry/{combo_id}?viewer={_esc(viewer_addr)}&lang={lang}">
             <select name="rating" style="width:auto;">
-                <option value="">Rate...</option>
-                <option value="5">5 — Excellent</option>
-                <option value="4">4 — Good</option>
-                <option value="3">3 — Average</option>
-                <option value="2">2 — Poor</option>
-                <option value="1">1 — Terrible</option>
+                <option value="">{_t("entry.rate_placeholder", lang)}</option>
+                <option value="5">5 — {_t("entry.excellent", lang)}</option>
+                <option value="4">4 — {_t("entry.good", lang)}</option>
+                <option value="3">3 — {_t("entry.average", lang)}</option>
+                <option value="2">2 — {_t("entry.poor", lang)}</option>
+                <option value="1">1 — {_t("entry.terrible", lang)}</option>
             </select>
-            <input type="text" name="comment" placeholder="Optional comment" style="width:200px;">
-            <button type="submit">Submit Rating</button>
+            <input type="text" name="comment" placeholder="{_t("entry.optional_comment", lang)}" style="width:200px;">
+            <button type="submit">{_t("entry.submit_rating", lang)}</button>
         </form>"""
 
     content = f"""
     <div class="card">
         <h3>{_esc(entry.method_name)} &times; {_esc(entry.problem_title)}</h3>
         <table style="margin-top:12px;">
-            <tr><td style="color:#777;width:140px;">Combo ID</td><td>{entry.combo_id}</td></tr>
-            <tr><td style="color:#777;">Method</td><td>{_esc(entry.method_name)}</td></tr>
-            <tr><td style="color:#777;">Method Domain</td><td>{entry.method_domain}</td></tr>
-            <tr><td style="color:#777;">Method Level</td><td>{entry.method_level}</td></tr>
-            <tr><td style="color:#777;">Problem</td><td>{_esc(entry.problem_title)}</td></tr>
-            <tr><td style="color:#777;">Problem Domain</td><td>{entry.problem_domain}</td></tr>
-            <tr><td style="color:#777;">Best Dimension</td><td><b>{entry.best_dimension}</b></td></tr>
-            <tr><td style="color:#777;">Best Score</td><td><b>{entry.best_score:.1f}</b></td></tr>
-            <tr><td style="color:#777;">Miner</td><td>{entry.miner_address}</td></tr>
+            <tr><td style="color:#777;width:140px;">{_t("entry.combo_id", lang)}</td><td>{entry.combo_id}</td></tr>
+            <tr><td style="color:#777;">{_t("entry.method", lang)}</td><td>{_esc(entry.method_name)}</td></tr>
+            <tr><td style="color:#777;">{_t("entry.method_domain", lang)}</td><td>{entry.method_domain}</td></tr>
+            <tr><td style="color:#777;">{_t("entry.method_level", lang)}</td><td>{entry.method_level}</td></tr>
+            <tr><td style="color:#777;">{_t("entry.problem_title", lang)}</td><td>{_esc(entry.problem_title)}</td></tr>
+            <tr><td style="color:#777;">{_t("entry.problem_domain", lang)}</td><td>{entry.problem_domain}</td></tr>
+            <tr><td style="color:#777;">{_t("entry.best_dimension", lang)}</td><td><b>{entry.best_dimension}</b></td></tr>
+            <tr><td style="color:#777;">{_t("entry.best_score", lang)}</td><td><b>{entry.best_score:.1f}</b></td></tr>
+            <tr><td style="color:#777;">{_t("entry.miner", lang)}</td><td>{entry.miner_address}</td></tr>
         </table>
     </div>
 
-    <h2>AI Analysis</h2>
+    <h2>{_t("entry.ai_analysis", lang)}</h2>
     {analysis_html}
 
-    <h2>Scores</h2>
+    <h2>{_t("entry.scores", lang)}</h2>
     <table>{score_rows}</table>
 
-    <h2>Ratings</h2>
+    <h2>{_t("entry.ratings", lang)}</h2>
     <div class="card">
-        {ratings_html if ratings_html else '<p style="color:#999;">No ratings yet.</p>'}
+        {ratings_html if ratings_html else f'<p style="color:#999;">{_t("entry.no_ratings", lang)}</p>'}
         {rate_form}
     </div>
     """
-    return _base_page(f"{entry.method_name} × {entry.problem_title}", content)
+    return _base_page(f"{entry.method_name} × {entry.problem_title}", content, lang=lang, viewer_addr=viewer_addr)
 
 
 # ------------------------------------------------------------------
@@ -556,7 +980,7 @@ def render_entry(db: LeaderboardDB, combo_id: str,
 # ------------------------------------------------------------------
 
 def render_token_dashboard(db: LeaderboardDB, token_gate=None,
-                           viewer_addr: str = "") -> str:
+                           viewer_addr: str = "", lang: str = "en") -> str:
     summary = token_gate.get_viewer_summary(viewer_addr) if token_gate else {
         "address": viewer_addr, "balance": 0, "staked": 0,
         "total_earned": 0, "total_slashed": 0,
@@ -577,36 +1001,36 @@ def render_token_dashboard(db: LeaderboardDB, token_gate=None,
         </tr>"""
 
     content = f"""
-    <p style="color:#777;margin-bottom:16px;">Address: {_esc(summary['address'])}</p>
+    <p style="color:#777;margin-bottom:16px;">{_t("tokens.address_label", lang)}: {_esc(summary['address'])}</p>
 
     <div class="stats">
-        <div class="stat-card"><div class="num">{summary['balance']}</div><div class="label">Balance (IDEA)</div></div>
-        <div class="stat-card"><div class="num">{summary['staked']}</div><div class="label">Staked</div></div>
-        <div class="stat-card"><div class="num">{summary['total_earned']}</div><div class="label">Total Earned</div></div>
-        <div class="stat-card"><div class="num">{summary['total_slashed']}</div><div class="label">Slashed</div></div>
-        <div class="stat-card"><div class="num">{summary['total_spent']}</div><div class="label">Total Spent</div></div>
-        <div class="stat-card"><div class="num">{summary['total_payments']}</div><div class="label">Payments</div></div>
+        <div class="stat-card"><div class="num">{summary['balance']}</div><div class="label">{_t("tokens.balance_idea", lang)}</div></div>
+        <div class="stat-card"><div class="num">{summary['staked']}</div><div class="label">{_t("tokens.staked", lang)}</div></div>
+        <div class="stat-card"><div class="num">{summary['total_earned']}</div><div class="label">{_t("tokens.total_earned", lang)}</div></div>
+        <div class="stat-card"><div class="num">{summary['total_slashed']}</div><div class="label">{_t("tokens.slashed", lang)}</div></div>
+        <div class="stat-card"><div class="num">{summary['total_spent']}</div><div class="label">{_t("tokens.total_spent", lang)}</div></div>
+        <div class="stat-card"><div class="num">{summary['total_payments']}</div><div class="label">{_t("tokens.payments", lang)}</div></div>
     </div>
 
     <form method="post" action="/web/faucet" style="margin-bottom:20px;">
         <input type="hidden" name="viewer_addr" value="{_esc(viewer_addr)}">
-        <input type="hidden" name="redirect" value="/web/tokens?viewer={_esc(viewer_addr)}">
-        <button type="submit" style="background:#22c55e;">Get Free Tokens (Faucet)</button>
-        <span style="font-size:12px;color:#999;margin-left:8px;">+100 IDEA for new users</span>
+        <input type="hidden" name="redirect" value="/web/tokens?viewer={_esc(viewer_addr)}&lang={lang}">
+        <button type="submit" style="background:#22c55e;">{_t("tokens.faucet", lang)}</button>
+        <span style="font-size:12px;color:#999;margin-left:8px;">{_t("tokens.faucet_hint", lang)}</span>
     </form>
     """
     if payment_rows:
         content += f"""
-        <h2>Payment History</h2>
+        <h2>{_t("tokens.payment_history", lang)}</h2>
         <table>
-        <thead><tr><th>Combo</th><th>Amount</th><th>Analyzer</th><th>Paid At</th></tr></thead>
+        <thead><tr><th>{_t("th.combo", lang)}</th><th>{_t("th.amount", lang)}</th><th>{_t("th.analyzer", lang)}</th><th>{_t("th.paid_at", lang)}</th></tr></thead>
         <tbody>{payment_rows}</tbody>
         </table>
         """
     else:
-        content += '<p style="color:#999;margin:16px 0;">No payments yet.</p>'
+        content += f'<p style="color:#999;margin:16px 0;">{_t("tokens.no_payments", lang)}</p>'
 
-    return _base_page("Tokens", content, "tokens")
+    return _base_page(_t("tokens.title", lang), content, "tokens", lang=lang, viewer_addr=viewer_addr)
 
 
 # ------------------------------------------------------------------
@@ -624,7 +1048,7 @@ _COLLECTION_CATEGORIES_PROBLEM = [
 ]
 
 
-def render_collections(db: LeaderboardDB, path: str) -> str:
+def render_collections(db: LeaderboardDB, path: str, lang: str = "en") -> str:
     """Browse method and problem collections with tab switching."""
     params = _parse_query(path)
     ctype = params.get("type", "method")
@@ -709,10 +1133,10 @@ def render_collections(db: LeaderboardDB, path: str) -> str:
     <div class="quick-links" style="margin-bottom:16px;">{cat_links}</div>
     {cards_html}
     """
-    return _base_page("Collections", content, "collections")
+    return _base_page("Collections", content, "collections", lang=lang)
 
 
-def render_collection_new(form: dict | None = None, errors: list[str] | None = None, success: str = "") -> str:
+def render_collection_new(form: dict | None = None, errors: list[str] | None = None, success: str = "", lang: str = "en") -> str:
     """Render the collection creation form."""
     f = form or {}
     err_html = "".join(f'<p style="color:#ef4444;margin:4px 0;">{_esc(e)}</p>' for e in (errors or []))
@@ -759,16 +1183,15 @@ def render_collection_new(form: dict | None = None, errors: list[str] | None = N
         <button type="submit" style="margin-top:12px;padding:10px 28px;">Create Collection</button>
     </form>
     """
-    return _base_page("New Collection", content, "collections")
+    return _base_page("New Collection", content, "collections", lang=lang)
 
 
-def render_collection_detail(db: LeaderboardDB, ctype: str, cid: int,
-                             starrer: str = "", starred: bool = False) -> str:
+def render_collection_detail(db: LeaderboardDB, ctype: str, cid: int, starrer: str = "", starred: bool = False, lang: str = "en") -> str:
     """Render a single collection's detail page with items and star button."""
     c = db.get_collection(ctype, cid)
     if not c:
         content = '<div class="empty">Collection not found.</div>'
-        return _base_page("Not Found", content)
+        return _base_page("Not Found", content, lang=lang)
 
     items = json.loads(c.get("methods_json") or c.get("problems_json") or "[]")
     stars = c.get("stars", 0)
@@ -833,7 +1256,7 @@ def render_collection_detail(db: LeaderboardDB, ctype: str, cid: int,
 
     <p style="margin-top:16px;"><a href="/web/collections?type={ctype}">&larr; Back to Collections</a></p>
     """
-    return _base_page(name, content, "collections")
+    return _base_page(name, content, "collections", lang=lang)
 
 
 def render_collections_mine(db: LeaderboardDB, creator: str) -> str:
@@ -852,7 +1275,7 @@ _MATH_CATEGORIES = [
 ]
 
 
-def render_math_home(db: LeaderboardDB) -> str:
+def render_math_home(db: LeaderboardDB, lang: str = "en") -> str:
     """Math Zone home page — list all math problems."""
     problems = db.get_math_problems()
     cards = []
@@ -884,11 +1307,10 @@ def render_math_home(db: LeaderboardDB) -> str:
     </div>
     {"".join(cards) if cards else '<div class="empty">No math problem zones yet. <a href="/web/math/new">Apply to create the first one</a>.</div>'}
     """
-    return _base_page("Math Research Zone", content, "math")
+    return _base_page("Math Research Zone", content, "math", lang=lang)
 
 
-def render_math_new(form: dict | None = None, errors: list[str] | None = None,
-                    success: str = "") -> str:
+def render_math_new(form: dict | None = None, errors: list[str] | None = None, success: str = "", lang: str = "en") -> str:
     """Form to create a new math problem zone."""
     f = form or {}
     err_html = "".join(f'<p style="color:#ef4444;margin:4px 0;">{_esc(e)}</p>' for e in (errors or []))
@@ -915,14 +1337,14 @@ def render_math_new(form: dict | None = None, errors: list[str] | None = None,
         <button type="submit" style="margin-top:12px;padding:10px 28px;">Create Problem Zone</button>
     </form>
     """
-    return _base_page("New Math Problem", content, "math")
+    return _base_page("New Math Problem", content, "math", lang=lang)
 
 
-def render_math_problem(db: LeaderboardDB, pid: int, path: str) -> str:
+def render_math_problem(db: LeaderboardDB, pid: int, path: str, lang: str = "en") -> str:
     """Problem area page — sub-divisions by method collection."""
     problem = db.get_math_problem(pid)
     if not problem:
-        return _base_page("Not Found", '<div class="empty">Math problem not found.</div>')
+        return _base_page("Not Found", '<div class="empty">Math problem not found.</div>', lang=lang)
 
     title = _esc(problem["title"])
     desc = _esc(problem.get("description") or "")
@@ -986,15 +1408,15 @@ def render_math_problem(db: LeaderboardDB, pid: int, path: str) -> str:
 
     <p style="margin-top:16px;"><a href="/web/math">&larr; Back to Math Zone</a></p>
     """
-    return _base_page(title, content, "math")
+    return _base_page(title, content, "math", lang=lang)
 
 
-def render_math_method_zone(db: LeaderboardDB, pid: int, mid: int, path: str) -> str:
+def render_math_method_zone(db: LeaderboardDB, pid: int, mid: int, path: str, lang: str = "en") -> str:
     """All solutions for a (problem, method), ranked by max_correct_step."""
     problem = db.get_math_problem(pid)
     coll = db.get_collection("method", mid)
     if not problem or not coll:
-        return _base_page("Not Found", '<div class="empty">Problem or method collection not found.</div>')
+        return _base_page("Not Found", '<div class="empty">Problem or method collection not found.</div>', lang=lang)
 
     params = _parse_query(path)
     user_addr = params.get("user_address", "")
@@ -1007,6 +1429,7 @@ def render_math_method_zone(db: LeaderboardDB, pid: int, mid: int, path: str) ->
             <p style="color:#777;margin:12px 0;">You must unlock this zone before viewing solutions.</p>
             <pre style="background:#f0f3f7;padding:12px;border-radius:6px;font-size:13px;">python3 -m src.cli.main math-mine --problem-id {pid} --methods-collection "{_esc(coll['name'])}" --address {"0xYOUR_ADDRESS" if not user_addr else _esc(user_addr)} --batch 3</pre>
             <p style="margin-top:8px;"><a href="/web/math/{pid}/{mid}/unlock?user_address={_esc(user_addr)}">Manual Unlock</a></p>
+            <p style="margin-top:8px;"><a href="/web/math/{pid}/{mid}/tree?lang={lang}">Tree View</a></p>
             <p style="margin-top:16px;"><a href="/web/math/{pid}">&larr; Back to Problem</a></p>
         </div>
         """, "math")
@@ -1049,16 +1472,19 @@ def render_math_method_zone(db: LeaderboardDB, pid: int, mid: int, path: str) ->
     <tbody>{"".join(sol_rows) if sol_rows else '<tr><td colspan="5" class="empty">No solutions yet. <a href="/web/math/{pid}/{mid}/unlock">Submit the first one</a>.</td></tr>'}</tbody>
     </table>
 
-    <p style="margin-top:16px;"><a href="/web/math/{pid}">&larr; Back to Problem</a></p>
+    <p style="margin-top:16px;">
+        <a href="/web/math/{pid}">&larr; Back to Problem</a>
+        &nbsp;|&nbsp; <a href="/web/math/{pid}/{mid}/tree?lang={lang}">Tree View</a>
+    </p>
     """
-    return _base_page(f"{problem['title']} — {coll['name']}", content, "math")
+    return _base_page(f"{problem['title']} — {coll['name']}", content, "math", lang=lang)
 
 
-def render_math_solution(db: LeaderboardDB, pid: int, mid: int, sid: int, path: str) -> str:
+def render_math_solution(db: LeaderboardDB, pid: int, mid: int, sid: int, path: str, lang: str = "en") -> str:
     """Single solution detail — full steps, fork button, submit improvement."""
     solution = db.get_math_solution(sid)
     if not solution:
-        return _base_page("Not Found", '<div class="empty">Solution not found.</div>')
+        return _base_page("Not Found", '<div class="empty">Solution not found.</div>', lang=lang)
 
     problem = db.get_math_problem(pid)
     coll = db.get_collection("method", mid)
@@ -1116,6 +1542,9 @@ def render_math_solution(db: LeaderboardDB, pid: int, mid: int, sid: int, path: 
     parent_info = f'<p style="color:#777;font-size:13px;">Forked from <a href="/web/math/{pid}/{mid}/{parent}">Solution #{parent}</a></p>' if parent else ""
 
     content = f"""
+    <div style="background:#fefce8;border:1px solid #facc15;border-radius:6px;padding:8px 12px;margin-bottom:16px;font-size:13px;color:#92400e;">
+        This flat solution view is deprecated. See the <a href="/web/math/{pid}/{mid}/tree?lang={lang}">Tree View</a> for the new MCTS exploration interface.
+    </div>
     <div class="card">
         <h3>Solution #{sid}</h3>
         <p style="color:#777;font-size:13px;">
@@ -1144,15 +1573,15 @@ def render_math_solution(db: LeaderboardDB, pid: int, mid: int, sid: int, path: 
 
     <p style="margin-top:16px;"><a href="/web/math/{pid}/{mid}">&larr; Back to Method Zone</a></p>
     """
-    return _base_page(f"Solution #{sid}", content, "math")
+    return _base_page(f"Solution #{sid}", content, "math", lang=lang)
 
 
-def render_math_unlock(db: LeaderboardDB, pid: int, mid: int, path: str) -> str:
+def render_math_unlock(db: LeaderboardDB, pid: int, mid: int, path: str, lang: str = "en") -> str:
     """Gate unlock page — shows CLI command or manual unlock."""
     problem = db.get_math_problem(pid)
     coll = db.get_collection("method", mid)
     if not problem or not coll:
-        return _base_page("Not Found", '<div class="empty">Problem or method collection not found.</div>')
+        return _base_page("Not Found", '<div class="empty">Problem or method collection not found.</div>', lang=lang)
 
     params = _parse_query(path)
     user_addr = params.get("user_address", "")
@@ -1196,14 +1625,297 @@ def render_math_unlock(db: LeaderboardDB, pid: int, mid: int, path: str) -> str:
 
     <p style="margin-top:16px;"><a href="/web/math/{pid}">&larr; Back to Problem</a></p>
     """
-    return _base_page(f"Unlock: {cname}", content, "math")
+    return _base_page(f"Unlock: {cname}", content, "math", lang=lang)
+
+
+# ------------------------------------------------------------------
+# Math Tree Visualization (MCTS)
+# ------------------------------------------------------------------
+
+def _render_tree_stats(db: LeaderboardDB, pid: int, mid: int) -> str:
+    """Render summary statistics bar for a tree zone."""
+    nodes = db.get_tree_nodes_for_zone(pid, mid)
+    terms = db.get_terminal_nodes(pid, mid)
+    success = [n for n in terms if n["node_type"] == "terminal_success"]
+    root = db.get_root_node(pid, mid)
+
+    max_depth = 0
+    for n in nodes:
+        path = db._get_path_to_root(n["id"])
+        if len(path) > max_depth:
+            max_depth = len(path)
+
+    return f"""<div class="stats">
+        <div class="stat-card"><div class="num">{len(nodes)}</div><div class="dim-label">States</div></div>
+        <div class="stat-card"><div class="num">{len(success)}</div><div class="dim-label">Proofs</div></div>
+        <div class="stat-card"><div class="num">{max_depth}</div><div class="dim-label">Max Depth</div></div>
+        <div class="stat-card"><div class="num">{root['q_value']:.2f}</div><div class="dim-label">Root Q</div></div>
+        <div class="stat-card"><div class="num">{root['visit_count']}</div><div class="dim-label">Root N</div></div>
+    </div>"""
+
+
+def _render_tree_recursive(db: LeaderboardDB, node_id: int, depth: int = 0,
+                           max_depth: int = 12, lang: str = "en") -> str:
+    """Recursively render a tree node and its children as nested HTML."""
+    node = db.get_tree_node(node_id)
+    if not node or depth > max_depth:
+        return ""
+
+    node_type = node["node_type"]
+    type_css = {"terminal_success": "terminal-success",
+                "terminal_failure": "terminal-failure",
+                "pruned": "pruned"}.get(node_type, "")
+
+    type_badge = {
+        "terminal_success": '<span class="node-type-badge success">TERMINAL: Proved</span>',
+        "terminal_failure": '<span class="node-type-badge failure">TERMINAL: Dead End</span>',
+        "pruned": '<span class="node-type-badge pruned">PRUNED</span>',
+    }.get(node_type, "")
+
+    collapsed = depth >= 3
+    checkbox_id = f"tc_{node_id}"
+
+    children = db.get_children(node_id)
+    has_children = len(children) > 0
+
+    # Node HTML
+    node_html = f"""<div class="tree-node {type_css}">
+    <div class="tree-node-header">
+        {type_badge}
+        <strong>Q: {node['q_value']:.3f}</strong>
+        <span style="color:#999;font-size:12px;">N={node['visit_count']}</span>
+        <span style="color:#999;font-size:11px;margin-left:4px;">#{node_id}</span>
+        <a href="/web/math/{node['problem_id']}/{node['method_collection_id']}/tree/node/{node_id}?lang={lang}" style="font-size:11px;margin-left:8px;">Details</a>
+    </div>
+    <div class="tree-node-content">{_esc(node['content'][:200])}{'...' if len(node['content']) > 200 else ''}</div>
+    <div style="font-size:11px;color:#999;">by {_esc(node['user_address'][:16]) or 'anonymous'}</div>
+</div>"""
+
+    if not has_children:
+        return node_html
+
+    # Children with edge labels
+    children_html = ""
+    for c in children:
+        uct_str = ""
+        if c.get("uct_score") is not None and c["uct_score"] != float('inf'):
+            uct_str = f' UCT:{c["uct_score"]:.3f}'
+        elif c.get("uct_score") == float('inf'):
+            uct_str = ' UCT:∞'
+
+        edge_tag = f'<span class="edge-label">→ {_esc(c["action_label"])}{uct_str}</span>'
+        child_tree = _render_tree_recursive(db, c["child_id"], depth + 1, max_depth, lang)
+        children_html += f'<div class="tree-child-wrapper">{edge_tag}{child_tree}</div>'
+
+    if collapsed:
+        return f"""{node_html}
+<label class="tree-toggle collapsed" for="{checkbox_id}">{len(children)} branches</label>
+<input type="checkbox" id="{checkbox_id}" style="display:none;">
+<div class="tree-child-list tree-collapsible">{children_html}</div>"""
+    else:
+        return f"""{node_html}
+<div class="tree-child-list">{children_html}</div>"""
+
+
+def render_math_tree(db: LeaderboardDB, pid: int, mid: int, path: str,
+                     lang: str = "en") -> str:
+    """Render the MCTS tree visualization page for a (problem, method) zone."""
+    problem = db.get_math_problem(pid)
+    if not problem:
+        return _base_page("Not Found", "<p>Problem not found.</p>", "math", lang=lang)
+
+    coll = db.get_collection("method", mid)
+    if not coll:
+        return _base_page("Not Found", "<p>Method collection not found.</p>", "math", lang=lang)
+
+    root = db.get_root_node(pid, mid)
+    if not root:
+        return _base_page("Empty Tree", "<p>No tree root. Run math-mine first.</p>", "math", lang=lang)
+
+    stats_html = _render_tree_stats(db, pid, mid)
+    tree_html = _render_tree_recursive(db, root["id"], lang=lang)
+
+    content = f"""
+    <div class="quick-links">
+        <a href="/web/math/{pid}?lang={lang}">Problem</a>
+        <a href="/web/math/{pid}/{mid}?lang={lang}">Solutions</a>
+        <span class="sep">Tree View</span>
+    </div>
+
+    {stats_html}
+
+    <h2>{_esc(coll['name'])} — {_t('math.tree.title', lang)}</h2>
+
+    <div style="margin:12px 0;">
+        <a href="/web/math/{pid}/{mid}/tree/node/{root['id']}?lang={lang}" class="tree-toggle">Root Node Detail</a>
+    </div>
+
+    <div class="tree-container">
+        {tree_html}
+    </div>
+    """
+    title = f"{_esc(problem['title'])} — Tree"
+    return _base_page(title, content, "math", lang=lang)
+
+
+def render_math_tree_node(db: LeaderboardDB, pid: int, mid: int, nid: int,
+                          path: str, lang: str = "en",
+                          errors: list[str] | None = None) -> str:
+    """Render the detail page for a single tree node."""
+    problem = db.get_math_problem(pid)
+    if not problem:
+        return _base_page("Not Found", "<p>Problem not found.</p>", "math", lang=lang)
+
+    coll = db.get_collection("method", mid)
+    node = db.get_tree_node(nid)
+    if not node:
+        return _base_page("Not Found", "<p>Node not found.</p>", "math", lang=lang)
+
+    children = db.get_children(nid)
+    uct_scores = db.get_uct_scores(nid)
+    path_to_root = db._get_path_to_root(nid)
+    parent = db._get_parent_node(nid)
+
+    # Path breadcrumb
+    breadcrumb_parts = []
+    for pnid in reversed(path_to_root):
+        pn = db.get_tree_node(pnid)
+        if pn:
+            breadcrumb_parts.append(
+                f'<a href="/web/math/{pid}/{mid}/tree/node/{pnid}?lang={lang}">'
+                f'{_esc((pn["content"] or "Root")[:40])}</a>'
+            )
+    breadcrumb = " → ".join(breadcrumb_parts)
+
+    # Node type badge
+    type_css = {"terminal_success": "terminal-success",
+                "terminal_failure": "terminal-failure",
+                "pruned": "pruned"}.get(node["node_type"], "")
+    type_badge_html = {
+        "terminal_success": '<span class="node-type-badge success">TERMINAL: Proved</span>',
+        "terminal_failure": '<span class="node-type-badge failure">TERMINAL: Dead End</span>',
+        "pruned": '<span class="node-type-badge pruned">PRUNED</span>',
+        "normal": '<span class="node-type-badge normal">Normal</span>',
+    }.get(node["node_type"], "")
+
+    # Error display
+    err_html = ""
+    if errors:
+        err_html = "".join(
+            f'<p style="color:#ef4444;margin:4px 0;">{_esc(e)}</p>'
+            for e in errors
+        )
+
+    # Children table with UCT scores
+    children_rows = ""
+    for c in children:
+        uct_str = ""
+        for u in uct_scores:
+            if u["child_id"] == c["child_id"]:
+                if u.get("uct_score") == float('inf'):
+                    uct_str = "∞"
+                else:
+                    uct_str = f'{u.get("uct_score", 0):.3f}'
+                break
+        children_rows += f"""<tr>
+            <td><a href="/web/math/{pid}/{mid}/tree/node/{c['child_id']}?lang={lang}">{_esc(c['child_content'][:60])}</a></td>
+            <td>{_esc(c['action_label'])}</td>
+            <td>{c['child_q_value']:.3f}</td>
+            <td>{c['child_visit_count']}</td>
+            <td>{uct_str}</td>
+            <td>{c['child_node_type']}</td>
+        </tr>"""
+
+    # Add child form
+    add_form = f"""<div class="card" style="margin-top:24px;">
+    <h3>Add Child Node</h3>
+    {err_html}
+    <form method="post" action="/web/math/{pid}/{mid}/tree/node/{nid}/add_child">
+        <table style="width:100%;">
+            <tr><td style="color:#777;width:120px;padding:4px;">Content *</td>
+                <td><input type="text" name="content" required style="width:100%;" placeholder="Mathematical state description"></td></tr>
+            <tr><td style="color:#777;padding:4px;">Action Label</td>
+                <td><input type="text" name="action_label" style="width:100%;" placeholder="Method/theorem applied (e.g. 因式分解)"></td></tr>
+            <tr><td style="color:#777;padding:4px;">Action Detail</td>
+                <td><input type="text" name="action_description" style="width:100%;" placeholder="Optional description"></td></tr>
+            <tr><td style="color:#777;padding:4px;">Type</td>
+                <td><select name="node_type">
+                    <option value="normal">Normal</option>
+                    <option value="terminal_success">Terminal Success</option>
+                    <option value="terminal_failure">Terminal Failure</option>
+                </select></td></tr>
+            <tr><td style="color:#777;padding:4px;">Reward</td>
+                <td><input type="number" name="reward" value="1.0" min="0" max="1" step="0.1" style="width:100px;"></td></tr>
+            <tr><td style="color:#777;padding:4px;">Your Address</td>
+                <td><input type="text" name="user_address" value="0xEXPLORER" style="width:200px;"></td></tr>
+            <tr><td></td><td><button type="submit">Add Child</button></td></tr>
+        </table>
+    </form>
+</div>"""
+
+    # Terminal actions
+    terminal_form = ""
+    if node["node_type"] not in ("terminal_success", "terminal_failure", "pruned"):
+        terminal_form = f"""
+        <div class="card" style="margin-top:16px;">
+            <h3>Mark Terminal & Backpropagate</h3>
+            <form method="post" action="/web/math/{pid}/{mid}/tree/node/{nid}/backpropagate" style="display:flex;gap:8px;align-items:center;">
+                <select name="terminal_type">
+                    <option value="terminal_success">Success (Proof Found)</option>
+                    <option value="terminal_failure">Failure (Dead End)</option>
+                </select>
+                <input type="number" name="reward" value="1.0" min="0" max="1" step="0.1" style="width:80px;">
+                <button type="submit">Backprop</button>
+            </form>
+        </div>
+        <div class="card" style="margin-top:8px;">
+            <h3>Prune Node</h3>
+            <form method="post" action="/web/math/{pid}/{mid}/tree/node/{nid}/prune">
+                <p style="color:#777;font-size:13px;margin-bottom:8px;">Mark as pruned (complexity explosion, contradiction, etc.) — backpropagates neutral reward.</p>
+                <button type="submit" style="background:#9ca3af;border-color:#9ca3af;">Prune</button>
+            </form>
+        </div>"""
+
+    content = f"""
+    <div class="quick-links">
+        <a href="/web/math/{pid}?lang={lang}">Problem</a>
+        <a href="/web/math/{pid}/{mid}?lang={lang}">Method Zone</a>
+        <a href="/web/math/{pid}/{mid}/tree?lang={lang}">Tree View</a>
+        <span class="sep">Node #{nid}</span>
+    </div>
+
+    <div style="font-size:13px;color:#999;margin-bottom:16px;">{breadcrumb}</div>
+
+    <div class="card tree-node {type_css}">
+        <div style="margin-bottom:8px;">{type_badge_html}</div>
+        <h3>{_esc(node['content'])}</h3>
+        <div class="stats" style="margin-top:12px;">
+            <div class="stat-card"><div class="num">{node['q_value']:.3f}</div><div class="dim-label">Q-Value</div></div>
+            <div class="stat-card"><div class="num">{node['visit_count']}</div><div class="dim-label">Visits (N)</div></div>
+            <div class="stat-card"><div class="num">{node['reward']:.2f}</div><div class="dim-label">Reward</div></div>
+            <div class="stat-card"><div class="num">{len(children)}</div><div class="dim-label">Children</div></div>
+            {f'<div class="stat-card"><div class="num">{node["user_address"][:12]}</div><div class="dim-label">Author</div></div>' if node['user_address'] else ''}
+        </div>
+        <p style="color:#777;font-size:12px;margin-top:8px;">
+            Created: {time.strftime('%Y-%m-%d %H:%M', time.localtime(node['created_at'])) if node['created_at'] else 'N/A'}
+            {f' | Parent: <a href="/web/math/{pid}/{mid}/tree/node/{parent["id"]}?lang={lang}">#{parent["id"]}</a>' if parent else ' | Root Node'}
+        </p>
+    </div>
+
+    {'<h2 style="margin-top:24px;">Children (' + str(len(children)) + ')</h2>' if children else '<p style="color:#999;margin-top:16px;">No children yet. Expand the tree!</p>'}
+    {'<table><tr><th>State</th><th>Action</th><th>Q</th><th>N</th><th>UCT</th><th>Type</th></tr>' + children_rows + '</table>' if children else ''}
+    {terminal_form}
+    {add_form}
+    """
+    title = f"Node #{nid} — {_esc(problem['title'])}"
+    return _base_page(title, content, "math", lang=lang)
 
 
 # ------------------------------------------------------------------
 # Community Submission pages
 # ------------------------------------------------------------------
 
-def render_submit_home() -> str:
+def render_submit_home(lang: str = "en") -> str:
     """Landing page for community submissions."""
     content = """
     <div class="stats">
@@ -1220,10 +1932,10 @@ def render_submit_home() -> str:
     </div>
     <p style="color:#777;margin-top:16px;">All submissions are reviewed before joining the active matrix.</p>
     """
-    return _base_page("Community Submit", content, "submit")
+    return _base_page("Community Submit", content, "submit", lang=lang)
 
 
-def render_submit_method(form: dict | None = None, errors: list[str] | None = None, success: str = "") -> str:
+def render_submit_method(form: dict | None = None, errors: list[str] | None = None, success: str = "", lang: str = "en") -> str:
     """Render the method submission form."""
     f = form or {}
     err_html = "".join(f'<p style="color:#ef4444;margin:4px 0;">{_esc(e)}</p>' for e in (errors or []))
@@ -1264,10 +1976,10 @@ def render_submit_method(form: dict | None = None, errors: list[str] | None = No
         <button type="submit" style="margin-top:12px;padding:10px 28px;">Submit Method</button>
     </form>
     """
-    return _base_page("Submit Method", content, "submit")
+    return _base_page("Submit Method", content, "submit", lang=lang)
 
 
-def render_submit_problem(form: dict | None = None, errors: list[str] | None = None, success: str = "") -> str:
+def render_submit_problem(form: dict | None = None, errors: list[str] | None = None, success: str = "", lang: str = "en") -> str:
     """Render the problem submission form."""
     f = form or {}
     err_html = "".join(f'<p style="color:#ef4444;margin:4px 0;">{_esc(e)}</p>' for e in (errors or []))
@@ -1309,17 +2021,17 @@ def render_submit_problem(form: dict | None = None, errors: list[str] | None = N
         <button type="submit" style="margin-top:12px;padding:10px 28px;">Submit Problem</button>
     </form>
     """
-    return _base_page("Submit Problem", content, "submit")
+    return _base_page("Submit Problem", content, "submit", lang=lang)
 
 
-def render_submissions(db: LeaderboardDB) -> str:
+def render_submissions(db: LeaderboardDB, lang: str = "en") -> str:
     """Render the pending submissions list (operator review page)."""
     pending = db.get_pending_submissions()
     total = db.total_pending()
 
     if not pending:
         content = '<div class="empty">No pending submissions.</div>'
-        return _base_page("Submissions", content, "submit")
+        return _base_page("Submissions", content, "submit", lang=lang)
 
     rows = []
     for sub in pending:
@@ -1347,14 +2059,14 @@ def render_submissions(db: LeaderboardDB) -> str:
     <tbody>{"".join(rows)}</tbody>
     </table>
     """
-    return _base_page("Submissions", content, "submit")
+    return _base_page("Submissions", content, "submit", lang=lang)
 
 
 # ------------------------------------------------------------------
 # Blockchain Buffer Zone Pages
 # ------------------------------------------------------------------
 
-def render_buffer_dashboard(db: LeaderboardDB) -> str:
+def render_buffer_dashboard(db: LeaderboardDB, lang: str = "en") -> str:
     pending = db.count_buffer_by_status("pending")
     classified = db.count_buffer_by_status("classified")
     disputed = db.count_buffer_by_status("disputed")
@@ -1407,14 +2119,14 @@ def render_buffer_dashboard(db: LeaderboardDB) -> str:
         <tbody>{"".join(top_rows)}</tbody>
         </table>
         """
-    return _base_page("Buffer Zone", content, "buffer")
+    return _base_page("Buffer Zone", content, "buffer", lang=lang)
 
 
-def render_buffer_pending(db: LeaderboardDB, path: str) -> str:
+def render_buffer_pending(db: LeaderboardDB, path: str, lang: str = "en") -> str:
     entries = db.get_pending_buffer_entries()
     if not entries:
         content = '<div class="empty">No pending submissions to classify.</div>'
-        return _base_page("Pending Classifications", content, "buffer")
+        return _base_page("Pending Classifications", content, "buffer", lang=lang)
 
     rows = []
     for e in entries:
@@ -1446,13 +2158,13 @@ def render_buffer_pending(db: LeaderboardDB, path: str) -> str:
     <tbody>{"".join(rows)}</tbody>
     </table>
     """
-    return _base_page("Pending Classifications", content, "buffer")
+    return _base_page("Pending Classifications", content, "buffer", lang=lang)
 
 
-def render_buffer_classify(db: LeaderboardDB, sub_id: str, path: str) -> str:
+def render_buffer_classify(db: LeaderboardDB, sub_id: str, path: str, lang: str = "en") -> str:
     entry = db.get_buffer_entry(sub_id)
     if entry is None:
-        return _base_page("Not Found", '<div class="empty">Submission not found.</div>', "buffer")
+        return _base_page("Not Found", '<div class="empty">Submission not found.</div>', "buffer", lang=lang)
 
     classifications = db.get_classifications(sub_id)
     already = [c["classifier_addr"] for c in classifications]
@@ -1530,14 +2242,14 @@ def render_buffer_classify(db: LeaderboardDB, sub_id: str, path: str) -> str:
         <input type="submit" value="Submit Classification" style="padding:10px 24px;background:#2563eb;color:#fff;border:none;border-radius:6px;cursor:pointer;">
     </form>
     """
-    return _base_page(f"Classify {sub_id}", content, "buffer")
+    return _base_page(f"Classify {sub_id}", content, "buffer", lang=lang)
 
 
-def render_buffer_submissions(db: LeaderboardDB, address: str) -> str:
+def render_buffer_submissions(db: LeaderboardDB, address: str, lang: str = "en") -> str:
     entries = db.get_buffer_entries_by_submitter(address)
     if not entries:
         content = f'<div class="empty">No submissions from {_esc(address)}.</div>'
-        return _base_page("My Submissions", content, "buffer")
+        return _base_page("My Submissions", content, "buffer", lang=lang)
 
     rows = []
     status_colors = {"pending": "#f59e0b", "classified": "#22c55e",
@@ -1559,13 +2271,13 @@ def render_buffer_submissions(db: LeaderboardDB, address: str) -> str:
     <tbody>{"".join(rows)}</tbody>
     </table>
     """
-    return _base_page("My Submissions", content, "buffer")
+    return _base_page("My Submissions", content, "buffer", lang=lang)
 
 
-def render_buffer_submission_detail(db: LeaderboardDB, sub_id: str) -> str:
+def render_buffer_submission_detail(db: LeaderboardDB, sub_id: str, lang: str = "en") -> str:
     entry = db.get_buffer_entry(sub_id)
     if entry is None:
-        return _base_page("Not Found", '<div class="empty">Submission not found.</div>', "buffer")
+        return _base_page("Not Found", '<div class="empty">Submission not found.</div>', "buffer", lang=lang)
 
     classifications = db.get_classifications(sub_id)
     cls_rows = []
@@ -1608,10 +2320,10 @@ def render_buffer_submission_detail(db: LeaderboardDB, sub_id: str) -> str:
         <tbody>{"".join(cls_rows)}</tbody>
         </table>
         """
-    return _base_page(f"Submission {sub_id}", content, "buffer")
+    return _base_page(f"Submission {sub_id}", content, "buffer", lang=lang)
 
 
-def render_buffer_tokens(db: LeaderboardDB, address: str) -> str:
+def render_buffer_tokens(db: LeaderboardDB, address: str, lang: str = "en") -> str:
     acct = db.get_or_create_account(address)
     stakes = db.get_active_stakes(address)
 
@@ -1668,14 +2380,14 @@ def render_buffer_tokens(db: LeaderboardDB, address: str) -> str:
         <tbody>{"".join(stake_rows)}</tbody>
         </table>
         """
-    return _base_page("Token Dashboard", content, "buffer")
+    return _base_page("Token Dashboard", content, "buffer", lang=lang)
 
 
-def render_buffer_leaderboard(db: LeaderboardDB) -> str:
+def render_buffer_leaderboard(db: LeaderboardDB, lang: str = "en") -> str:
     entries = db.get_token_leaderboard(limit=50)
     if not entries:
         content = '<div class="empty">No classifiers yet.</div>'
-        return _base_page("Classifier Leaderboard", content, "buffer")
+        return _base_page("Classifier Leaderboard", content, "buffer", lang=lang)
 
     rows = []
     for i, r in enumerate(entries, 1):
@@ -1700,4 +2412,4 @@ def render_buffer_leaderboard(db: LeaderboardDB) -> str:
     <tbody>{"".join(rows)}</tbody>
     </table>
     """
-    return _base_page("Classifier Leaderboard", content, "buffer")
+    return _base_page("Classifier Leaderboard", content, "buffer", lang=lang)
