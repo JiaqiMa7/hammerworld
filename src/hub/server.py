@@ -77,6 +77,19 @@ class _HubHandler(BaseHTTPRequestHandler):
             return False
         return True
 
+    def _check_web_rate_limit(self) -> bool:
+        """Check rate limit for web UI POST endpoints. Sends 429 if limited."""
+        rl = getattr(_HubHandler, 'web_rate_limiter', None)
+        if rl is None:
+            return True
+        ip = self._remote_ip
+        if ip and not rl.is_allowed(ip):
+            self._send_json(
+                {"error": "rate_limited", "retry_after": 60}, 429
+            )
+            return False
+        return True
+
     def _send_html(self, html: str, status: int = 200):
         body = html.encode()
         self.send_response(status)
@@ -158,22 +171,22 @@ class _HubHandler(BaseHTTPRequestHandler):
         elif path.startswith("/web/leaderboard"):
             html = render_leaderboard(db, self.path, viewer_addr=viewer, token_gate=tg, lang=lang)
         elif path.startswith("/web/search"):
-            html = render_search(db, self.path, lang=lang)
+            html = render_search(db, self.path, lang=lang, viewer_addr=viewer)
         elif path.startswith("/web/random"):
             html = render_random(db, self.path, viewer_addr=viewer, token_gate=tg, lang=lang)
         elif path.startswith("/web/peers"):
-            html = render_peers(pm, lang=lang)
+            html = render_peers(pm, lang=lang, viewer_addr=viewer)
         elif path.startswith("/web/entry/"):
             combo_id = path.split("/web/entry/", 1)[1]
             html = render_entry(db, combo_id, viewer_addr=viewer, token_gate=tg, lang=lang)
         elif path == "/web/tokens":
             html = render_token_dashboard(db, token_gate=tg, viewer_addr=viewer, lang=lang)
         elif path == "/web/submit":
-            html = render_submit_home(lang=lang)
+            html = render_submit_home(lang=lang, viewer_addr=viewer)
         elif path == "/web/submit/method":
-            html = render_submit_method(lang=lang)
+            html = render_submit_method(lang=lang, viewer_addr=viewer)
         elif path == "/web/submit/problem":
-            html = render_submit_problem(lang=lang)
+            html = render_submit_problem(lang=lang, viewer_addr=viewer)
         elif path.startswith("/web/submissions"):
             self._handle_submissions(path)
             return
@@ -195,12 +208,12 @@ class _HubHandler(BaseHTTPRequestHandler):
                 return
             html = render_collection_detail(db, ctype, cid, starrer="", lang=lang)
         elif path.startswith("/web/collections"):
-            html = render_collections(db, self.path, lang=lang)
+            html = render_collections(db, self.path, lang=lang, viewer_addr=viewer)
         # Math Research Zone routes
         elif path == "/web/math":
-            html = render_math_home(db, lang=lang)
+            html = render_math_home(db, lang=lang, viewer_addr=viewer)
         elif path == "/web/math/new":
-            html = render_math_new(lang=lang)
+            html = render_math_new(lang=lang, viewer_addr=viewer)
         elif _match_math_tree_node(path):
             pid, mid, nid = _parse_math_tree_node(path)
             html = render_math_tree_node(db, pid, mid, nid, self.path, lang=lang)
@@ -218,25 +231,25 @@ class _HubHandler(BaseHTTPRequestHandler):
             html = render_math_problem(db, pid, self.path, lang=lang)
         # Blockchain Buffer Zone routes
         elif path == "/web/buffer" or path == "/web/buffer/":
-            html = render_buffer_dashboard(db, lang=lang)
+            html = render_buffer_dashboard(db, lang=lang, viewer_addr=viewer)
         elif path.startswith("/web/buffer/pending"):
-            html = render_buffer_pending(db, self.path, lang=lang)
+            html = render_buffer_pending(db, self.path, lang=lang, viewer_addr=viewer)
         elif _match_buffer_classify(path):
             sub_id = _parse_buffer_classify(path)
-            html = render_buffer_classify(db, sub_id, self.path, lang=lang)
+            html = render_buffer_classify(db, sub_id, self.path, lang=lang, viewer_addr=viewer)
         elif _match_buffer_detail(path):
             sub_id = _parse_buffer_detail(path)
-            html = render_buffer_submission_detail(db, sub_id, lang=lang)
+            html = render_buffer_submission_detail(db, sub_id, lang=lang, viewer_addr=viewer)
         elif path.startswith("/web/buffer/submissions"):
             params = _parse_query(self.path)
             addr = params.get("address", "0xVIEWER")
-            html = render_buffer_submissions(db, addr, lang=lang)
+            html = render_buffer_submissions(db, addr, lang=lang, viewer_addr=viewer)
         elif path.startswith("/web/buffer/tokens"):
             params = _parse_query(self.path)
             addr = params.get("address", "0xVIEWER")
-            html = render_buffer_tokens(db, addr, lang=lang)
+            html = render_buffer_tokens(db, addr, lang=lang, viewer_addr=viewer)
         elif path.startswith("/web/buffer/leaderboard"):
-            html = render_buffer_leaderboard(db)
+            html = render_buffer_leaderboard(db, lang=lang, viewer_addr=viewer)
         else:
             self._send_json({"error": "not found"}, 404)
             return
@@ -584,6 +597,22 @@ class _HubHandler(BaseHTTPRequestHandler):
         self.send_header("Location", redirect)
         self.end_headers()
 
+    def _handle_create_address(self, body: bytes):
+        """Handle POST to create a new Ed25519 key-based address."""
+        from src.hub.user_identity import ensure_user_identity, get_user_address
+        from urllib.parse import parse_qs
+        decoded = parse_qs(body.decode())
+        data = {k: v[0] if len(v) == 1 else v for k, v in decoded.items()}
+        redirect = data.get("redirect", "/")
+
+        identity = ensure_user_identity()
+        addr = get_user_address(identity)
+
+        self.send_response(302)
+        self._set_cookie(addr)
+        self.send_header("Location", redirect)
+        self.end_headers()
+
     def _handle_pay_view(self, combo_id: str, body: bytes):
         """Handle POST to pay for viewing a combo."""
         from urllib.parse import parse_qs
@@ -715,6 +744,8 @@ class _HubHandler(BaseHTTPRequestHandler):
     def do_POST(self):
         assert self.api is not None
         body = self._read_body()
+        if self.path.startswith("/web/") and not self._check_web_rate_limit():
+            return
         if self.path == "/combinations":
             try:
                 data = json.loads(body)
@@ -795,6 +826,8 @@ class _HubHandler(BaseHTTPRequestHandler):
             self._handle_rate(combo_id, body)
         elif self.path == "/web/login":
             self._handle_login(body)
+        elif self.path == "/web/create-address":
+            self._handle_create_address(body)
         elif self.path == "/web/faucet":
             self._handle_faucet(body)
         else:
@@ -1339,6 +1372,8 @@ class HubServer:
         _HubHandler.peer_manager = self.peer_manager
         _HubHandler.buffer_zone = self.buffer_zone
         _HubHandler.token_gate = self.token_gate
+        from src.hub.discovery import RateLimiter
+        _HubHandler.web_rate_limiter = RateLimiter(max_requests=30, window_seconds=60)
         self._http = _ThreadingHTTPServer(("0.0.0.0", self.config.port), _HubHandler)
         # Run server in daemon thread so shutdown() works from signal handler
         import threading

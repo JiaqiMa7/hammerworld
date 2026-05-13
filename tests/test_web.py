@@ -150,6 +150,25 @@ class TestLoginWidget(unittest.TestCase):
         html = _login_widget("0xAB", "en")
         self.assertIn("0xAB", html)
 
+    def test_login_widget_create_button(self):
+        """Logged-out widget should show 'Create new address' button."""
+        from src.hub.web import _login_widget
+        html = _login_widget("", "en")
+        self.assertIn('action="/web/create-address"', html)
+        self.assertIn("Create new address", html)
+
+    def test_login_widget_create_button_chinese(self):
+        """Chinese locale should show the create button in Chinese."""
+        from src.hub.web import _login_widget
+        html = _login_widget("", "zh")
+        self.assertIn("创建新地址", html)
+
+    def test_login_widget_no_create_button_when_logged_in(self):
+        """Logged-in widget should NOT show the create button."""
+        from src.hub.web import _login_widget
+        html = _login_widget("0xABCDEF1234567890", "en")
+        self.assertNotIn("create-address", html)
+
     def test_base_page_includes_login_widget(self):
         from src.hub.web import _base_page
         html = _base_page("Test", "<p>content</p>", lang="en", viewer_addr="0xUSER")

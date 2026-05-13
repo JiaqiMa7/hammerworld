@@ -350,6 +350,7 @@ _T = {
     "login.logout":          {"en": "Logout",                  "zh": "退出"},
     "login.logged_in":       {"en": "",                        "zh": ""},
     "login.placeholder":     {"en": "Your address (0x...)",    "zh": "你的地址 (0x...)"},
+    "login.create_address":  {"en": "Create new address",      "zh": "创建新地址"},
 }
 
 
@@ -457,6 +458,8 @@ footer { text-align: center; padding: 20px; color: #999; font-size: 12px; border
 .login-input { padding: 4px 8px; border: 1px solid #d1d5db; border-radius: 4px; font-size: 13px; width: 180px; background: #fff; color: #1f2937; }
 .login-btn { padding: 4px 10px; border: 1px solid #6b7280; border-radius: 4px; font-size: 12px; cursor: pointer; background: #f9fafb; color: #374151; text-decoration: none; white-space: nowrap; }
 .login-btn:hover { background: #e5e7eb; }
+.create-addr-btn { padding: 4px 10px; border: 1px solid #059669; border-radius: 4px; font-size: 12px; cursor: pointer; background: #d1fae5; color: #065f46; text-decoration: none; white-space: nowrap; }
+.create-addr-btn:hover { background: #a7f3d0; }
 .logout-btn { color: #dc2626; border-color: #dc2626; }
 .login-addr { font-size: 12px; color: #2563eb; font-weight: 500; }
 .tree-container { margin: 16px 0; }
@@ -494,11 +497,17 @@ def _login_widget(viewer_addr: str, lang: str) -> str:
         )
     else:
         return (
-            f'<form action="/web/login" method="post" class="login-widget" style="display:inline;">'
+            f'<span class="login-widget">'
+            f'<form action="/web/login" method="post" style="display:inline;">'
             f'<input type="hidden" name="redirect" value="">'
             f'<input type="text" name="address" placeholder="{_t("login.placeholder", lang)}" class="login-input">'
             f'<button type="submit" class="login-btn">{_t("login.login", lang)}</button>'
             f'</form>'
+            f'<form action="/web/create-address" method="post" style="display:inline;">'
+            f'<input type="hidden" name="redirect" value="">'
+            f'<button type="submit" class="create-addr-btn">{_t("login.create_address", lang)}</button>'
+            f'</form>'
+            f'</span>'
         )
 
 
@@ -730,7 +739,7 @@ def render_leaderboard(db: LeaderboardDB, path: str,
     return _base_page(_t("lb.title", lang), content, "leaderboard", lang=lang, viewer_addr=viewer_addr)
 
 
-def render_search(db: LeaderboardDB, path: str, lang: str = "en") -> str:
+def render_search(db: LeaderboardDB, path: str, lang: str = "en", viewer_addr: str = "") -> str:
     params = _parse_query(path)
     query = params.get("q", "")
     dim = EvalDimension(params["dim"]) if params.get("dim") else None
@@ -761,7 +770,7 @@ def render_search(db: LeaderboardDB, path: str, lang: str = "en") -> str:
     </form>
     {result_html}
     """
-    return _base_page(_t("search.title", lang), content, "search", lang=lang)
+    return _base_page(_t("search.title", lang), content, "search", lang=lang, viewer_addr=viewer_addr)
 
 
 def render_random(db: LeaderboardDB, path: str,
@@ -843,7 +852,7 @@ def render_random(db: LeaderboardDB, path: str,
     return _base_page(_t("random.title", lang), content, "random", lang=lang, viewer_addr=viewer_addr)
 
 
-def render_peers(pm: PeerManager, lang: str = "en") -> str:
+def render_peers(pm: PeerManager, lang: str = "en", viewer_addr: str = "") -> str:
     peers = pm.get_peers()
     now = time.time()
 
@@ -867,7 +876,7 @@ def render_peers(pm: PeerManager, lang: str = "en") -> str:
     <tbody>{"".join(rows) if rows else f'<tr><td colspan="4" class="empty">{_t("peers.no_peers", lang)}</td></tr>'}</tbody>
     </table>
     """
-    return _base_page(_t("peers.title", lang), content, "peers", lang=lang)
+    return _base_page(_t("peers.title", lang), content, "peers", lang=lang, viewer_addr=viewer_addr)
 
 
 def render_entry(db: LeaderboardDB, combo_id: str,
@@ -1048,7 +1057,7 @@ _COLLECTION_CATEGORIES_PROBLEM = [
 ]
 
 
-def render_collections(db: LeaderboardDB, path: str, lang: str = "en") -> str:
+def render_collections(db: LeaderboardDB, path: str, lang: str = "en", viewer_addr: str = "") -> str:
     """Browse method and problem collections with tab switching."""
     params = _parse_query(path)
     ctype = params.get("type", "method")
@@ -1133,7 +1142,7 @@ def render_collections(db: LeaderboardDB, path: str, lang: str = "en") -> str:
     <div class="quick-links" style="margin-bottom:16px;">{cat_links}</div>
     {cards_html}
     """
-    return _base_page("Collections", content, "collections", lang=lang)
+    return _base_page("Collections", content, "collections", lang=lang, viewer_addr=viewer_addr)
 
 
 def render_collection_new(form: dict | None = None, errors: list[str] | None = None, success: str = "", lang: str = "en") -> str:
@@ -1275,7 +1284,7 @@ _MATH_CATEGORIES = [
 ]
 
 
-def render_math_home(db: LeaderboardDB, lang: str = "en") -> str:
+def render_math_home(db: LeaderboardDB, lang: str = "en", viewer_addr: str = "") -> str:
     """Math Zone home page — list all math problems."""
     problems = db.get_math_problems()
     cards = []
@@ -1307,10 +1316,10 @@ def render_math_home(db: LeaderboardDB, lang: str = "en") -> str:
     </div>
     {"".join(cards) if cards else '<div class="empty">No math problem zones yet. <a href="/web/math/new">Apply to create the first one</a>.</div>'}
     """
-    return _base_page("Math Research Zone", content, "math", lang=lang)
+    return _base_page("Math Research Zone", content, "math", lang=lang, viewer_addr=viewer_addr)
 
 
-def render_math_new(form: dict | None = None, errors: list[str] | None = None, success: str = "", lang: str = "en") -> str:
+def render_math_new(form: dict | None = None, errors: list[str] | None = None, success: str = "", lang: str = "en", viewer_addr: str = "") -> str:
     """Form to create a new math problem zone."""
     f = form or {}
     err_html = "".join(f'<p style="color:#ef4444;margin:4px 0;">{_esc(e)}</p>' for e in (errors or []))
@@ -1337,7 +1346,7 @@ def render_math_new(form: dict | None = None, errors: list[str] | None = None, s
         <button type="submit" style="margin-top:12px;padding:10px 28px;">Create Problem Zone</button>
     </form>
     """
-    return _base_page("New Math Problem", content, "math", lang=lang)
+    return _base_page("New Math Problem", content, "math", lang=lang, viewer_addr=viewer_addr)
 
 
 def render_math_problem(db: LeaderboardDB, pid: int, path: str, lang: str = "en") -> str:
@@ -1915,7 +1924,7 @@ def render_math_tree_node(db: LeaderboardDB, pid: int, mid: int, nid: int,
 # Community Submission pages
 # ------------------------------------------------------------------
 
-def render_submit_home(lang: str = "en") -> str:
+def render_submit_home(lang: str = "en", viewer_addr: str = "") -> str:
     """Landing page for community submissions."""
     content = """
     <div class="stats">
@@ -1932,10 +1941,10 @@ def render_submit_home(lang: str = "en") -> str:
     </div>
     <p style="color:#777;margin-top:16px;">All submissions are reviewed before joining the active matrix.</p>
     """
-    return _base_page("Community Submit", content, "submit", lang=lang)
+    return _base_page("Community Submit", content, "submit", lang=lang, viewer_addr=viewer_addr)
 
 
-def render_submit_method(form: dict | None = None, errors: list[str] | None = None, success: str = "", lang: str = "en") -> str:
+def render_submit_method(form: dict | None = None, errors: list[str] | None = None, success: str = "", lang: str = "en", viewer_addr: str = "") -> str:
     """Render the method submission form."""
     f = form or {}
     err_html = "".join(f'<p style="color:#ef4444;margin:4px 0;">{_esc(e)}</p>' for e in (errors or []))
@@ -1976,10 +1985,10 @@ def render_submit_method(form: dict | None = None, errors: list[str] | None = No
         <button type="submit" style="margin-top:12px;padding:10px 28px;">Submit Method</button>
     </form>
     """
-    return _base_page("Submit Method", content, "submit", lang=lang)
+    return _base_page("Submit Method", content, "submit", lang=lang, viewer_addr=viewer_addr)
 
 
-def render_submit_problem(form: dict | None = None, errors: list[str] | None = None, success: str = "", lang: str = "en") -> str:
+def render_submit_problem(form: dict | None = None, errors: list[str] | None = None, success: str = "", lang: str = "en", viewer_addr: str = "") -> str:
     """Render the problem submission form."""
     f = form or {}
     err_html = "".join(f'<p style="color:#ef4444;margin:4px 0;">{_esc(e)}</p>' for e in (errors or []))
@@ -2021,17 +2030,17 @@ def render_submit_problem(form: dict | None = None, errors: list[str] | None = N
         <button type="submit" style="margin-top:12px;padding:10px 28px;">Submit Problem</button>
     </form>
     """
-    return _base_page("Submit Problem", content, "submit", lang=lang)
+    return _base_page("Submit Problem", content, "submit", lang=lang, viewer_addr=viewer_addr)
 
 
-def render_submissions(db: LeaderboardDB, lang: str = "en") -> str:
+def render_submissions(db: LeaderboardDB, lang: str = "en", viewer_addr: str = "") -> str:
     """Render the pending submissions list (operator review page)."""
     pending = db.get_pending_submissions()
     total = db.total_pending()
 
     if not pending:
         content = '<div class="empty">No pending submissions.</div>'
-        return _base_page("Submissions", content, "submit", lang=lang)
+        return _base_page("Submissions", content, "submit", lang=lang, viewer_addr=viewer_addr)
 
     rows = []
     for sub in pending:
@@ -2059,7 +2068,7 @@ def render_submissions(db: LeaderboardDB, lang: str = "en") -> str:
     <tbody>{"".join(rows)}</tbody>
     </table>
     """
-    return _base_page("Submissions", content, "submit", lang=lang)
+    return _base_page("Submissions", content, "submit", lang=lang, viewer_addr=viewer_addr)
 
 
 # ------------------------------------------------------------------
