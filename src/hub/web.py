@@ -115,6 +115,9 @@ _T = {
     "random.available":      {"en": "Available",           "zh": "可用"},
     "random.seed":           {"en": "Seed",                "zh": "种子"},
     "random.no_entries":     {"en": "No entries available for this board.", "zh": "此面板暂无条目。"},
+    "random.drawn_count":    {"en": "Drawn: {drawn}/{total}", "zh": "已抽取: {drawn}/{total}"},
+    "random.drawn_before":   {"en": "Previously Drawn", "zh": "已抽取过的 Idea"},
+    "random.no_drawn_yet":   {"en": "You haven't drawn any entries from this board yet.", "zh": "你尚未从此面板抽取过条目。"},
     "random.cost":           {"en": "Random draw costs {fee} IDEA per use.", "zh": "随机抽取每次消耗 {fee} IDEA。"},
     "random.pay_draw":       {"en": "Pay {fee} IDEA to Draw", "zh": "支付 {fee} IDEA 抽取"},
     # Peers
@@ -800,6 +803,9 @@ def render_random(db: LeaderboardDB, path: str,
     draw_info = ""
     unpaid_html = ""
 
+    # Always query stats (drawn count / total) even behind paywall
+    draw = db.random_draw(dimension=dim, domain=dom, draw_count=0, viewer_addr=viewer)
+
     if token_gate and viewer_addr and not paid:
         fee = token_gate.DRAW_FEE_Q
         unpaid_html = f"""
@@ -814,13 +820,16 @@ def render_random(db: LeaderboardDB, path: str,
         </div>"""
     else:
         draw = db.random_draw(dimension=dim, domain=dom, draw_count=count, viewer_addr=viewer)
-        draw_info = f"""
-        <p style="color:#777;margin:12px 0;">
-            {_t("random.board", lang)}: <b>{draw.board_name}</b> &mdash;
-            {_t("random.available", lang)}: <b>{draw.total_in_board}</b> &mdash;
-            {_t("random.seed", lang)}: <b>{draw.draw_seed}</b>
-        </p>"""
 
+    drawn_total = draw.total_drawn + len(draw.entries)
+    draw_info = f"""
+    <p style="color:#777;margin:12px 0;">
+        {_t("random.board", lang)}: <b>{draw.board_name}</b> &mdash;
+        {_t("random.drawn_count", lang, drawn=drawn_total, total=draw.total_in_board)} &mdash;
+        {_t("random.seed", lang)}: <b>{draw.draw_seed}</b>
+    </p>"""
+
+    if draw.entries:
         for e in draw.entries:
             scores_html = "".join(
                 f'<span class="score-tag">{name}: {score:.1f}</span>'
@@ -851,8 +860,28 @@ def render_random(db: LeaderboardDB, path: str,
     {unpaid_html}
     {draw_info}
     {cards if cards else (f'<div class="empty">{_t("random.no_entries", lang)}</div>' if not unpaid_html else '')}
+    {_render_previously_drawn(draw, lang)}
     """
     return _base_page(_t("random.title", lang), content, "random", lang=lang, viewer_addr=viewer_addr)
+
+
+def _render_previously_drawn(draw, lang: str) -> str:
+    """Render list of entries the viewer has previously drawn from this board."""
+    prev = draw.previously_drawn
+    if not prev:
+        return ""
+    rows = ""
+    for e in prev:
+        rows += (
+            f'<div class="card" style="opacity:0.7;border-left:3px solid #9ca3af;">'
+            f'<span style="font-size:12px;color:#6b7280;margin-right:8px;">&#10003; {_t("random.drawn_before", lang)}</span>'
+            f'<a href="/web/entry/{e.combo_id}?lang={lang}">{_esc(e.method_name)} &times; {_esc(e.problem_title)}</a>'
+            f'</div>'
+        )
+    return f"""
+    <h3 style="margin-top:24px;color:#555;">{_t("random.drawn_before", lang)} ({len(prev)})</h3>
+    {rows}
+    """
 
 
 def render_peers(pm: PeerManager, lang: str = "en", viewer_addr: str = "") -> str:

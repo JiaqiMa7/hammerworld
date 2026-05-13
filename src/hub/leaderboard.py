@@ -46,6 +46,8 @@ class RandomDrawResult:
     board_name: str
     total_in_board: int
     draw_seed: int
+    total_drawn: int = 0
+    previously_drawn: list[LeaderboardEntry] = field(default_factory=list)
 
 
 class LeaderboardDB:
@@ -503,9 +505,9 @@ class LeaderboardDB:
                 (viewer_addr, board_name),
             ).fetchall()
 
-            previously_drawn: set[str] = set()
+            previously_drawn_ids: set[str] = set()
             for row in prev:
-                previously_drawn.update(row[0].split(","))
+                previously_drawn_ids.update(row[0].split(","))
 
             # Get all eligible entries
             rows = conn.execute(
@@ -514,7 +516,8 @@ class LeaderboardDB:
             ).fetchall()
 
         # Filter out previously drawn
-        available = [r for r in rows if r["combo_id"] not in previously_drawn]
+        available = [r for r in rows if r["combo_id"] not in previously_drawn_ids]
+        previously_drawn_rows = [r for r in rows if r["combo_id"] in previously_drawn_ids]
 
         draw_seed = int(time.time() * 1000) % (2**31)
         rng = random.Random(draw_seed)
@@ -537,7 +540,9 @@ class LeaderboardDB:
         return RandomDrawResult(
             entries=entries,
             board_name=board_name,
-            total_in_board=len(available),
+            total_in_board=len(rows),
+            total_drawn=len(previously_drawn_ids),
+            previously_drawn=[self._row_to_entry(0, r) for r in previously_drawn_rows],
             draw_seed=draw_seed,
         )
 
