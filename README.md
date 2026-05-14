@@ -93,7 +93,7 @@ python3 -m src.cli.main buffer-tokens --address 0xBOB
 python3 -m unittest discover tests/ -v
 ```
 
-## 所有 CLI 命令（21 個）
+## 所有 CLI 命令（24 個）
 
 ### 核心命令 | Core
 | 命令 | Command | 說明 |
@@ -145,6 +145,28 @@ python3 -m unittest discover tests/ -v
 | [readme/p2p-hub.md](readme/p2p-hub.md) | P2P Hub：gossip 協議、REST API、Discovery Server、CLI 使用 |
 | [readme/development.md](readme/development.md) | 開發工作流、測試、完整示例、擴展指南 |
 | [DESIGN.md](DESIGN.md) | 完整系統設計（經濟模型、榮譽系統、區塊鏈緩衝區、Matrix Marketplace、Math Research Zone） |
+
+## AI 智能助手 Web 對話界面
+
+通過自然語言與整個系統交互，無需記憶命令或 URL。
+
+```bash
+# 啟動 Web 服務後，訪問 /web/agent
+python3 -m src.cli.main web --port 8765
+# 瀏覽器打開 http://localhost:8765/web/agent
+```
+
+支持的對話示例：
+- **🏆 查看排行榜** — `show me the leaderboard` / `排行榜`
+- **🔍 搜索** — `search for AI` / `搜索量子`
+- **🎲 隨機抽取** — `random draw` / `抽三個`
+- **💰 代幣** — `my balance` / `余额` / `get free tokens` / `领取免费代币`
+- **📄 條目詳情** — `view combo_xxx_xxx` / `查看 combo_m1_p1`
+- **⭐ 評分** — `rate combo_xxx 5` / `评分`
+- **🔗 節點** — `peers` / `节点`
+- **📋 功能介紹** — `help` / `功能介绍`
+
+詳見 [`src/hub/agent_assistant.py`](src/hub/agent_assistant.py) — 基於中英文關鍵詞匹配的 18 種意圖識別 + 直接調用內部 Python 工具。
 
 ## 核心設計決策
 

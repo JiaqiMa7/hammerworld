@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 import time
 from typing import Optional
 
@@ -26,6 +27,11 @@ _T = {
     "nav.collections":       {"en": "Collections",        "zh": "合集"},
     "nav.buffer_zone":       {"en": "Buffer Zone",        "zh": "缓冲区"},
     "nav.submit":            {"en": "Submit",             "zh": "提交"},
+    "nav.my_entries":        {"en": "My Entries",         "zh": "我的挖掘"},
+    "my_entries.title":      {"en": "My Mined Entries",   "zh": "我的挖掘记录"},
+    "my_entries.empty":      {"en": "No mined entries yet. Try asking the agent to \"start mining\"!", "zh": "暂无挖掘记录。试试让 AI 助手「开始挖矿」！"},
+    "my_entries.count":      {"en": "{n} entries",        "zh": "共 {n} 条"},
+    "my_entries.view":       {"en": "View",               "zh": "查看"},
     # Common
     "common.home":           {"en": "Idea Mining Network", "zh": "创意挖矿网络"},
     "common.footer":         {"en": "Idea Mining Network — Phase 2 MVP", "zh": "创意挖矿网络 — 第二阶段 MVP"},
@@ -66,6 +72,8 @@ _T = {
     "th.rank":               {"en": "#",                   "zh": "#"},
     "th.score":              {"en": "Score",               "zh": "评分"},
     "th.dim":                {"en": "Dim",                 "zh": "维度"},
+    "th.best_dim":           {"en": "Best Dim",            "zh": "最佳维度"},
+    "th.created":            {"en": "Created",             "zh": "创建时间"},
     "th.method":             {"en": "Method",              "zh": "方法"},
     "th.problem":            {"en": "Problem",             "zh": "问题"},
     "th.domain":             {"en": "Domain",              "zh": "领域"},
@@ -356,6 +364,57 @@ _T = {
     "login.logged_in":       {"en": "",                        "zh": ""},
     "login.placeholder":     {"en": "Your address (0x...)",    "zh": "你的地址 (0x...)"},
     "login.create_address":  {"en": "Create new address",      "zh": "创建新地址"},
+    # Agent Assistant
+    "agent.title":           {"en": "AI Assistant",             "zh": "AI 助手"},
+    "agent.placeholder":     {"en": "Ask me anything...",       "zh": "输入你的问题..."},
+    "agent.send":            {"en": "Send",                     "zh": "发送"},
+    "agent.intro_title":     {"en": "Feature Guide",        "zh": "功能导览"},
+    "agent.intro_desc":      {"en": "Click any card to try it, or type your request naturally!",
+                               "zh": "点击卡片快速体验，或直接输入你的需求！"},
+    "agent.cat_explore":     {"en": "Explore & Discover",     "zh": "探索与发现"},
+    "agent.cat_tokens":      {"en": "Token Economy",           "zh": "代币经济"},
+    "agent.cat_earn":        {"en": "Earn Rewards",            "zh": "获取收益"},
+    "agent.cat_contribute":  {"en": "Create & Contribute",     "zh": "创作与贡献"},
+    "agent.cat_zones":       {"en": "Research Zones",          "zh": "研究专区"},
+    "agent.card_lb":   {"en": "Leaderboard",   "zh": "排行榜",     "tip_en": "Browse top-rated method×problem combinations", "tip_zh": "浏览评分最高的方法×问题组合"},
+    "agent.card_search": {"en": "Search",    "zh": "搜索",       "tip_en": "Search across methods, problems, and domains", "tip_zh": "跨方法、问题、领域搜索"},
+    "agent.card_draw": {"en": "Random Draw",  "zh": "随机抽取",   "tip_en": "Randomly pick entries — pay 5 IDEA to draw", "tip_zh": "随机抽取条目 — 需支付 5 IDEA"},
+    "agent.card_detail": {"en": "Entry Detail","zh": "条目详情",  "tip_en": "View full scores and analysis of a combo", "tip_zh": "查看组合的完整评分与分析"},
+    "agent.card_faucet":   {"en": "Get Tokens","zh": "领取代币", "tip_en": "Claim 100 free IDEA tokens (rate-limited)", "tip_zh": "领取 100 个免费 IDEA 代币（有限频）"},
+    "agent.card_payview":  {"en": "Pay to View","zh": "付费查看", "tip_en": "Pay 10 IDEA to unlock a full AI analysis", "tip_zh": "支付 10 IDEA 解锁完整 AI 分析"},
+    "agent.card_paylb":    {"en": "Unlock Ranking","zh": "解锁排行","tip_en": "Pay 20 IDEA to unlock a leaderboard for 24h", "tip_zh": "支付 20 IDEA 解锁排行榜 24 小时"},
+    "agent.card_paydraw":  {"en": "Pay for Draw","zh": "付费抽奖","tip_en": "Pay 5 IDEA for random draw access", "tip_zh": "支付 5 IDEA 获得随机抽取权限"},
+    "agent.card_mine":     {"en": "Idea Mining",  "zh": "创意挖矿", "tip_en": "AI evaluates a random method×problem pair across 8 dimensions", "tip_zh": "AI 从 8 个维度评估随机方法×问题组合"},
+    "agent.card_bufclass": {"en": "Buffer Classify","zh": "缓冲分类","tip_en": "Vote on pending submissions to earn classifier rewards", "tip_zh": "对缓冲区的待定提交进行投票分类并赚取奖励"},
+    "agent.card_submit_m": {"en": "Submit Method","zh": "提交方法", "tip_en": "Add a new creative method to the matrix", "tip_zh": "向矩阵中添加新方法"},
+    "agent.card_submit_p": {"en": "Submit Problem","zh":"提交问题", "tip_en": "Add a new unsolved problem to the matrix", "tip_zh": "向矩阵中添加未解决的问题"},
+    "agent.card_rate":     {"en": "Rate",          "zh": "评分",     "tip_en": "Rate a combo 1-5 stars after viewing it", "tip_zh": "查看后为组合评分 1-5 星"},
+    "agent.card_collections":{"en":"Collections",  "zh": "合集浏览", "tip_en": "Browse community-curated method & problem collections", "tip_zh": "浏览社区策划的方法和问题合集"},
+    "agent.card_math":     {"en": "Math Zone",     "zh": "数学区",   "tip_en": "Explore math research with MCTS tree search", "tip_zh": "基于 MCTS 树搜索探索数学研究问题"},
+    "agent.card_buffer":   {"en": "Buffer Zone",   "zh": "缓冲区",   "tip_en": "Check pending consensus and buffer status", "tip_zh": "查看待定共识和缓冲区状态"},
+    "agent.card_peers":    {"en": "Network Peers", "zh": "网络节点", "tip_en": "Show connected P2P nodes in the federation", "tip_zh": "显示联邦中已连接的 P2P 节点"},
+    "agent.card_settings": {"en": "Settings",     "zh": "系统设置", "tip_en": "View and customize API key, model, and address config", "tip_zh": "查看和自定义 API 密钥、模型、地址等配置"},
+    "agent.sending":       {"en": "Sending...",    "zh": "发送中..."},
+    "agent.sb_address":    {"en": "Address",       "zh": "地址"},
+    "agent.sb_balance":    {"en": "Balance",       "zh": "余额"},
+    "agent.sb_not_logged": {"en": "Not logged in", "zh": "未登录"},
+    "agent.sb_staked":     {"en": "Staked",        "zh": "质押"},
+    "agent.welcome":         {"en": "Hello! I'm the HammerWorld assistant. "
+                                     "Try asking me something like 'show me the leaderboard' or 'get free tokens'.",
+                               "zh": "你好！我是 HammerWorld 助手。试试对我说「帮我看看排行榜」或「领取免费代币」。"},
+    # Settings page
+    "settings.title":        {"en": "Settings",                   "zh": "系统设置"},
+    "settings.api_key":      {"en": "API Key",                    "zh": "API 密钥"},
+    "settings.api_base":     {"en": "API Base URL",               "zh": "API 地址"},
+    "settings.default_model": {"en": "Default Model",             "zh": "默认模型"},
+    "settings.agent_model":  {"en": "Agent Model",                "zh": "Agent 模型"},
+    "settings.mining_model": {"en": "Mining Model",               "zh": "挖矿模型"},
+    "settings.triz_model":   {"en": "TRIZ Model",                 "zh": "TRIZ 模型"},
+    "settings.address":      {"en": "Your Address",               "zh": "你的地址"},
+    "settings.save":         {"en": "Save Settings",              "zh": "保存设置"},
+    "settings.saved":        {"en": "Settings saved. Changes take effect immediately.", "zh": "设置已保存，修改立即生效。"},
+    "settings.description":  {"en": "Configure your HammerWorld environment. Leave a field empty to use the default value.", "zh": "配置你的 HammerWorld 环境。留空则使用默认值。"},
+    "settings.config_file":  {"en": "Config file",                "zh": "配置文件"},
 }
 
 
@@ -487,6 +546,77 @@ footer { text-align: center; padding: 20px; color: #999; font-size: 12px; border
 .tree-toggle.collapsed + input[type=checkbox] + .tree-collapsible { display: none; }
 input[type=checkbox]:checked + .tree-collapsible { display: block; }
 input[type=checkbox]:not(:checked) + .tree-collapsible { display: none; }
+
+/* --- Agent Chat UI --- */
+.chat-container { display: flex; flex-direction: column; gap: 0; height: calc(100vh - 300px); min-height: 400px; margin-bottom: 20px; border: 1px solid #e5e7eb; border-radius: 10px; overflow: hidden; background: #fff; }
+.chat-messages { flex: 1; overflow-y: auto; padding: 16px; display: flex; flex-direction: column; gap: 12px; background: #f8fafb; }
+.chat-bubble { max-width: 85%; padding: 10px 16px; border-radius: 12px; font-size: 14px; line-height: 1.5; white-space: pre-wrap; word-break: break-word; }
+.chat-bubble.user { align-self: flex-end; background: #2563eb; color: #fff; border-bottom-right-radius: 4px; }
+.chat-bubble.agent { align-self: flex-start; background: #f0f4f8; color: #333; border: 1px solid #e5e7eb; border-bottom-left-radius: 4px; }
+.chat-bubble.agent pre { background: #e8ecf0; padding: 6px 10px; border-radius: 6px; font-size: 13px; overflow-x: auto; margin: 4px 0; }
+.chat-input { display: flex; gap: 8px; padding: 12px 16px; border-top: 1px solid #e5e7eb; background: #fff; }
+.chat-input input { flex: 1; padding: 10px 14px; border: 1px solid #dde1e6; border-radius: 8px; font-size: 14px; }
+.chat-input button { padding: 10px 24px; border-radius: 8px; font-size: 14px; }
+/* --- Agent page grid: chat + sidebar --- */
+.agent-layout { display: grid; grid-template-columns: 1fr 200px; gap: 20px; align-items: start; }
+@media (max-width: 768px) { .agent-layout { grid-template-columns: 1fr; } }
+.agent-sidebar {
+    background: #fff; border: 1px solid #e5e7eb; border-radius: 10px;
+    padding: 16px; position: sticky; top: 16px;
+}
+.agent-sidebar h4 { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: #888; margin: 0 0 10px; border-bottom: 1px solid #eef0f4; padding-bottom: 8px; }
+.agent-sidebar .sb-addr { font-family: monospace; font-size: 12px; color: #555; word-break: break-all; margin-bottom: 12px; background: #f8fafb; padding: 6px 8px; border-radius: 4px; }
+.agent-sidebar .sb-bal { font-size: 24px; font-weight: 700; color: #2563eb; }
+.agent-sidebar .sb-stake { font-size: 12px; color: #888; margin-top: 2px; }
+.agent-sidebar .sb-label { font-size: 12px; color: #999; margin-bottom: 2px; }
+
+/* --- Category sections --- */
+.cat-sections { margin: 4px 0 12px; }
+details.feature-guide { margin-bottom: 8px; }
+details.feature-guide > summary {
+    font-family: 'Segoe UI', system-ui, sans-serif;
+    font-weight: 800; font-size: 17px; color: #7c3aed;
+    cursor: pointer; padding: 10px 0 10px 14px; user-select: none;
+    border-left: 4px solid #7c3aed; margin-bottom: 6px;
+    letter-spacing: .02em;
+}
+details.feature-guide > summary:hover { color: #6d28d9; border-left-color: #6d28d9; }
+details.feature-details { margin-bottom: 2px; }
+details.feature-details > summary {
+    font-weight: 700; font-size: 14px; color: #374151;
+    border-left: 3px solid #2563eb; padding-left: 12px;
+}
+details.feature-details > summary:hover { border-left-color: #1d4ed8; color: #1f2937; }
+.cat-row { display: flex; flex-wrap: wrap; gap: 6px; margin: 4px 0 8px 12px; }
+.cat-card {
+    display: flex; align-items: center; gap: 6px;
+    background: #fff; border: 1px solid #e5e7eb; border-radius: 8px;
+    padding: 7px 12px; cursor: pointer;
+    transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
+    user-select: none; position: relative;
+}
+.cat-card:hover {
+    transform: translateY(-2px); box-shadow: 0 4px 14px rgba(37,99,235,0.15);
+    border-color: #2563eb;
+}
+.cat-card .cat-icon { font-size: 16px; line-height: 1; }
+.cat-card .cat-label { font-size: 13px; color: #444; white-space: nowrap; font-weight: 500; }
+
+/* Inline form inside chat bubbles */
+.chat-form-container { margin-top: 12px; padding-top: 12px; border-top: 1px solid #e5e7eb; }
+.chat-form-container .inline-form { display: flex; flex-direction: column; gap: 10px; }
+.chat-form-container .inline-field label { display: block; font-weight: 600; font-size: 12px; margin-bottom: 3px; color: #555; }
+.chat-form-container .inline-field .field-desc { font-weight: 400; color: #999; font-size: 11px; margin-left: 6px; }
+.chat-form-container .inline-field select,
+.chat-form-container .inline-field input { padding: 6px 10px; border: 1px solid #dde1e6; border-radius: 5px; font-size: 13px; }
+.chat-form-container .inline-actions { display: flex; gap: 8px; margin-top: 4px; }
+.chat-form-container .inline-actions button { padding: 7px 18px; border-radius: 6px; font-size: 13px; cursor: pointer; border: 1px solid #dde1e6; background: #fff; }
+.chat-form-container .inline-actions .btn-primary { background: #2563eb; color: #fff; border-color: #2563eb; font-weight: 600; }
+
+/* Chat container */
+.chat-container { flex: 1; }
+.chat-messages { min-height: 200px; }
+.chat-input button:disabled { opacity: 0.6; cursor: not-allowed; }
 """
 
 
@@ -523,6 +653,8 @@ def _base_page(title: str, content: str, active_nav: str = "", lang: str = "en",
         ("/web/leaderboard", _t("nav.leaderboard", lang), "leaderboard"),
         ("/web/search", _t("nav.search", lang), "search"),
         ("/web/random", _t("nav.random_draw", lang), "random"),
+        ("/web/agent", _t("agent.title", lang), "agent"),
+        ("/web/my-entries", _t("nav.my_entries", lang), "my-entries"),
         ("/web/peers", _t("nav.peers", lang), "peers"),
         ("/web/tokens", _t("nav.tokens", lang), "tokens"),
         ("/web/math", _t("nav.math_zone", lang), "math"),
@@ -785,7 +917,6 @@ def render_random(db: LeaderboardDB, path: str,
     dom = Domain(params["domain"]) if params.get("domain") else None
     count = min(int(params.get("count", 10)), 50)
     viewer = params.get("viewer", viewer_addr) if viewer_addr else ""
-    paid = params.get("paid", "")
 
     dim_opts = "".join(
         f'<option value="{d.value}" {"selected" if dim and dim.value == d.value else ""}>{d.value.title()}</option>'
@@ -806,14 +937,14 @@ def render_random(db: LeaderboardDB, path: str,
     # Always query stats (drawn count / total) even behind paywall
     draw = db.random_draw(dimension=dim, domain=dom, draw_count=0, viewer_addr=viewer)
 
-    if token_gate and viewer_addr and not paid:
+    if token_gate and viewer_addr and not token_gate.has_draw_access(viewer_addr):
         fee = token_gate.DRAW_FEE_Q
         unpaid_html = f"""
         <div class="card" style="text-align:center;padding:32px;margin-bottom:20px;">
             <p style="font-size:16px;color:#555;margin-bottom:16px;">{_t("random.cost", lang, fee=fee)}</p>
             <form method="post" action="/web/pay/draw">
                 <input type="hidden" name="viewer_addr" value="{_esc(viewer_addr)}">
-                <input type="hidden" name="redirect" value="/web/random?paid=1&{base_params}">
+                <input type="hidden" name="redirect" value="/web/random?{base_params}">
                 <input type="text" name="viewer_addr_input" value="{_esc(viewer_addr)}" placeholder="{_t("entry.your_address", lang)}" style="width:260px;margin-bottom:8px;display:block;margin-left:auto;margin-right:auto;">
                 <button type="submit" style="font-size:15px;padding:10px 32px;">{_t("random.pay_draw", lang, fee=fee)}</button>
             </form>
@@ -1014,6 +1145,55 @@ def render_entry(db: LeaderboardDB, combo_id: str,
     </div>
     """
     return _base_page(f"{entry.method_name} × {entry.problem_title}", content, lang=lang, viewer_addr=viewer_addr)
+
+
+# ------------------------------------------------------------------
+# My Mined Entries page
+# ------------------------------------------------------------------
+
+def render_my_entries(db: LeaderboardDB, viewer_addr: str = "", lang: str = "en") -> str:
+    """Show all entries mined by the current user."""
+    if not viewer_addr:
+        content = f'<div class="empty">{_t("agent.sb_not_logged", lang)}</div>'
+        return _base_page(_t("my_entries.title", lang), content, "my-entries", lang=lang, viewer_addr=viewer_addr)
+
+    entries = db.get_entries_by_miner(viewer_addr, limit=50)
+
+    if not entries:
+        content = f'<div class="empty">{_t("my_entries.empty", lang)}</div>'
+        return _base_page(_t("my_entries.title", lang), content, "my-entries", lang=lang, viewer_addr=viewer_addr)
+
+    rows = []
+    for e in entries:
+        created = ""
+        if e.created_at:
+            import datetime
+            created = datetime.datetime.fromtimestamp(e.created_at).strftime("%Y-%m-%d %H:%M")
+        rows.append(f"""<tr>
+            <td>{e.rank}</td>
+            <td><a href="/web/entry/{_esc(e.combo_id)}?lang={lang}">{_esc(e.method_name)} × {_esc(e.problem_title)}</a></td>
+            <td>{_esc(e.best_dimension)}</td>
+            <td>{e.best_score:.1f}</td>
+            <td style="font-size:12px;color:#999;">{created}</td>
+            <td><a href="/web/entry/{_esc(e.combo_id)}?lang={lang}" class="btn" style="padding:4px 12px;font-size:12px;">{_t("my_entries.view", lang)}</a></td>
+        </tr>""")
+
+    content = f"""
+    <h1>{_t("my_entries.title", lang)}</h1>
+    <p style="color:#777;margin-bottom:16px;">{_t("my_entries.count", lang, n=len(entries))}</p>
+    <table>
+    <thead><tr>
+        <th>#</th>
+        <th>{_t("th.combo", lang)}</th>
+        <th>{_t("th.best_dim", lang)}</th>
+        <th>{_t("th.score", lang)}</th>
+        <th>{_t("th.created", lang)}</th>
+        <th></th>
+    </tr></thead>
+    <tbody>{"".join(rows)}</tbody>
+    </table>
+    """
+    return _base_page(_t("my_entries.title", lang), content, "my-entries", lang=lang, viewer_addr=viewer_addr)
 
 
 # ------------------------------------------------------------------
@@ -2113,7 +2293,7 @@ def render_submissions(db: LeaderboardDB, lang: str = "en", viewer_addr: str = "
 # Blockchain Buffer Zone Pages
 # ------------------------------------------------------------------
 
-def render_buffer_dashboard(db: LeaderboardDB, lang: str = "en") -> str:
+def render_buffer_dashboard(db: LeaderboardDB, lang: str = "en", viewer_addr: str = "") -> str:
     pending = db.count_buffer_by_status("pending")
     classified = db.count_buffer_by_status("classified")
     disputed = db.count_buffer_by_status("disputed")
@@ -2166,14 +2346,14 @@ def render_buffer_dashboard(db: LeaderboardDB, lang: str = "en") -> str:
         <tbody>{"".join(top_rows)}</tbody>
         </table>
         """
-    return _base_page("Buffer Zone", content, "buffer", lang=lang)
+    return _base_page("Buffer Zone", content, "buffer", lang=lang, viewer_addr=viewer_addr)
 
 
-def render_buffer_pending(db: LeaderboardDB, path: str, lang: str = "en") -> str:
+def render_buffer_pending(db: LeaderboardDB, path: str, lang: str = "en", viewer_addr: str = "") -> str:
     entries = db.get_pending_buffer_entries()
     if not entries:
         content = '<div class="empty">No pending submissions to classify.</div>'
-        return _base_page("Pending Classifications", content, "buffer", lang=lang)
+        return _base_page("Pending Classifications", content, "buffer", lang=lang, viewer_addr=viewer_addr)
 
     rows = []
     for e in entries:
@@ -2205,13 +2385,13 @@ def render_buffer_pending(db: LeaderboardDB, path: str, lang: str = "en") -> str
     <tbody>{"".join(rows)}</tbody>
     </table>
     """
-    return _base_page("Pending Classifications", content, "buffer", lang=lang)
+    return _base_page("Pending Classifications", content, "buffer", lang=lang, viewer_addr=viewer_addr)
 
 
-def render_buffer_classify(db: LeaderboardDB, sub_id: str, path: str, lang: str = "en") -> str:
+def render_buffer_classify(db: LeaderboardDB, sub_id: str, path: str, lang: str = "en", viewer_addr: str = "") -> str:
     entry = db.get_buffer_entry(sub_id)
     if entry is None:
-        return _base_page("Not Found", '<div class="empty">Submission not found.</div>', "buffer", lang=lang)
+        return _base_page("Not Found", '<div class="empty">Submission not found.</div>', "buffer", lang=lang, viewer_addr=viewer_addr)
 
     classifications = db.get_classifications(sub_id)
     already = [c["classifier_addr"] for c in classifications]
@@ -2289,14 +2469,14 @@ def render_buffer_classify(db: LeaderboardDB, sub_id: str, path: str, lang: str 
         <input type="submit" value="Submit Classification" style="padding:10px 24px;background:#2563eb;color:#fff;border:none;border-radius:6px;cursor:pointer;">
     </form>
     """
-    return _base_page(f"Classify {sub_id}", content, "buffer", lang=lang)
+    return _base_page(f"Classify {sub_id}", content, "buffer", lang=lang, viewer_addr=viewer_addr)
 
 
-def render_buffer_submissions(db: LeaderboardDB, address: str, lang: str = "en") -> str:
+def render_buffer_submissions(db: LeaderboardDB, address: str, lang: str = "en", viewer_addr: str = "") -> str:
     entries = db.get_buffer_entries_by_submitter(address)
     if not entries:
         content = f'<div class="empty">No submissions from {_esc(address)}.</div>'
-        return _base_page("My Submissions", content, "buffer", lang=lang)
+        return _base_page("My Submissions", content, "buffer", lang=lang, viewer_addr=viewer_addr)
 
     rows = []
     status_colors = {"pending": "#f59e0b", "classified": "#22c55e",
@@ -2318,13 +2498,13 @@ def render_buffer_submissions(db: LeaderboardDB, address: str, lang: str = "en")
     <tbody>{"".join(rows)}</tbody>
     </table>
     """
-    return _base_page("My Submissions", content, "buffer", lang=lang)
+    return _base_page("My Submissions", content, "buffer", lang=lang, viewer_addr=viewer_addr)
 
 
-def render_buffer_submission_detail(db: LeaderboardDB, sub_id: str, lang: str = "en") -> str:
+def render_buffer_submission_detail(db: LeaderboardDB, sub_id: str, lang: str = "en", viewer_addr: str = "") -> str:
     entry = db.get_buffer_entry(sub_id)
     if entry is None:
-        return _base_page("Not Found", '<div class="empty">Submission not found.</div>', "buffer", lang=lang)
+        return _base_page("Not Found", '<div class="empty">Submission not found.</div>', "buffer", lang=lang, viewer_addr=viewer_addr)
 
     classifications = db.get_classifications(sub_id)
     cls_rows = []
@@ -2367,10 +2547,10 @@ def render_buffer_submission_detail(db: LeaderboardDB, sub_id: str, lang: str = 
         <tbody>{"".join(cls_rows)}</tbody>
         </table>
         """
-    return _base_page(f"Submission {sub_id}", content, "buffer", lang=lang)
+    return _base_page(f"Submission {sub_id}", content, "buffer", lang=lang, viewer_addr=viewer_addr)
 
 
-def render_buffer_tokens(db: LeaderboardDB, address: str, lang: str = "en") -> str:
+def render_buffer_tokens(db: LeaderboardDB, address: str, lang: str = "en", viewer_addr: str = "") -> str:
     acct = db.get_or_create_account(address)
     stakes = db.get_active_stakes(address)
 
@@ -2427,14 +2607,14 @@ def render_buffer_tokens(db: LeaderboardDB, address: str, lang: str = "en") -> s
         <tbody>{"".join(stake_rows)}</tbody>
         </table>
         """
-    return _base_page("Token Dashboard", content, "buffer", lang=lang)
+    return _base_page("Token Dashboard", content, "buffer", lang=lang, viewer_addr=viewer_addr)
 
 
-def render_buffer_leaderboard(db: LeaderboardDB, lang: str = "en") -> str:
+def render_buffer_leaderboard(db: LeaderboardDB, lang: str = "en", viewer_addr: str = "") -> str:
     entries = db.get_token_leaderboard(limit=50)
     if not entries:
         content = '<div class="empty">No classifiers yet.</div>'
-        return _base_page("Classifier Leaderboard", content, "buffer", lang=lang)
+        return _base_page("Classifier Leaderboard", content, "buffer", lang=lang, viewer_addr=viewer_addr)
 
     rows = []
     for i, r in enumerate(entries, 1):
@@ -2459,4 +2639,361 @@ def render_buffer_leaderboard(db: LeaderboardDB, lang: str = "en") -> str:
     <tbody>{"".join(rows)}</tbody>
     </table>
     """
-    return _base_page("Classifier Leaderboard", content, "buffer", lang=lang)
+    return _base_page("Classifier Leaderboard", content, "buffer", lang=lang, viewer_addr=viewer_addr)
+
+
+# ------------------------------------------------------------------
+# Settings Page
+# ------------------------------------------------------------------
+
+def render_settings(path: str = "", lang: str = "en", viewer_addr: str = "",
+                    saved: bool = False, error: str = "") -> str:
+    """Render the system configuration settings page with pre-filled form."""
+    from src.engine.config import HammerConfig
+    cfg = HammerConfig.load()
+
+    api_key = cfg.api_key or ""
+    api_base = cfg.api_base or ""
+    default_model = cfg.get_model("default") or ""
+    agent_model = cfg.get_model("agent") or ""
+    mining_model = cfg.get_model("mining") or ""
+    triz_model = cfg.get_model("triz") or ""
+    address = cfg.address or ""
+
+    config_path = os.path.expanduser("~/.hammerworld/config")
+
+    msg_html = ""
+    if saved:
+        msg_html = f'<div class="success" style="background:#dcfce7;color:#166534;padding:10px 16px;border-radius:6px;margin-bottom:16px;">{_t("settings.saved", lang)}</div>'
+    if error:
+        msg_html += f'<div class="error" style="background:#fee2e2;color:#991b1b;padding:10px 16px;border-radius:6px;margin-bottom:16px;">{_esc(error)}</div>'
+
+    content = f"""
+    <h1>{_t("settings.title", lang)}</h1>
+    <p style="color:#777;margin-bottom:16px;">{_t("settings.description", lang)}</p>
+    <p style="color:#999;font-size:12px;margin-bottom:20px;">{_t("settings.config_file", lang)}: <code>{_esc(config_path)}</code></p>
+    {msg_html}
+    <form method="POST" action="/web/settings/save" style="background:#fff;padding:20px;border-radius:10px;border:1px solid #e5e7eb;max-width:640px;">
+        <div style="margin-bottom:14px;">
+            <label style="display:block;font-weight:600;margin-bottom:4px;">{_t("settings.api_key", lang)}</label>
+            <input type="text" name="api_key" value="{_esc(api_key)}" style="width:100%;padding:8px 12px;border:1px solid #dde1e6;border-radius:6px;font-family:monospace;font-size:13px;" placeholder="sk-...">
+        </div>
+        <div style="margin-bottom:14px;">
+            <label style="display:block;font-weight:600;margin-bottom:4px;">{_t("settings.api_base", lang)}</label>
+            <input type="text" name="api_base" value="{_esc(api_base)}" style="width:100%;padding:8px 12px;border:1px solid #dde1e6;border-radius:6px;font-family:monospace;font-size:13px;" placeholder="https://api.openai.com/v1">
+        </div>
+        <div style="margin-bottom:14px;">
+            <label style="display:block;font-weight:600;margin-bottom:4px;">{_t("settings.default_model", lang)}</label>
+            <input type="text" name="model" value="{_esc(default_model)}" style="width:100%;padding:8px 12px;border:1px solid #dde1e6;border-radius:6px;font-size:13px;" placeholder="gpt-4o">
+        </div>
+        <div style="margin-bottom:14px;">
+            <label style="display:block;font-weight:600;margin-bottom:4px;">{_t("settings.agent_model", lang)}</label>
+            <input type="text" name="agent_model" value="{_esc(agent_model)}" style="width:100%;padding:8px 12px;border:1px solid #dde1e6;border-radius:6px;font-size:13px;" placeholder="(uses default if empty)">
+        </div>
+        <div style="margin-bottom:14px;">
+            <label style="display:block;font-weight:600;margin-bottom:4px;">{_t("settings.mining_model", lang)}</label>
+            <input type="text" name="mining_model" value="{_esc(mining_model)}" style="width:100%;padding:8px 12px;border:1px solid #dde1e6;border-radius:6px;font-size:13px;" placeholder="(uses default if empty)">
+        </div>
+        <div style="margin-bottom:14px;">
+            <label style="display:block;font-weight:600;margin-bottom:4px;">{_t("settings.triz_model", lang)}</label>
+            <input type="text" name="triz_model" value="{_esc(triz_model)}" style="width:100%;padding:8px 12px;border:1px solid #dde1e6;border-radius:6px;font-size:13px;" placeholder="(uses default if empty)">
+        </div>
+        <div style="margin-bottom:20px;">
+            <label style="display:block;font-weight:600;margin-bottom:4px;">{_t("settings.address", lang)}</label>
+            <input type="text" name="address" value="{_esc(address)}" style="width:100%;padding:8px 12px;border:1px solid #dde1e6;border-radius:6px;font-family:monospace;font-size:13px;" placeholder="0x...">
+        </div>
+        <input type="submit" value="{_t("settings.save", lang)}" style="padding:10px 28px;background:#2563eb;color:#fff;border:none;border-radius:6px;cursor:pointer;font-size:14px;font-weight:600;">
+    </form>
+    """
+    return _base_page(_t("settings.title", lang), content, "settings", lang=lang, viewer_addr=viewer_addr)
+
+
+# ------------------------------------------------------------------
+# Agent Assistant Chat UI
+# ------------------------------------------------------------------
+
+def _agent_category_sections(lang: str = "en") -> str:
+    """Render categorized feature cards with tooltip descriptions.
+
+    Each category is a <details> block containing a horizontal row of compact cards.
+    Cards show only icon + name; a tooltip appears on hover with a full description.
+    """
+    tip_field = f"tip_{lang}"
+
+    categories = [
+        ("agent.cat_explore", [
+            ("🏆", "agent.card_lb", "show leaderboard"),
+            ("🔍", "agent.card_search", "search AI"),
+            ("🎲", "agent.card_draw", "draw 3 entries"),
+            ("📄", "agent.card_detail", "view combo_xxx"),
+        ]),
+        ("agent.cat_tokens", [
+            ("🎁", "agent.card_faucet", "get free tokens"),
+            ("🔓", "agent.card_payview", "pay to view combo_xxx"),
+            ("📊", "agent.card_paylb", "unlock leaderboard"),
+            ("🎲", "agent.card_paydraw", "pay for draw"),
+        ]),
+        ("agent.cat_earn", [
+            ("⛏️", "agent.card_mine", "start mining"),
+            ("🗳️", "agent.card_bufclass", "classify buffer submissions"),
+        ]),
+        ("agent.cat_contribute", [
+            ("📝", "agent.card_submit_m", "submit method"),
+            ("❓", "agent.card_submit_p", "submit problem"),
+            ("⭐", "agent.card_rate", "rate combo_xxx 5"),
+            ("📚", "agent.card_collections", "collections"),
+        ]),
+        ("agent.cat_zones", [
+            ("🧮", "agent.card_math", "math problems"),
+            ("📋", "agent.card_buffer", "buffer status"),
+            ("🔗", "agent.card_peers", "show peers"),
+            ("⚙️", "agent.card_settings", "show settings"),
+        ]),
+    ]
+
+    sections = []
+    for title_key, cards in categories:
+        card_html = ""
+        for emoji, name_key, example in cards:
+            tip = _t(name_key, lang)
+            # Try to get tooltip from the _T dict directly
+            entry = _T.get(name_key, {})
+            tooltip = entry.get(tip_field, "")
+            escaped_example = example.replace("'", "&#39;")
+            card_html += (
+                f'<div class="cat-card" title="{_esc(tooltip)}" '
+                f'onclick="document.getElementById(\'chat-input\').value=\'{escaped_example}\';'
+                f'document.getElementById(\'chat-form\').requestSubmit();">'
+                f'<span class="cat-icon">{emoji}</span>'
+                f'<span class="cat-label">{_esc(_t(name_key, lang))}</span>'
+                f'</div>'
+            )
+        sections.append(
+            f'<details class="feature-details" open>'
+            f'<summary class="cat-title">{_t(title_key, lang)}</summary>'
+            f'<div class="cat-row">{card_html}</div>'
+            f'</details>'
+        )
+
+    return f'<div class="cat-sections">{"".join(sections)}</div>'
+
+
+def render_agent_chat(
+    db: LeaderboardDB,
+    path: str,
+    viewer_addr: str = "",
+    token_gate=None,
+    peer_manager: Optional[PeerManager] = None,
+    lang: str = "en",
+    conversation: list[dict] | None = None,
+) -> str:
+    """Render the agent chat interface page."""
+    from src.hub.agent_assistant import AgentAssistant
+
+    conversation = conversation or []
+
+    if not conversation:
+        agent = AgentAssistant(db, token_gate, peer_manager)
+        welcome = agent._t("agent.welcome", lang)
+        conversation = [{"role": "agent", "text": welcome}]
+
+    bubbles = ""
+    for m in conversation:
+        role = m.get("role", "agent")
+        text = _esc(m.get("text", ""))
+        if role == "user":
+            bubbles += f'<div class="chat-bubble user">{text}</div>'
+        else:
+            formatted = text.replace("**", "<strong>", 1)
+            if "**" in text:
+                formatted = formatted.replace("**", "</strong>", 1)
+            bubbles += f'<div class="chat-bubble agent">{formatted}</div>'
+
+    import json
+    conv_json = json.dumps(conversation, ensure_ascii=False)
+
+    sending_text = _t("agent.sending", lang)
+
+    # Build sidebar with user info
+    has_addr = bool(viewer_addr and len(viewer_addr) > 10)
+    sidebar_html = ""
+    if has_addr:
+        short_addr = viewer_addr[:10] + "..." + viewer_addr[-4:]
+        bal = 0; staked = 0
+        if token_gate:
+            try:
+                s = token_gate.get_viewer_summary(viewer_addr)
+                bal = s.get("balance", 0)
+                staked = s.get("staked", 0)
+            except Exception:
+                pass
+        sidebar_html = f"""
+        <div class="agent-sidebar" id="agent-sidebar">
+            <h4>{_esc(_t('agent.sb_address', lang))}</h4>
+            <div class="sb-addr" title="{_esc(viewer_addr)}">{_esc(short_addr)}</div>
+            <h4>{_esc(_t('agent.sb_balance', lang))}</h4>
+            <div class="sb-bal" id="sb-balance">{bal}</div>
+            <div class="sb-stake" id="sb-staked">{_esc(_t('agent.sb_staked', lang))}: {staked}</div>
+        </div>"""
+    elif viewer_addr:
+        sidebar_html = f"""
+        <div class="agent-sidebar" id="agent-sidebar">
+            <h4>{_esc(_t('agent.sb_address', lang))}</h4>
+            <div class="sb-addr">{_esc(viewer_addr)}</div>
+            <div class="sb-bal" id="sb-balance">-</div>
+        </div>"""
+    else:
+        sidebar_html = f"""
+        <div class="agent-sidebar" id="agent-sidebar">
+            <div class="sb-addr" style="color:#999;">{_esc(_t('agent.sb_not_logged', lang))}</div>
+        </div>"""
+
+    content = f"""
+    <div class="agent-layout">
+    <div class="agent-main">
+    <div style="margin-bottom:12px;display:flex;justify-content:space-between;align-items:center;">
+        <span style="font-size:14px;color:#777;">{_t("agent.intro_desc", lang)}</span>
+    </div>
+    <details class="feature-guide" open>
+        <summary class="guide-title">{_t("agent.intro_title", lang)}</summary>
+        {_agent_category_sections(lang)}
+    </details>
+
+    <div class="chat-container">
+        <div class="chat-messages" id="chat-messages">
+            {bubbles}
+        </div>
+        <form class="chat-input" id="chat-form">
+            <input type="hidden" name="conversation" id="conv-field" value=\'{conv_json}\'>
+            <input type="hidden" name="lang" value="{lang}">
+            <input type="text" id="chat-input" name="message"
+                   placeholder="{_t("agent.placeholder", lang)}" autofocus autocomplete="off">
+            <button type="submit" id="send-btn">{_t("agent.send", lang)}</button>
+        </form>
+    </div>
+    </div>
+    {sidebar_html}
+    </div>
+    <script>
+    (function() {{
+        var form = document.getElementById('chat-form');
+        var input = document.getElementById('chat-input');
+        var convField = document.getElementById('conv-field');
+        var msgs = document.getElementById('chat-messages');
+        var btn = document.getElementById('send-btn');
+        var sidebar = document.getElementById('agent-sidebar');
+        var sending = '{sending_text}';
+
+        function scrollBottom() {{
+            if (msgs) msgs.scrollTop = msgs.scrollHeight;
+        }}
+
+        function addBubble(role, text, formHtml) {{
+            var div = document.createElement('div');
+            div.className = 'chat-bubble ' + role;
+            div.textContent = text;
+            if (formHtml) {{
+                var formContainer = document.createElement('div');
+                formContainer.className = 'chat-form-container';
+                formContainer.innerHTML = formHtml;
+                div.appendChild(formContainer);
+            }}
+            msgs.appendChild(div);
+            scrollBottom();
+        }}
+
+        function sendMessage(msg) {{
+            var conv = convField.value;
+            addBubble('user', msg);
+            input.value = '';
+            btn.disabled = true;
+            btn.textContent = sending;
+
+            fetch('/web/agent/chat/json', {{
+                method: 'POST',
+                headers: {{'Content-Type': 'application/x-www-form-urlencoded'}},
+                body: 'message=' + encodeURIComponent(msg) + '&lang={lang}&conversation=' + encodeURIComponent(conv)
+            }})
+            .then(function(r) {{ return r.json(); }})
+            .then(function(data) {{
+                if (data.reply) addBubble('agent', data.reply, data.form);
+                convField.value = JSON.stringify(data.conversation || []);
+                btn.disabled = false;
+                btn.textContent = '{_t("agent.send", lang)}';
+                input.focus();
+                updateSidebar();
+            }})
+            .catch(function(err) {{
+                addBubble('agent', 'Error: ' + err.message);
+                btn.disabled = false;
+                btn.textContent = '{_t("agent.send", lang)}';
+                input.focus();
+                updateSidebar();
+            }});
+        }}
+
+        form.addEventListener('submit', function(e) {{
+            e.preventDefault();
+            var msg = input.value.trim();
+            if (!msg) return;
+            sendMessage(msg);
+        }});
+
+        window.submitMineForm = function(event) {{
+            event.preventDefault();
+            var f = document.getElementById('mine-custom-form');
+            var params = new URLSearchParams();
+            params.append('domain', f.elements['domain'].value);
+            params.append('level', f.elements['level'].value);
+            params.append('batch_size', f.elements['batch_size'].value);
+            params.append('model', f.elements['model'].value);
+            params.append('lang', '{lang}');
+            params.append('message', 'start mining (custom config)');
+
+            var conv = convField.value;
+            btn.disabled = true;
+            btn.textContent = sending;
+
+            fetch('/web/agent/mine/run', {{
+                method: 'POST',
+                headers: {{'Content-Type': 'application/x-www-form-urlencoded'}},
+                body: params.toString()
+            }})
+            .then(function(r) {{ return r.json(); }})
+            .then(function(data) {{
+                if (data.reply) addBubble('agent', data.reply);
+                convField.value = JSON.stringify(data.conversation || []);
+                btn.disabled = false;
+                btn.textContent = '{_t("agent.send", lang)}';
+                input.focus();
+                updateSidebar();
+            }})
+            .catch(function(err) {{
+                addBubble('agent', 'Error: ' + err.message);
+                btn.disabled = false;
+                btn.textContent = '{_t("agent.send", lang)}';
+                updateSidebar();
+            }});
+            return false;
+        }};
+
+        function updateSidebar() {{
+            if (!sidebar) return;
+            fetch('/web/agent/balance/json', {{method: 'POST'}})
+            .then(function(r) {{ return r.json(); }})
+            .then(function(d) {{
+                var balEl = document.getElementById('sb-balance');
+                var stkEl = document.getElementById('sb-staked');
+                if (balEl && d.balance !== undefined) balEl.textContent = d.balance;
+                if (stkEl && d.staked !== undefined) stkEl.textContent = '{_t("agent.sb_staked", lang)}: ' + d.staked;
+            }})
+            .catch(function() {{}});
+        }}
+
+        scrollBottom();
+        updateSidebar();
+    }})();
+    </script>
+    """
+    return _base_page(_t("agent.title", lang), content, "agent", lang=lang,
+                      viewer_addr=viewer_addr)

@@ -2,55 +2,30 @@
 from __future__ import annotations
 
 import json
-import os
 import urllib.request
-from pathlib import Path
 from typing import Optional
 
-
-def _load_config() -> dict[str, str]:
-    """Load API config from environment or ~/.hammerworld/config."""
-    config: dict[str, str] = {}
-
-    # 1. Environment variables (highest priority)
-    for key in ("HAMMERWORLD_API_KEY", "HAMMERWORLD_API_BASE", "HAMMERWORLD_MODEL"):
-        val = os.environ.get(key, "")
-        if val:
-            config[key] = val
-
-    # 2. Config file ~/.hammerworld/config
-    config_path = Path.home() / ".hammerworld" / "config"
-    if config_path.exists():
-        for line in config_path.read_text().splitlines():
-            line = line.strip()
-            if not line or line.startswith("#") or "=" not in line:
-                continue
-            k, v = line.split("=", 1)
-            k = k.strip()
-            v = v.strip().strip('"').strip("'")
-            if k not in config:
-                config[k] = v
-
-    return config
+from src.engine.config import HammerConfig
 
 
 def get_api_key() -> Optional[str]:
     """Return the configured API key, or None if not set."""
-    config = _load_config()
-    # Check both env-style and ini-style keys
-    return config.get("HAMMERWORLD_API_KEY") or config.get("api_key")
+    return HammerConfig.load().api_key
 
 
 def get_api_base() -> str:
     """Return the API base URL. Defaults to OpenAI."""
-    config = _load_config()
-    return config.get("HAMMERWORLD_API_BASE") or config.get("api_base") or "https://api.openai.com/v1"
+    return HammerConfig.load().api_base
 
 
 def get_model() -> str:
-    """Return the model name. Defaults to gpt-4o."""
-    config = _load_config()
-    return config.get("HAMMERWORLD_MODEL") or config.get("model") or "gpt-4o"
+    """Return the default model name. Defaults to gpt-4o."""
+    return HammerConfig.load().get_model("default")
+
+
+def get_model_for_task(task: str) -> str:
+    """Return the model for a specific task (mining, triz, agent, default)."""
+    return HammerConfig.load().get_model(task)
 
 
 class OpenAIProvider:

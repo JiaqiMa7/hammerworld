@@ -23,16 +23,11 @@ from src.cli.main import cmd_top, cmd_search, cmd_random
 
 
 class TestCLIMine(unittest.TestCase):
-    @classmethod
-    def setUpClass(cls):
-        # Ensure fake API key is set so cmd_mine doesn't exit
-        os.environ["HAMMERWORLD_API_KEY"] = "sk-test-cli"
-
-    @classmethod
-    def tearDownClass(cls):
-        os.environ.pop("HAMMERWORLD_API_KEY", None)
-
     def setUp(self):
+        # Ensure fake API key is set and config is fresh
+        os.environ["HAMMERWORLD_API_KEY"] = "sk-test-cli"
+        from src.engine.config import HammerConfig
+        HammerConfig.reload()
         # Patch the OpenAIProvider to avoid real API calls
         import src.evaluation.providers as p
         self._orig_provider = p.OpenAIProvider
@@ -46,6 +41,7 @@ class TestCLIMine(unittest.TestCase):
     def tearDown(self):
         import src.evaluation.providers as p
         p.OpenAIProvider = self._orig_provider
+        os.environ.pop("HAMMERWORLD_API_KEY", None)
 
     def test_mine_output(self):
         from src.cli.main import cmd_mine
@@ -160,6 +156,8 @@ class TestCLIIdentity(unittest.TestCase):
         self._clear_config_key("HAMMERWORLD_ADDRESS")
         if self._identity_path.exists():
             self._identity_path.unlink()
+        from src.engine.config import HammerConfig
+        HammerConfig.reload()
 
     @staticmethod
     def _clear_config_key(key):
@@ -190,6 +188,8 @@ class TestCLIIdentity(unittest.TestCase):
         if self._had_identity:
             self._identity_path.write_bytes(self._saved_identity_bytes)
             os.chmod(str(self._identity_path), 0o600)
+        from src.engine.config import HammerConfig
+        HammerConfig.reload()
 
     def test_identity_show_no_config(self):
         from src.cli.main import cmd_identity
@@ -228,13 +228,16 @@ class TestCLIIdentity(unittest.TestCase):
 
     def test_get_user_address_from_config(self):
         from src.cli.main import _get_user_address, _save_user_config
+        from src.engine.config import HammerConfig
         _save_user_config("HAMMERWORLD_ADDRESS", "0xCONFIGADDR")
+        HammerConfig.reload()
         try:
             args = _Args(address=None)
             addr = _get_user_address(args, "0xFALLBACK")
             self.assertEqual(addr, "0xCONFIGADDR")
         finally:
             _save_user_config("HAMMERWORLD_ADDRESS", "")
+            HammerConfig.reload()
 
     def test_get_user_address_explicit_flag(self):
         from src.cli.main import _get_user_address
@@ -244,15 +247,20 @@ class TestCLIIdentity(unittest.TestCase):
 
     def test_get_user_address_fallback(self):
         from src.cli.main import _get_user_address
+        from src.engine.config import HammerConfig
         args = _Args(address=None)
         addr = _get_user_address(args, "0xFALLBACK", auto_generate=False)
         self.assertEqual(addr, "0xFALLBACK")
+        # Reload in case auto-generate from another test polluted config
+        HammerConfig.reload()
 
     def test_get_user_address_empty_string(self):
         from src.cli.main import _get_user_address
+        from src.engine.config import HammerConfig
         args = _Args(address="")
         addr = _get_user_address(args, "0xFALLBACK", auto_generate=False)
         self.assertEqual(addr, "0xFALLBACK")
+        HammerConfig.reload()
 
     def test_get_user_address_auto_generate(self):
         from src.cli.main import _get_user_address
@@ -365,11 +373,12 @@ class TestCLIIdentity(unittest.TestCase):
                 os.unlink(tmp)
 
     def test_load_save_user_config(self):
-        from src.cli.main import _save_user_config, _load_user_config
+        from src.cli.main import _save_user_config
+        from src.engine.config import HammerConfig
         _save_user_config("HAMMERWORLD_ADDRESS", "0xSAVETEST")
         try:
-            config = _load_user_config()
-            self.assertEqual(config.get("HAMMERWORLD_ADDRESS"), "0xSAVETEST")
+            HammerConfig.reload()
+            self.assertEqual(HammerConfig.load().address, "0xSAVETEST")
         finally:
             _save_user_config("HAMMERWORLD_ADDRESS", "")
 

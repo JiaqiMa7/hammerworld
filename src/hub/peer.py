@@ -139,6 +139,11 @@ class PeerManager:
             if peer_id in self._peers:
                 self._peers[peer_id].last_seen = time.time()
                 return self._peers[peer_id]
+            # Deduplicate by address:port — same machine with a new peer_id
+            for existing_id, existing in list(self._peers.items()):
+                if existing.address == address and existing.port == port:
+                    del self._peers[existing_id]
+                    break
             peer = PeerInfo(peer_id=peer_id, address=address, port=port)
             self._peers[peer_id] = peer
             return peer

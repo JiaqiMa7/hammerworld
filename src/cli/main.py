@@ -13,21 +13,7 @@ from pathlib import Path
 sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 
-def _load_user_config():
-    """Load key=value config from ~/.hammerworld/config (same format as providers.py)."""
-    config = {}
-    config_path = Path.home() / ".hammerworld" / "config"
-    if config_path.exists():
-        for line in config_path.read_text().splitlines():
-            line = line.strip()
-            if not line or line.startswith("#") or "=" not in line:
-                continue
-            k, v = line.split("=", 1)
-            k = k.strip()
-            v = v.strip().strip('"').strip("'")
-            config[k] = v
-    return config
-
+from src.engine.config import HammerConfig
 
 _ADDR_UNSET = object()
 
@@ -43,8 +29,7 @@ def _get_user_address(args, fallback: str = "0xMINER", auto_generate: bool = Tru
     addr = getattr(args, 'address', _ADDR_UNSET)
     if addr is not _ADDR_UNSET and addr is not None and addr != "":
         return addr
-    config = _load_user_config()
-    val = config.get("HAMMERWORLD_ADDRESS", "")
+    val = HammerConfig.load().address
     if val:
         return val
     if auto_generate:
@@ -76,16 +61,19 @@ def _save_user_config(key: str, value: str) -> None:
     if not found:
         lines.append(f"{key}={value}")
     config_file.write_text("\n".join(lines) + "\n")
+    # Invalidate the global singleton so subsequent reads get fresh data
+    from src.engine.config import HammerConfig as _hc
+    _hc.reload()
 
 
 def _make_triz_agent():
     """Create a TRIZAgent, with AI provider if API key is configured, else rule-based."""
     from src.triz.agent import TRIZAgent
-    from src.evaluation.providers import get_api_key, get_api_base, get_model
-    api_key = get_api_key()
+    from src.evaluation.providers import OpenAIProvider, get_api_key, get_api_base
+    cfg = HammerConfig.load()
+    api_key = cfg.api_key
     if api_key:
-        from src.evaluation.providers import OpenAIProvider
-        ai = OpenAIProvider(api_key=api_key, api_base=get_api_base(), model=get_model())
+        ai = OpenAIProvider(api_key=api_key, api_base=cfg.api_base, model=cfg.get_model("triz"))
         return TRIZAgent(ai_provider=ai)
     return TRIZAgent()
 
@@ -93,24 +81,26 @@ def _make_triz_agent():
 def cmd_mine(args):
     """Run the mining combination engine with evaluation and DB storage."""
     import sys
+    from src.engine.config import HammerConfig
     from src.engine.loader import load_methods, load_problems
     from src.engine.combiner import generate_combinations
     from src.evaluation.scorer import EvaluationPipeline
-    from src.evaluation.providers import OpenAIProvider, get_api_key, get_api_base, get_model
+    from src.evaluation.providers import OpenAIProvider, get_api_key
     from src.hub.leaderboard import LeaderboardDB
 
     # Require API key
     api_key = get_api_key()
     if not api_key:
+        cfg_example = Path.home() / ".hammerworld" / "config"
         print("ERROR: No API key configured.", file=sys.stderr)
         print("", file=sys.stderr)
         print("Set the HAMMERWORLD_API_KEY environment variable:", file=sys.stderr)
         print("  export HAMMERWORLD_API_KEY=sk-...", file=sys.stderr)
         print("", file=sys.stderr)
-        print("Or create ~/.hammerworld/config with:", file=sys.stderr)
+        print(f"Or create {cfg_example} with:", file=sys.stderr)
         print("  api_key=sk-...", file=sys.stderr)
         print("  api_base=https://api.openai.com/v1   # optional, defaults to OpenAI", file=sys.stderr)
-        print("  model=gpt-4o                          # optional", file=sys.stderr)
+        print("  mining_model=gpt-4o                   # optional, per-task model", file=sys.stderr)
         print("", file=sys.stderr)
         print("Compatible providers: OpenAI, Anthropic (via compatible proxy), local LLM, etc.", file=sys.stderr)
         sys.exit(1)
@@ -189,8 +179,9 @@ def cmd_mine(args):
 
     # Evaluate with real AI (parallel)
     from concurrent.futures import ThreadPoolExecutor, as_completed
-    api_base = args.api_base or get_api_base()
-    model = args.model or get_model()
+    cfg = HammerConfig.load()
+    api_base = args.api_base or cfg.api_base
+    model = args.model or cfg.get_model("mining")
     workers = getattr(args, "parallel", 1)
     provider = OpenAIProvider(api_key=api_key, api_base=api_base, model=model)
     print(f"API: {api_base}  model: {model}  workers: {workers}")
@@ -466,8 +457,7 @@ def cmd_identity(args):
         print(f"NOTE: This manually-set address is NOT backed by a private key.")
         print(f"      For a key-backed address, use: hammerworld keygen --set-identity")
     else:
-        config = _load_user_config()
-        addr = config.get("HAMMERWORLD_ADDRESS")
+        addr = HammerConfig.load().address
         if addr:
             has_key = identity_path.exists()
             print(f"Current address: {addr}")
@@ -526,10 +516,11 @@ def cmd_hub(args):
 
 def cmd_math_mine(args):
     """Run mining for math zone gate unlock — auto-grants access."""
+    from src.engine.config import HammerConfig
     from src.engine.loader import load_methods
     from src.engine.combiner import generate_combinations
     from src.evaluation.scorer import EvaluationPipeline
-    from src.evaluation.providers import OpenAIProvider, get_api_key, get_api_base, get_model
+    from src.evaluation.providers import OpenAIProvider, get_api_key
     from src.hub.leaderboard import LeaderboardDB
     from src.engine.models import Method, MethodLevel, Problem, Domain, ProblemMaturity, ConstraintType
 
@@ -595,8 +586,9 @@ def cmd_math_mine(args):
     print(f"Generated {len(combos)} combination(s)")
 
     # Evaluate
-    api_base = args.api_base or get_api_base()
-    model = args.model or get_model()
+    cfg = HammerConfig.load()
+    api_base = args.api_base or cfg.api_base
+    model = args.model or cfg.get_model("mining")
     workers = args.parallel
     provider = OpenAIProvider(api_key=api_key, api_base=api_base, model=model)
     print(f"API: {api_base}  model: {model}  workers: {workers}")

@@ -334,6 +334,17 @@ class LeaderboardDB:
                 UNIQUE(viewer_addr, combo_id)
             );
         """)
+        # Migration: draw payment tracking
+        try:
+            conn.execute("""
+                CREATE TABLE IF NOT EXISTS draw_payments (
+                    viewer_addr TEXT NOT NULL,
+                    paid_at REAL DEFAULT 0,
+                    PRIMARY KEY (viewer_addr)
+                )
+            """)
+        except sqlite3.OperationalError:
+            pass
         # Migration: faucet tracking columns on token_accounts
         for col, col_type in [("last_faucet_at", "REAL DEFAULT 0"),
                                ("faucet_count", "INTEGER DEFAULT 0")]:
@@ -623,6 +634,23 @@ class LeaderboardDB:
                 (viewer_addr, board_name, now, now + duration_seconds),
             )
 
+    def record_draw_payment(self, viewer_addr: str) -> None:
+        """Record that a viewer paid for random draw access."""
+        with self._connect() as conn:
+            conn.execute(
+                "INSERT OR REPLACE INTO draw_payments (viewer_addr, paid_at) VALUES (?, ?)",
+                (viewer_addr, time.time()),
+            )
+
+    def has_draw_payment(self, viewer_addr: str) -> bool:
+        """Check if a viewer has paid for random draw."""
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT 1 FROM draw_payments WHERE viewer_addr = ?",
+                (viewer_addr,),
+            ).fetchone()
+            return row is not None
+
     def record_rating(self, viewer_addr: str, combo_id: str,
                       rating: int, comment: str = "") -> bool:
         """Record a viewer rating. Returns True if inserted, False if already rated."""
@@ -666,6 +694,16 @@ class LeaderboardDB:
             else:
                 row = conn.execute("SELECT COUNT(*) FROM combinations").fetchone()
             return row[0] if row else 0
+
+    def get_entries_by_miner(self, miner_addr: str, limit: int = 50) -> list[LeaderboardEntry]:
+        """Get all entries mined by a specific address, newest first."""
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM combinations WHERE miner_addr = ? "
+                "ORDER BY created_at DESC LIMIT ?",
+                (miner_addr, limit),
+            ).fetchall()
+        return [self._row_to_entry(i + 1, row) for i, row in enumerate(rows)]
 
     @staticmethod
     def _row_to_entry(rank: int, row: sqlite3.Row) -> LeaderboardEntry:

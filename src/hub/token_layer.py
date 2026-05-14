@@ -99,7 +99,14 @@ class TokenGate:
         ok = self.token.transfer(viewer_addr, PROTOCOL_ADDR, self.DRAW_FEE_Q)
         if not ok:
             return {"ok": False, "error": "Transfer failed"}
+        self.db.record_draw_payment(viewer_addr)
         return {"ok": True, "status": "paid", "message": "Draw unlocked"}
+
+    def has_draw_access(self, viewer_addr: str) -> bool:
+        """Check if viewer has paid for random draw access."""
+        if not viewer_addr:
+            return False
+        return self.db.has_draw_payment(viewer_addr)
 
     # ------------------------------------------------------------------
     # Ratings

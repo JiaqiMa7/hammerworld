@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 import time
 from http.server import HTTPServer, BaseHTTPRequestHandler
 from socketserver import ThreadingMixIn
@@ -25,6 +26,7 @@ class _HubHandler(BaseHTTPRequestHandler):
     peer_manager: Optional[PeerManager] = None
     buffer_zone = None
     token_gate = None
+    _conversations: dict[str, list[dict]] = {}
 
     def log_message(self, format, *args):
         pass  # Suppress default logging
@@ -155,7 +157,8 @@ class _HubHandler(BaseHTTPRequestHandler):
             render_buffer_dashboard, render_buffer_pending,
             render_buffer_classify, render_buffer_submissions,
             render_buffer_submission_detail, render_buffer_tokens,
-            render_buffer_leaderboard, render_token_dashboard, _parse_query,
+            render_buffer_leaderboard, render_token_dashboard,
+            render_agent_chat, render_my_entries, render_settings, _parse_query,
         )
         db = self.db
         pm = self.peer_manager
@@ -250,6 +253,15 @@ class _HubHandler(BaseHTTPRequestHandler):
             html = render_buffer_tokens(db, addr, lang=lang, viewer_addr=viewer)
         elif path.startswith("/web/buffer/leaderboard"):
             html = render_buffer_leaderboard(db, lang=lang, viewer_addr=viewer)
+        elif path == "/web/settings" or path == "/web/settings/":
+            html = render_settings(self.path, lang=lang, viewer_addr=viewer)
+        elif path == "/web/my-entries" or path.startswith("/web/my-entries"):
+            html = render_my_entries(db, viewer_addr=viewer, lang=lang)
+        elif path == "/web/agent":
+            conv = _HubHandler._conversations.get(viewer or "anon", [])
+            html = render_agent_chat(db, self.path, viewer_addr=viewer,
+                                     token_gate=tg, peer_manager=pm,
+                                     lang=lang, conversation=conv)
         else:
             self._send_json({"error": "not found"}, 404)
             return
@@ -716,6 +728,202 @@ class _HubHandler(BaseHTTPRequestHandler):
         self.send_header("Location", redirect)
         self.end_headers()
 
+    def _handle_agent_chat(self, body: bytes):
+        """Handle POST to the agent assistant — process NL message & render chat."""
+        from urllib.parse import parse_qs
+        from src.hub.web import render_agent_chat
+        from src.hub.agent_assistant import AgentAssistant
+
+        decoded = parse_qs(body.decode())
+        data = {k: v[0] if len(v) == 1 else v for k, v in decoded.items()}
+        message = data.get("message", "").strip()
+        lang = data.get("lang", "en")
+        conv_json = data.get("conversation", "[]")
+
+        db = self.db
+        tg = self.token_gate
+        pm = self.peer_manager
+        assert db is not None and pm is not None
+
+        # Parse existing conversation
+        import json
+        try:
+            conversation = json.loads(conv_json)
+        except (json.JSONDecodeError, TypeError):
+            conversation = []
+
+        if not isinstance(conversation, list):
+            conversation = []
+
+        # Get viewer
+        viewer = self._cookie_addr() or ""
+
+        # Add user message
+        if message:
+            conversation.append({"role": "user", "text": message})
+            agent = AgentAssistant(db, tg, pm)
+            reply = agent.process(message, viewer, lang)
+            conversation.append({"role": "agent", "text": reply})
+
+        # Trim to last 30 messages
+        conversation = conversation[-30:]
+
+        # Store in class-level dict
+        conv_key = viewer or self._remote_ip or "anon"
+        _HubHandler._conversations[conv_key] = conversation
+        # Also evict stale entries (keep last 100)
+        if len(_HubHandler._conversations) > 100:
+            for k in list(_HubHandler._conversations.keys())[:-50]:
+                _HubHandler._conversations.pop(k, None)
+
+        html = render_agent_chat(db, self.path, viewer_addr=viewer,
+                                 token_gate=tg, peer_manager=pm,
+                                 lang=lang, conversation=conversation)
+        self._send_html(html)
+
+    def _handle_agent_chat_json(self, body: bytes):
+        """Handle AJAX POST to the agent assistant — returns JSON instead of HTML."""
+        from urllib.parse import parse_qs
+        from src.hub.agent_assistant import AgentAssistant
+
+        decoded = parse_qs(body.decode())
+        data = {k: v[0] if len(v) == 1 else v for k, v in decoded.items()}
+        message = data.get("message", "").strip()
+        lang = data.get("lang", "en")
+        conv_json = data.get("conversation", "[]")
+
+        db = self.db
+        tg = self.token_gate
+        pm = self.peer_manager
+        assert db is not None and pm is not None
+
+        import json
+        try:
+            conversation = json.loads(conv_json)
+        except (json.JSONDecodeError, TypeError):
+            conversation = []
+
+        if not isinstance(conversation, list):
+            conversation = []
+
+        viewer = self._cookie_addr() or ""
+
+        reply = ""
+        form_html = None
+        if message:
+            conversation.append({"role": "user", "text": message})
+            agent = AgentAssistant(db, tg, pm)
+            reply = agent.process(message, viewer, lang)
+            conversation.append({"role": "agent", "text": reply})
+            form_html = agent.last_form_html
+            agent.last_form_html = None
+
+        conversation = conversation[-30:]
+
+        conv_key = viewer or self._remote_ip or "anon"
+        _HubHandler._conversations[conv_key] = conversation
+        if len(_HubHandler._conversations) > 100:
+            for k in list(_HubHandler._conversations.keys())[:-50]:
+                _HubHandler._conversations.pop(k, None)
+
+        payload = {"reply": reply, "conversation": conversation}
+        if form_html:
+            payload["form"] = form_html
+        self._send_json(payload)
+
+    def _handle_agent_balance(self):
+        """Return the current user's balance + staked amount as JSON (for sidebar)."""
+        viewer = self._cookie_addr() or ""
+        bal = 0
+        staked = 0
+        if viewer and self.token_gate:
+            try:
+                s = self.token_gate.get_viewer_summary(viewer)
+                bal = s.get("balance", 0)
+                staked = s.get("staked", 0)
+            except Exception:
+                pass
+        self._send_json({"balance": bal, "staked": staked})
+
+    def _handle_agent_mine_run(self, body: bytes):
+        """Handle AJAX POST from the custom mine form — runs mining with user params."""
+        from urllib.parse import parse_qs
+        from src.hub.agent_assistant import AgentAssistant
+
+        params = parse_qs(body.decode("utf-8"))
+        get = lambda k: (params.get(k, [""])[0]).strip()
+
+        viewer = self._cookie_addr() or ""
+        lang = get("lang") or "en"
+
+        agent = AgentAssistant(self.db, self.token_gate, self.peer_manager)
+        reply = agent._run_mine(
+            viewer_addr=viewer, lang=lang,
+            domain=get("domain"),
+            level=get("level"),
+            batch_size=get("batch_size") or "1",
+            model=get("model"),
+        )
+
+        conv_key = viewer or self._remote_ip or "anon"
+        conversation = _HubHandler._conversations.get(conv_key, [])
+        conversation.append({"role": "user", "text": get("message") or "start mining (custom)"})
+        conversation.append({"role": "agent", "text": reply})
+        conversation = conversation[-30:]
+        _HubHandler._conversations[conv_key] = conversation
+
+        self._send_json({"reply": reply, "conversation": conversation})
+
+    def _handle_settings_save(self, body: bytes):
+        """Handle POST to save configuration settings."""
+        from urllib.parse import parse_qs
+        from src.hub.web import render_settings
+        from src.engine.config import HammerConfig
+
+        params = parse_qs(body.decode("utf-8"))
+        get = lambda k: (params.get(k, [""])[0]).strip()
+
+        api_key = get("api_key")
+        api_base = get("api_base")
+        model = get("model")
+        agent_model = get("agent_model")
+        mining_model = get("mining_model")
+        triz_model = get("triz_model")
+        address = get("address")
+
+        config_path = os.path.expanduser("~/.hammerworld/config")
+        try:
+            os.makedirs(os.path.dirname(config_path), exist_ok=True)
+            lines = []
+            if api_key:
+                lines.append(f"api_key={api_key}")
+            if api_base:
+                lines.append(f"api_base={api_base}")
+            if model:
+                lines.append(f"model={model}")
+            if agent_model:
+                lines.append(f"agent_model={agent_model}")
+            if mining_model:
+                lines.append(f"mining_model={mining_model}")
+            if triz_model:
+                lines.append(f"triz_model={triz_model}")
+            if address:
+                lines.append(f"HAMMERWORLD_ADDRESS={address}")
+            with open(config_path, "w") as f:
+                f.write("\n".join(lines) + "\n")
+            HammerConfig.reload()
+        except Exception as e:
+            lang = params.get("lang", ["en"])[0]
+            html = render_settings(lang=lang, viewer_addr=self._cookie_addr() or "",
+                                   error=str(e))
+            self._send_html(html)
+            return
+
+        lang = params.get("lang", ["en"])[0]
+        html = render_settings(lang=lang, viewer_addr=self._cookie_addr() or "",
+                               saved=True)
+        self._send_html(html)
+
     def _handle_buffer_classify(self, sub_id: str, body: bytes):
         """Handle POST to classify a buffer submission."""
         from urllib.parse import parse_qs
@@ -838,6 +1046,16 @@ class _HubHandler(BaseHTTPRequestHandler):
             self._handle_create_address(body)
         elif self.path == "/web/faucet":
             self._handle_faucet(body)
+        elif self.path == "/web/agent/chat":
+            self._handle_agent_chat(body)
+        elif self.path == "/web/agent/chat/json":
+            self._handle_agent_chat_json(body)
+        elif self.path == "/web/agent/balance/json":
+            self._handle_agent_balance()
+        elif self.path == "/web/agent/mine/run":
+            self._handle_agent_mine_run(body)
+        elif self.path == "/web/settings/save":
+            self._handle_settings_save(body)
         else:
             self._send_json({"error": "not found"}, 404)
 
@@ -1331,13 +1549,13 @@ class HubAPI:
         # TRIZ standardization
         try:
             from src.triz.agent import TRIZAgent
-            from src.evaluation.providers import get_api_key, get_api_base, get_model
-            api_key = get_api_key()
+            from src.evaluation.providers import OpenAIProvider
+            from src.engine.config import HammerConfig
+            cfg = HammerConfig.load()
             agent = TRIZAgent()
-            if api_key:
-                from src.evaluation.providers import OpenAIProvider
+            if cfg.api_key:
                 agent = TRIZAgent(ai_provider=OpenAIProvider(
-                    api_key=api_key, api_base=get_api_base(), model=get_model()))
+                    api_key=cfg.api_key, api_base=cfg.api_base, model=cfg.get_model("triz")))
             problem = agent.standardize(description, domain)
             if problem.triz_standardized:
                 sub_data["triz_standardized"] = problem.triz_standardized

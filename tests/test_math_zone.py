@@ -300,15 +300,10 @@ class TestMathWebPages(unittest.TestCase):
 class TestMathCLI(unittest.TestCase):
     """Tests for math zone CLI commands."""
 
-    @classmethod
-    def setUpClass(cls):
-        os.environ["HAMMERWORLD_API_KEY"] = "sk-test-math-cli"
-
-    @classmethod
-    def tearDownClass(cls):
-        os.environ.pop("HAMMERWORLD_API_KEY", None)
-
     def setUp(self):
+        os.environ["HAMMERWORLD_API_KEY"] = "sk-test-math-cli"
+        from src.engine.config import HammerConfig
+        HammerConfig.reload()
         import src.evaluation.providers as p
         self._orig_provider = p.OpenAIProvider
 
@@ -324,6 +319,7 @@ class TestMathCLI(unittest.TestCase):
     def tearDown(self):
         import src.evaluation.providers as p
         p.OpenAIProvider = self._orig_provider
+        os.environ.pop("HAMMERWORLD_API_KEY", None)
 
     class _Args:
         def __init__(self, **kwargs):
