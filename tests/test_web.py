@@ -26,7 +26,8 @@ class TestWebUI(unittest.TestCase):
         t = _time.time()
         for i in range(5):
             entry = LeaderboardEntry(
-                rank=0, combo_id=f"web_{i}", method_name=f"TestMethod{i}",
+                rank=0, run_id=f"web_{i}", combo_group_id=f"web_g_{i}",
+                method_name=f"TestMethod{i}",
                 method_domain=f"Domain{i % 2}", method_level=(i % 4) + 1,
                 problem_title=f"TestProblem{i}", problem_domain="medicine",
                 best_dimension="weirdness" if i % 2 == 0 else "novelty",
@@ -110,7 +111,8 @@ class TestWebUI(unittest.TestCase):
     def test_html_escapes_script_tags(self):
         db = LeaderboardDB(":memory:")
         entry = LeaderboardEntry(
-            rank=0, combo_id="xss_test", method_name="<script>alert(1)</script>",
+            rank=0, run_id="xss_test", combo_group_id="xss_test_g",
+            method_name="<script>alert(1)</script>",
             method_domain="D", method_level=1,
             problem_title="<b>Bad</b>", problem_domain="medicine",
             best_dimension="elegance", best_score=5.0,
@@ -196,7 +198,8 @@ class TestLoginWidget(unittest.TestCase):
     def test_entry_includes_viewer(self):
         db = LeaderboardDB(":memory:")
         entry = LeaderboardEntry(
-            rank=0, combo_id="test_login_entry", method_name="M",
+            rank=0, run_id="test_login_entry", combo_group_id="test_login_entry_g",
+            method_name="M",
             method_domain="D", method_level=1,
             problem_title="P", problem_domain="medicine",
             best_dimension="elegance", best_score=5.0,

@@ -32,6 +32,15 @@ _T = {
     "my_entries.empty":      {"en": "No mined entries yet. Try asking the agent to \"start mining\"!", "zh": "暂无挖掘记录。试试让 AI 助手「开始挖矿」！"},
     "my_entries.count":      {"en": "{n} entries",        "zh": "共 {n} 条"},
     "my_entries.view":       {"en": "View",               "zh": "查看"},
+    # Combo Group page
+    "combo_group.title":     {"en": "All Analyses for {combo}", "zh": "全部分析 - {combo}"},
+    "combo_group.n_runs":    {"en": "{n} run(s)",           "zh": "共 {n} 条分析"},
+    "combo_group.pay_all":   {"en": "Pay {fee} IDEA to Unlock All Analyses", "zh": "支付 {fee} IDEA 解锁全部分析"},
+    "combo_group.paywalled": {"en": "Pay once to view all analyses in this group.", "zh": "一次性支付即可查看该组全部分析。"},
+    "combo_group.miner":     {"en": "Miner",                "zh": "矿工"},
+    "combo_group.view_run":  {"en": "Detail",               "zh": "详情"},
+    "combo_group.view_all":  {"en": "View all {n} analyses for this pair", "zh": "查看全部 {n} 条分析"},
+    "combo_group.all_runs":  {"en": "All Analysis Runs",    "zh": "全部分析记录"},
     # Common
     "common.home":           {"en": "Idea Mining Network", "zh": "创意挖矿网络"},
     "common.footer":         {"en": "Idea Mining Network — Phase 2 MVP", "zh": "创意挖矿网络 — 第二阶段 MVP"},
@@ -1044,8 +1053,15 @@ def render_peers(pm: PeerManager, lang: str = "en", viewer_addr: str = "") -> st
 
 def render_entry(db: LeaderboardDB, combo_id: str,
                  viewer_addr: str = "", token_gate=None, lang: str = "en") -> str:
+    # combo_id may be a run_id or an old-style combo_group_id
     entry = db._get_by_id(combo_id)
     if not entry:
+        # Check if it's an old-style combo_group_id and redirect to group page
+        runs = db.get_group_runs(combo_id)
+        if runs:
+            redirect = f"/web/combo/{combo_id}?viewer={_esc(viewer_addr)}&lang={lang}"
+            return f'<html><head><meta http-equiv="refresh" content="0; url={redirect}"></head>'
+            f'<body><p><a href="{redirect}">Redirecting to group page...</a></p></body></html>'
         content = f'<div class="empty">{_t("common.not_found", lang)}</div>'
         return _base_page(_t("entry.title", lang), content, lang=lang, viewer_addr=viewer_addr)
 
@@ -1065,8 +1081,11 @@ def render_entry(db: LeaderboardDB, combo_id: str,
         for name, score in scores
     )
 
+    run_id = entry.run_id
+    combo_group_id = entry.combo_group_id
+
     # ---- Payment gating ----
-    access = token_gate.check_view_access(viewer_addr, combo_id) if token_gate else "own"
+    access = token_gate.check_view_access(viewer_addr, run_id) if token_gate else "own"
 
     if access in ("own", "paid"):
         analysis_html = f"""
@@ -1078,17 +1097,17 @@ def render_entry(db: LeaderboardDB, combo_id: str,
         analysis_html = f"""
         <div class="card" style="text-align:center;padding:32px;">
             <p style="font-size:16px;color:#555;margin-bottom:16px;">{_t("entry.paywalled", lang)}</p>
-            <form method="post" action="/web/pay/view/{combo_id}">
+            <form method="post" action="/web/pay/view/{run_id}">
                 <input type="hidden" name="viewer_addr" value="{_esc(viewer_addr)}">
-                <input type="hidden" name="redirect" value="/web/entry/{combo_id}?viewer={_esc(viewer_addr)}&lang={lang}">
+                <input type="hidden" name="redirect" value="/web/entry/{run_id}?viewer={_esc(viewer_addr)}&lang={lang}">
                 <input type="text" name="viewer_addr_input" value="{_esc(viewer_addr)}" placeholder="{_t("entry.your_address", lang)}" style="width:260px;margin-bottom:8px;display:block;margin-left:auto;margin-right:auto;">
                 <button type="submit" style="font-size:15px;padding:10px 32px;">{_t("entry.pay_view", lang, fee=fee)}</button>
             </form>
         </div>"""
 
     # ---- Ratings section ----
-    ratings = db.get_ratings_for_combo(combo_id)
-    avg_rating = db.get_avg_rating_for_combo(combo_id)
+    ratings = db.get_ratings_for_run(run_id)
+    avg_rating = db.get_avg_rating_for_run(run_id)
     ratings_html = ""
     if ratings:
         stars = "&#x2605;" * int(avg_rating) + "&#x2606;" * (5 - int(avg_rating))
@@ -1101,9 +1120,9 @@ def render_entry(db: LeaderboardDB, combo_id: str,
     rate_form = ""
     if access in ("own", "paid") and viewer_addr:
         rate_form = f"""
-        <form method="post" action="/web/rate/{combo_id}" style="margin-top:12px;">
+        <form method="post" action="/web/rate/{run_id}" style="margin-top:12px;">
             <input type="hidden" name="viewer_addr" value="{_esc(viewer_addr)}">
-            <input type="hidden" name="redirect" value="/web/entry/{combo_id}?viewer={_esc(viewer_addr)}&lang={lang}">
+            <input type="hidden" name="redirect" value="/web/entry/{run_id}?viewer={_esc(viewer_addr)}&lang={lang}">
             <select name="rating" style="width:auto;">
                 <option value="">{_t("entry.rate_placeholder", lang)}</option>
                 <option value="5">5 — {_t("entry.excellent", lang)}</option>
@@ -1116,11 +1135,20 @@ def render_entry(db: LeaderboardDB, combo_id: str,
             <button type="submit">{_t("entry.submit_rating", lang)}</button>
         </form>"""
 
+    # Group link
+    group_runs_count = len(db.get_group_runs(combo_group_id))
+    group_link = ""
+    if group_runs_count > 1:
+        group_link = f"""<p style="margin-top:12px;">
+            <a href="/web/combo/{_esc(combo_group_id)}?lang={lang}" class="btn" style="background:#6d28d9;color:white;">
+                {_t("combo_group.view_all", lang, n=group_runs_count)}
+            </a></p>"""
+
     content = f"""
     <div class="card">
         <h3>{_esc(entry.method_name)} &times; {_esc(entry.problem_title)}</h3>
         <table style="margin-top:12px;">
-            <tr><td style="color:#777;width:140px;">{_t("entry.combo_id", lang)}</td><td>{entry.combo_id}</td></tr>
+            <tr><td style="color:#777;width:140px;">{_t("entry.combo_id", lang)}</td><td>{run_id}</td></tr>
             <tr><td style="color:#777;">{_t("entry.method", lang)}</td><td>{_esc(entry.method_name)}</td></tr>
             <tr><td style="color:#777;">{_t("entry.method_domain", lang)}</td><td>{entry.method_domain}</td></tr>
             <tr><td style="color:#777;">{_t("entry.method_level", lang)}</td><td>{entry.method_level}</td></tr>
@@ -1130,6 +1158,7 @@ def render_entry(db: LeaderboardDB, combo_id: str,
             <tr><td style="color:#777;">{_t("entry.best_score", lang)}</td><td><b>{entry.best_score:.1f}</b></td></tr>
             <tr><td style="color:#777;">{_t("entry.miner", lang)}</td><td>{entry.miner_address}</td></tr>
         </table>
+        {group_link}
     </div>
 
     <h2>{_t("entry.ai_analysis", lang)}</h2>
@@ -1145,6 +1174,134 @@ def render_entry(db: LeaderboardDB, combo_id: str,
     </div>
     """
     return _base_page(f"{entry.method_name} × {entry.problem_title}", content, lang=lang, viewer_addr=viewer_addr)
+
+
+# ------------------------------------------------------------------
+# Combo Group page — all runs for a method×problem pair
+# ------------------------------------------------------------------
+
+def render_combo_group(db: LeaderboardDB, combo_group_id: str,
+                       viewer_addr: str = "", token_gate=None, lang: str = "en") -> str:
+    """Show all analysis runs for a method x problem group."""
+    runs = db.get_group_runs(combo_group_id)
+    if not runs:
+        content = f'<div class="empty">{_t("common.not_found", lang)}</div>'
+        return _base_page(_t("combo_group.title", lang, combo=combo_group_id[:30]), content, lang=lang, viewer_addr=viewer_addr)
+
+    first = runs[0]
+
+    # Determine access — check the first run's access (same combo_group unlocks all)
+    access = token_gate.check_view_access(viewer_addr, first.run_id) if token_gate else "own"
+
+    # Header card with method x problem info
+    header = f"""
+    <div class="card">
+        <h3>{_esc(first.method_name)} &times; {_esc(first.problem_title)}</h3>
+        <p style="color:#777;margin-top:8px;">{_t("combo_group.n_runs", lang, n=len(runs))}</p>
+        <table style="margin-top:12px;">
+            <tr><td style="color:#777;width:140px;">Group ID</td><td>{combo_group_id}</td></tr>
+            <tr><td style="color:#777;">Method Domain</td><td>{first.method_domain}</td></tr>
+            <tr><td style="color:#777;">Method Level</td><td>{first.method_level}</td></tr>
+            <tr><td style="color:#777;">Problem Domain</td><td>{first.problem_domain}</td></tr>
+        </table>
+    </div>"""
+
+    # Paywall for the entire group
+    paywall = ""
+    if access not in ("own", "paid"):
+        fee = token_gate.VIEW_FEE_N if token_gate else 10
+        paywall = f"""
+        <div class="card" style="text-align:center;padding:32px;margin-bottom:20px;">
+            <p style="font-size:16px;color:#555;margin-bottom:16px;">{_t("combo_group.paywalled", lang)}</p>
+            <form method="post" action="/web/pay/view/{first.run_id}">
+                <input type="hidden" name="viewer_addr" value="{_esc(viewer_addr)}">
+                <input type="hidden" name="redirect" value="/web/combo/{combo_group_id}?viewer={_esc(viewer_addr)}&lang={lang}">
+                <input type="text" name="viewer_addr_input" value="{_esc(viewer_addr)}" placeholder="{_t("entry.your_address", lang)}" style="width:260px;margin-bottom:8px;display:block;margin-left:auto;margin-right:auto;">
+                <button type="submit" style="font-size:15px;padding:10px 32px;">{_t("combo_group.pay_all", lang, fee=fee)}</button>
+            </form>
+        </div>"""
+
+    # Build run cards
+    import datetime
+    runs_html = ""
+    for entry in runs:
+        created = ""
+        if entry.created_at:
+            created = datetime.datetime.fromtimestamp(entry.created_at).strftime("%Y-%m-%d %H:%M")
+
+        # Analysis (only visible if paid)
+        analysis = ""
+        if access in ("own", "paid") and entry.analysis_text:
+            analysis = f'<div class="card" style="line-height:1.8;font-size:14px;margin-top:8px;"><p>{_esc(entry.analysis_text)}</p></div>'
+
+        # Scores
+        scores_list = [
+            ("Elegance", entry.elegance),
+            ("Weirdness", entry.weirdness),
+            ("Human Feasibility", entry.human_feasibility),
+            ("AI Feasibility", entry.ai_feasibility),
+            ("Novelty", entry.novelty),
+            ("Analogy Distance", entry.analogy_distance),
+            ("Scaling Potential", entry.scaling_potential),
+            ("Side Effects", entry.side_effects),
+        ]
+        score_bars = "".join(
+            f'<span style="margin-right:12px;font-size:12px;color:#666;">{n}: {_score_bar(s)}</span>'
+            for n, s in scores_list
+        )
+
+        # Ratings for this run
+        ratings = db.get_ratings_for_run(entry.run_id)
+        avg_rating = db.get_avg_rating_for_run(entry.run_id)
+        ratings_html = ""
+        if ratings:
+            stars = "&#x2605;" * int(avg_rating) + "&#x2606;" * (5 - int(avg_rating))
+            ratings_html = f'<p style="font-size:12px;color:#555;margin-top:4px;">Avg: <b>{stars}</b> ({avg_rating}/5)</p>'
+
+        # Rating form
+        rate_form = ""
+        if access in ("own", "paid") and viewer_addr:
+            rate_form = f"""
+            <form method="post" action="/web/rate/{entry.run_id}" style="margin-top:8px;">
+                <input type="hidden" name="viewer_addr" value="{_esc(viewer_addr)}">
+                <input type="hidden" name="redirect" value="/web/combo/{combo_group_id}?viewer={_esc(viewer_addr)}&lang={lang}">
+                <select name="rating" style="width:auto;font-size:12px;">
+                    <option value="">{_t("entry.rate_placeholder", lang)}</option>
+                    <option value="5">5 — {_t("entry.excellent", lang)}</option>
+                    <option value="4">4 — {_t("entry.good", lang)}</option>
+                    <option value="3">3 — {_t("entry.average", lang)}</option>
+                    <option value="2">2 — {_t("entry.poor", lang)}</option>
+                    <option value="1">1 — {_t("entry.terrible", lang)}</option>
+                </select>
+                <input type="text" name="comment" placeholder="{_t("entry.optional_comment", lang)}" style="width:150px;font-size:12px;">
+                <button type="submit" style="font-size:12px;padding:4px 8px;">{_t("entry.submit_rating", lang)}</button>
+            </form>"""
+
+        runs_html += f"""
+        <div class="card" style="margin-bottom:12px;border-left:4px solid #2563eb;">
+            <div style="display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;">
+                <div>
+                    <span style="font-size:12px;color:#777;">{_t("combo_group.miner", lang)}:</span> {_esc(entry.miner_address[:16])}...
+                    <span style="font-size:12px;color:#999;margin-left:8px;">{created}</span>
+                </div>
+                <div style="text-align:right;">
+                    <span style="color:#2563eb;font-weight:bold;">{entry.best_dimension}</span> = {_score_bar(entry.best_score)}
+                    <a href="/web/entry/{entry.run_id}?lang={lang}" class="btn" style="padding:4px 12px;font-size:12px;margin-left:8px;">{_t("combo_group.view_run", lang)}</a>
+                </div>
+            </div>
+            <div style="margin-top:6px;display:flex;flex-wrap:wrap;">{score_bars}</div>
+            {analysis}
+            {ratings_html}
+            {rate_form}
+        </div>"""
+
+    content = f"""
+    {header}
+    {paywall}
+    <h2>{_t("combo_group.all_runs", lang)}</h2>
+    {runs_html}
+    """
+    return _base_page(f"{first.method_name} x {first.problem_title}", content, lang=lang, viewer_addr=viewer_addr)
 
 
 # ------------------------------------------------------------------
@@ -1214,7 +1371,7 @@ def render_token_dashboard(db: LeaderboardDB, token_gate=None,
 
     payment_rows = ""
     for p in summary.get("payments", []):
-        p_combo = _esc(p.get("combo_id", "")[:12])
+        p_combo = _esc(p.get("combo_group_id", "")[:12])
         p_amount = p.get("paid_amount", 0)
         p_time = p.get("paid_at", 0)
         p_analyzer = _esc(p.get("analyzer_addr", "")[:12])

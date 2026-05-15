@@ -50,7 +50,8 @@ class TestHubAPI(unittest.TestCase):
     def test_get_combinations_with_data(self):
         t = time.time()
         entry = LeaderboardEntry(
-            rank=0, combo_id="c1", method_name="M", method_domain="D",
+            rank=0, run_id="c1", combo_group_id="c1_g",
+            method_name="M", method_domain="D",
             method_level=2, problem_title="P", problem_domain="medicine",
             best_dimension="elegance", best_score=9.0,
             elegance=9.0, weirdness=5.0, human_feasibility=5.0,

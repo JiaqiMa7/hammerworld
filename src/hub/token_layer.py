@@ -25,17 +25,17 @@ class TokenGate:
     # View Access
     # ------------------------------------------------------------------
 
-    def pay_for_view(self, viewer_addr: str, combo_id: str) -> dict:
-        """Pay VIEW_FEE_N to unlock an AI analysis. Returns result dict."""
-        entry = self.db._get_by_id(combo_id)
+    def pay_for_view(self, viewer_addr: str, run_id: str) -> dict:
+        """Pay VIEW_FEE_N to unlock all analyses in a combo group. Returns result dict."""
+        entry = self.db._get_by_id(run_id)
         if entry is None:
             return {"ok": False, "error": "Combo not found"}
 
         if entry.miner_address == viewer_addr:
             return {"ok": True, "status": "own", "message": "You own this analysis"}
 
-        if self.db.has_paid(viewer_addr, combo_id):
-            return {"ok": True, "status": "already_paid", "message": "Already paid"}
+        if self.db.has_paid(viewer_addr, entry.combo_group_id):
+            return {"ok": True, "status": "already_paid", "message": "Already paid for this group"}
 
         self._ensure_balance(viewer_addr, self.VIEW_FEE_N)
 
@@ -46,21 +46,21 @@ class TokenGate:
         self.token.transfer(viewer_addr, PROTOCOL_ADDR, 1)       # 10% protocol fee
 
         self.db.record_payment(
-            viewer_addr, combo_id,
+            viewer_addr, entry.combo_group_id,
             paid_amount=self.VIEW_FEE_N,
             analyzer_addr=analyzer_addr,
             protocol_addr=PROTOCOL_ADDR,
         )
         return {"ok": True, "status": "paid", "message": "View unlocked"}
 
-    def check_view_access(self, viewer_addr: str, combo_id: str) -> str:
+    def check_view_access(self, viewer_addr: str, run_id: str) -> str:
         """Return access level: 'own', 'paid', or 'no_access'."""
         if not viewer_addr:
             return "no_access"
-        entry = self.db._get_by_id(combo_id)
+        entry = self.db._get_by_id(run_id)
         if entry and entry.miner_address == viewer_addr:
             return "own"
-        if self.db.has_paid(viewer_addr, combo_id):
+        if entry and self.db.has_paid(viewer_addr, entry.combo_group_id):
             return "paid"
         return "no_access"
 
@@ -112,21 +112,21 @@ class TokenGate:
     # Ratings
     # ------------------------------------------------------------------
 
-    def rate_analysis(self, viewer_addr: str, combo_id: str,
+    def rate_analysis(self, viewer_addr: str, run_id: str,
                       rating: int, comment: str = "") -> dict:
-        """Submit a rating for a combo. Only paid viewers can rate."""
-        access = self.check_view_access(viewer_addr, combo_id)
+        """Submit a rating for a run. Only paid viewers can rate."""
+        access = self.check_view_access(viewer_addr, run_id)
         if access == "no_access":
             return {"ok": False, "error": "Must pay to rate"}
 
         if rating < 1 or rating > 5:
             return {"ok": False, "error": "Rating must be 1-5"}
 
-        inserted = self.db.record_rating(viewer_addr, combo_id, rating, comment)
+        inserted = self.db.record_rating(viewer_addr, run_id, rating, comment)
         if not inserted:
-            return {"ok": False, "error": "Already rated this combo"}
+            return {"ok": False, "error": "Already rated this run"}
 
-        avg = self.db.get_avg_rating_for_combo(combo_id)
+        avg = self.db.get_avg_rating_for_run(run_id)
         return {"ok": True, "message": "Rating recorded", "avg_rating": avg}
 
     # ------------------------------------------------------------------

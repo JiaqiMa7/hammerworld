@@ -40,54 +40,54 @@ class TestTokenGatePayForView(unittest.TestCase):
 
     def test_check_access_no_viewer(self):
         combo = _make_combo()
-        self.db.insert(combo, miner_addr='0xMINER')
-        self.assertEqual(self.tg.check_view_access('', combo.id), 'no_access')
+        entry = self.db.insert(combo, miner_addr='0xMINER')
+        self.assertEqual(self.tg.check_view_access('', entry.run_id), 'no_access')
 
     def test_check_access_owner(self):
         combo = _make_combo()
-        self.db.insert(combo, miner_addr='0xMINER')
-        self.assertEqual(self.tg.check_view_access('0xMINER', combo.id), 'own')
+        entry = self.db.insert(combo, miner_addr='0xMINER')
+        self.assertEqual(self.tg.check_view_access('0xMINER', entry.run_id), 'own')
 
     def test_check_access_no_payment(self):
         combo = _make_combo()
-        self.db.insert(combo, miner_addr='0xMINER')
-        self.assertEqual(self.tg.check_view_access('0xALICE', combo.id), 'no_access')
+        entry = self.db.insert(combo, miner_addr='0xMINER')
+        self.assertEqual(self.tg.check_view_access('0xALICE', entry.run_id), 'no_access')
 
     def test_pay_for_view_success(self):
         combo = _make_combo()
-        self.db.insert(combo, miner_addr='0xMINER')
-        result = self.tg.pay_for_view('0xALICE', combo.id)
+        entry = self.db.insert(combo, miner_addr='0xMINER')
+        result = self.tg.pay_for_view('0xALICE', entry.run_id)
         self.assertTrue(result['ok'])
         self.assertEqual(result['status'], 'paid')
-        self.assertEqual(self.tg.check_view_access('0xALICE', combo.id), 'paid')
+        self.assertEqual(self.tg.check_view_access('0xALICE', entry.run_id), 'paid')
 
     def test_pay_for_view_idempotent(self):
         combo = _make_combo()
-        self.db.insert(combo, miner_addr='0xMINER')
-        self.tg.pay_for_view('0xALICE', combo.id)
-        result2 = self.tg.pay_for_view('0xALICE', combo.id)
+        entry = self.db.insert(combo, miner_addr='0xMINER')
+        self.tg.pay_for_view('0xALICE', entry.run_id)
+        result2 = self.tg.pay_for_view('0xALICE', entry.run_id)
         self.assertTrue(result2['ok'])
         self.assertEqual(result2['status'], 'already_paid')
 
     def test_pay_for_view_own_is_free(self):
         combo = _make_combo()
-        self.db.insert(combo, miner_addr='0xMINER')
-        result = self.tg.pay_for_view('0xMINER', combo.id)
+        entry = self.db.insert(combo, miner_addr='0xMINER')
+        result = self.tg.pay_for_view('0xMINER', entry.run_id)
         self.assertTrue(result['ok'])
         self.assertEqual(result['status'], 'own')
 
     def test_pay_for_view_auto_faucet(self):
         combo = _make_combo()
-        self.db.insert(combo, miner_addr='0xMINER')
+        entry = self.db.insert(combo, miner_addr='0xMINER')
         self.assertEqual(self.token.balance_of('0xBOB'), 0)
-        result = self.tg.pay_for_view('0xBOB', combo.id)
+        result = self.tg.pay_for_view('0xBOB', entry.run_id)
         self.assertTrue(result['ok'])
         self.assertEqual(self.token.balance_of('0xBOB'), 90)  # 100 - 10
 
     def test_pay_for_view_fee_distribution(self):
         combo = _make_combo()
-        self.db.insert(combo, miner_addr='0xMINER')
-        self.tg.pay_for_view('0xALICE', combo.id)
+        entry = self.db.insert(combo, miner_addr='0xMINER')
+        self.tg.pay_for_view('0xALICE', entry.run_id)
         # 0xALICE: 100 faucet - 10 fee = 90
         self.assertEqual(self.token.balance_of('0xALICE'), 90)
         # 0xMINER: 8 (80% analyzer) + 1 (10% discoverer) = 9
@@ -152,29 +152,29 @@ class TestTokenGateRatings(unittest.TestCase):
         self.token = SimulatedToken(self.db)
         self.tg = TokenGate(self.db, self.token)
         combo = _make_combo()
-        self.db.insert(combo, miner_addr='0xMINER')
-        self.combo_id = combo.id
-        self.tg.pay_for_view('0xALICE', combo.id)
+        entry = self.db.insert(combo, miner_addr='0xMINER')
+        self.run_id = entry.run_id
+        self.tg.pay_for_view('0xALICE', self.run_id)
 
     def test_rate_success(self):
-        result = self.tg.rate_analysis('0xALICE', self.combo_id, 5)
+        result = self.tg.rate_analysis('0xALICE', self.run_id, 5)
         self.assertTrue(result['ok'])
-        self.assertEqual(self.db.get_avg_rating_for_combo(self.combo_id), 5.0)
+        self.assertEqual(self.db.get_avg_rating_for_run(self.run_id), 5.0)
 
     def test_rate_already_rated(self):
-        self.tg.rate_analysis('0xALICE', self.combo_id, 5)
-        result = self.tg.rate_analysis('0xALICE', self.combo_id, 4)
+        self.tg.rate_analysis('0xALICE', self.run_id, 5)
+        result = self.tg.rate_analysis('0xALICE', self.run_id, 4)
         self.assertFalse(result['ok'])
-        self.assertEqual(self.db.get_avg_rating_for_combo(self.combo_id), 5.0)
+        self.assertEqual(self.db.get_avg_rating_for_run(self.run_id), 5.0)
 
     def test_rate_without_payment(self):
-        result = self.tg.rate_analysis('0xBOB', self.combo_id, 3)
+        result = self.tg.rate_analysis('0xBOB', self.run_id, 3)
         self.assertFalse(result['ok'])
 
     def test_rate_invalid_value(self):
-        result = self.tg.rate_analysis('0xALICE', self.combo_id, 6)
+        result = self.tg.rate_analysis('0xALICE', self.run_id, 6)
         self.assertFalse(result['ok'])
-        result = self.tg.rate_analysis('0xALICE', self.combo_id, 0)
+        result = self.tg.rate_analysis('0xALICE', self.run_id, 0)
         self.assertFalse(result['ok'])
 
 
@@ -194,8 +194,8 @@ class TestViewerSummary(unittest.TestCase):
 
     def test_summary_after_payments(self):
         combo = _make_combo()
-        self.db.insert(combo, miner_addr='0xMINER')
-        self.tg.pay_for_view('0xALICE', combo.id)
+        entry = self.db.insert(combo, miner_addr='0xMINER')
+        self.tg.pay_for_view('0xALICE', entry.run_id)
         summary = self.tg.get_viewer_summary('0xALICE')
         self.assertEqual(summary['total_payments'], 1)
         self.assertEqual(summary['total_spent'], 10)
@@ -249,11 +249,16 @@ class TestBufferBugFixes(unittest.TestCase):
         self.assertTrue(success)
 
         # Verify the entry exists in leaderboard
-        entry = self.db.get_buffer_entry(sub_id)
-        self.assertEqual(entry['status'], 'published')
+        buf_entry = self.db.get_buffer_entry(sub_id)
+        self.assertEqual(buf_entry['status'], 'published')
 
+        # The published entry has a run_id generated during publish
         lb_entry = self.db._get_by_id(combo.id)
-        self.assertIsNotNone(lb_entry)
+        if not lb_entry:
+            # combo.id is the combo_group_id; find by group
+            runs = self.db.get_group_runs(combo.id)
+            self.assertGreater(len(runs), 0)
+            lb_entry = runs[0]
         self.assertEqual(lb_entry.miner_address, '0xMINER')
 
 
@@ -265,8 +270,8 @@ class TestTokenLayerWebAccess(unittest.TestCase):
         from src.hub.web import render_entry
         db = LeaderboardDB(':memory:')
         combo = _make_combo()
-        db.insert(combo, miner_addr='0xMINER')
-        html = render_entry(db, combo.id)
+        entry = db.insert(combo, miner_addr='0xMINER')
+        html = render_entry(db, entry.run_id)
         self.assertIn('Secret analysis text.', html)
 
     def test_render_entry_with_paywall(self):
@@ -276,8 +281,8 @@ class TestTokenLayerWebAccess(unittest.TestCase):
         token = SimulatedToken(db)
         tg = TokenGate(db, token)
         combo = _make_combo()
-        db.insert(combo, miner_addr='0xMINER')
-        html = render_entry(db, combo.id, viewer_addr='0xBOB', token_gate=tg)
+        entry = db.insert(combo, miner_addr='0xMINER')
+        html = render_entry(db, entry.run_id, viewer_addr='0xBOB', token_gate=tg)
         self.assertIn('Pay 10 IDEA', html)
         self.assertNotIn('Secret analysis text.', html)
 
@@ -288,9 +293,9 @@ class TestTokenLayerWebAccess(unittest.TestCase):
         token = SimulatedToken(db)
         tg = TokenGate(db, token)
         combo = _make_combo()
-        db.insert(combo, miner_addr='0xMINER')
-        tg.pay_for_view('0xALICE', combo.id)
-        html = render_entry(db, combo.id, viewer_addr='0xALICE', token_gate=tg)
+        entry = db.insert(combo, miner_addr='0xMINER')
+        tg.pay_for_view('0xALICE', entry.run_id)
+        html = render_entry(db, entry.run_id, viewer_addr='0xALICE', token_gate=tg)
         self.assertIn('Secret analysis text.', html)
         self.assertNotIn('Pay 10 IDEA', html)
 
@@ -357,12 +362,12 @@ class TestTokenLayerCLI(unittest.TestCase):
         try:
             db = LeaderboardDB(db_path)
             combo = _make_combo()
-            db.insert(combo, miner_addr='0xMINER')
+            entry = db.insert(combo, miner_addr='0xMINER')
             sys.stdout = io.StringIO()
             from src.cli.main import cmd_pay_view
             import argparse
             args = argparse.Namespace(
-                combo_id=combo.id, address='0xALICE', db=db_path,
+                combo_id=entry.run_id, address='0xALICE', db=db_path,
             )
             cmd_pay_view(args)
             output = sys.stdout.getvalue()

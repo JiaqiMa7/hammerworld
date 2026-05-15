@@ -76,7 +76,8 @@ class TestLeaderboardDB(unittest.TestCase):
     def test_insert(self):
         combo = _make_analyzed_combo("combo_new", method_name="NewMethod")
         entry = self.db.insert(combo, miner_addr="miner_new")
-        self.assertEqual(entry.combo_id, "combo_new")
+        self.assertTrue(entry.combo_id.startswith("combo_new"))
+        self.assertEqual(entry.combo_group_id, "combo_new")
         self.assertEqual(entry.method_name, "NewMethod")
 
     def test_insert_no_analysis(self):
@@ -166,7 +167,8 @@ class TestLeaderboardDB(unittest.TestCase):
 class TestLeaderboardEntry(unittest.TestCase):
     def test_fields(self):
         entry = LeaderboardEntry(
-            rank=1, combo_id="c1", method_name="M", method_domain="D",
+            rank=1, run_id="c1", combo_group_id="c1_g",
+            method_name="M", method_domain="D",
             method_level=2, problem_title="P", problem_domain="medicine",
             best_dimension="elegance", best_score=9.0,
             elegance=9.0, weirdness=5.0, human_feasibility=6.0,
@@ -175,6 +177,9 @@ class TestLeaderboardEntry(unittest.TestCase):
             miner_address="0xMINER",
         )
         self.assertEqual(entry.rank, 1)
+        self.assertEqual(entry.run_id, "c1")
+        self.assertEqual(entry.combo_group_id, "c1_g")
+        self.assertEqual(entry.combo_id, "c1")  # backward compat
         self.assertEqual(entry.best_score, 9.0)
         self.assertEqual(entry.miner_address, "0xMINER")
 

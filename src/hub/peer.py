@@ -335,7 +335,9 @@ class PeerManager:
 
 def _entry_to_json(entry: LeaderboardEntry) -> dict:
     return {
-        "combo_id": entry.combo_id,
+        "run_id": entry.run_id,
+        "combo_group_id": entry.combo_group_id,
+        "combo_id": entry.run_id,  # backward compat with old peers
         "method_name": entry.method_name,
         "method_domain": entry.method_domain,
         "method_level": entry.method_level,
@@ -359,9 +361,12 @@ def _entry_to_json(entry: LeaderboardEntry) -> dict:
 
 def _json_to_entry(data: dict) -> Optional[LeaderboardEntry]:
     try:
+        run_id = data.get("run_id", data.get("combo_id", ""))
+        combo_group_id = data.get("combo_group_id", run_id)
         return LeaderboardEntry(
             rank=0,
-            combo_id=data["combo_id"],
+            run_id=run_id,
+            combo_group_id=combo_group_id,
             method_name=data["method_name"],
             method_domain=data["method_domain"],
             method_level=data["method_level"],

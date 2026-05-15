@@ -18,7 +18,8 @@ from src.engine.models import (
 class LeaderboardEntry:
     """A ranked entry in the leaderboard."""
     rank: int
-    combo_id: str
+    run_id: str
+    combo_group_id: str
     method_name: str
     method_domain: str
     method_level: int
@@ -38,6 +39,11 @@ class LeaderboardEntry:
     created_at: float = 0.0
     analysis_text: str = ""
 
+    @property
+    def combo_id(self) -> str:
+        """Backward-compat: returns run_id for existing callers that read entry.combo_id."""
+        return self.run_id
+
 
 @dataclass
 class RandomDrawResult:
@@ -54,13 +60,13 @@ class LeaderboardDB:
     """SQLite-backed leaderboard storage.
 
     Schema:
-        combinations: combo_id, method_name, method_domain, method_level,
-                      problem_title, problem_domain, best_dim, best_score,
-                      elegance, weirdness, human_feas, ai_feas, novelty,
-                      analogy_dist, scale_pot, side_eff,
-                      miner_addr, created_at
-        paid_views: viewer_addr, combo_id, paid_at
-        user_draws: viewer_addr, board_name, drawn_combo_ids, draw_seed
+        combinations: run_id (PK), combo_group_id, method_name, method_domain,
+                      method_level, problem_title, problem_domain, best_dim,
+                      best_score, elegance, weirdness, human_feas, ai_feas,
+                      novelty, analogy_dist, scale_pot, side_eff,
+                      miner_addr, created_at, analysis_text
+        paid_views: viewer_addr, combo_group_id, paid_at
+        user_draws: viewer_addr, board_name, drawn_run_ids, draw_seed
     """
 
     def __init__(self, db_path: str = "data/leaderboard.db"):
@@ -87,7 +93,8 @@ class LeaderboardDB:
         conn = self._connect()
         conn.executescript("""
                 CREATE TABLE IF NOT EXISTS combinations (
-                    combo_id TEXT PRIMARY KEY,
+                    run_id TEXT PRIMARY KEY,
+                    combo_group_id TEXT NOT NULL,
                     method_name TEXT NOT NULL,
                     method_domain TEXT NOT NULL,
                     method_level INTEGER NOT NULL,
@@ -109,14 +116,14 @@ class LeaderboardDB:
                 );
                 CREATE TABLE IF NOT EXISTS paid_views (
                     viewer_addr TEXT NOT NULL,
-                    combo_id TEXT NOT NULL,
+                    combo_group_id TEXT NOT NULL,
                     paid_at REAL DEFAULT 0,
-                    PRIMARY KEY (viewer_addr, combo_id)
+                    PRIMARY KEY (viewer_addr, combo_group_id)
                 );
                 CREATE TABLE IF NOT EXISTS user_draws (
                     viewer_addr TEXT NOT NULL,
                     board_name TEXT NOT NULL,
-                    drawn_combo_ids TEXT NOT NULL,
+                    drawn_run_ids TEXT NOT NULL,
                     draw_seed INTEGER NOT NULL,
                     drawn_at REAL DEFAULT 0
                 );
@@ -235,7 +242,7 @@ class LeaderboardDB:
                 CREATE TABLE IF NOT EXISTS _schema_version (
                     version INTEGER PRIMARY KEY
                 );
-                INSERT OR IGNORE INTO _schema_version (version) VALUES (0);
+                -- version set at end of _init_db after migrations complete
 
                 CREATE TABLE IF NOT EXISTS buffer_submissions (
                     id TEXT PRIMARY KEY,
@@ -327,13 +334,18 @@ class LeaderboardDB:
             CREATE TABLE IF NOT EXISTS viewer_ratings (
                 id INTEGER PRIMARY KEY AUTOINCREMENT,
                 viewer_addr TEXT NOT NULL,
-                combo_id TEXT NOT NULL,
+                run_id TEXT NOT NULL,
                 rating INTEGER NOT NULL CHECK(rating >= 1 AND rating <= 5),
                 comment TEXT DEFAULT '',
                 created_at REAL DEFAULT 0,
-                UNIQUE(viewer_addr, combo_id)
+                UNIQUE(viewer_addr, run_id)
             );
         """)
+        # Migration: comment column on viewer_ratings (added in v2)
+        try:
+            conn.execute("ALTER TABLE viewer_ratings ADD COLUMN comment TEXT DEFAULT ''")
+        except sqlite3.OperationalError:
+            pass
         # Migration: draw payment tracking
         try:
             conn.execute("""
@@ -355,6 +367,16 @@ class LeaderboardDB:
         conn.commit()
         # Migration: convert math_solutions to tree nodes (schema v0 -> v1)
         self._migrate_math_to_tree(conn)
+        # Migration: run_id/combo_group_id split (schema v1 -> v2)
+        self._migrate_schema_v2(conn)
+        # Ensure index exists (must be after migration so combo_group_id column exists)
+        conn.execute(
+            "CREATE INDEX IF NOT EXISTS idx_combo_group_id ON combinations(combo_group_id)"
+        )
+        # Fresh databases start at v2
+        row = conn.execute("SELECT MAX(version) FROM _schema_version").fetchone()
+        if not row or row[0] is None:
+            conn.execute("INSERT INTO _schema_version (version) VALUES (2)")
         conn.commit()
         if self.db_path == ":memory:":
             self._persistent_conn = conn
@@ -362,16 +384,20 @@ class LeaderboardDB:
             conn.close()
 
     def insert(self, combo: Combination, miner_addr: str = "") -> LeaderboardEntry:
-        """Insert or update a combination in the leaderboard."""
+        """Insert a combination in the leaderboard. Each mining run gets a unique run_id."""
         if not combo.analyses:
             raise ValueError("Combination has no analyses")
 
+        import uuid
         latest = combo.analyses[-1]
         scores_dict = {s.dimension.value: s.score for s in latest.scores}
 
+        run_id = f"{combo.id}_{int(time.time() * 1000)}_{uuid.uuid4().hex[:4]}"
+
         entry = LeaderboardEntry(
             rank=0,
-            combo_id=combo.id,
+            run_id=run_id,
+            combo_group_id=combo.id,
             method_name=combo.method.name,
             method_domain=combo.method.domain,
             method_level=combo.method.level.value,
@@ -394,15 +420,16 @@ class LeaderboardDB:
 
         with self._connect() as conn:
             conn.execute("""
-                INSERT OR REPLACE INTO combinations
-                (combo_id, method_name, method_domain, method_level,
+                INSERT OR IGNORE INTO combinations
+                (run_id, combo_group_id, method_name, method_domain, method_level,
                  problem_title, problem_domain, best_dim, best_score,
                  elegance, weirdness, human_feasibility, ai_feasibility,
                  novelty, analogy_distance, scaling_potential, side_effects,
                  miner_addr, created_at, analysis_text)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
-                entry.combo_id, entry.method_name, entry.method_domain,
+                entry.run_id, entry.combo_group_id,
+                entry.method_name, entry.method_domain,
                 entry.method_level, entry.problem_title, entry.problem_domain,
                 entry.best_dimension, entry.best_score,
                 entry.elegance, entry.weirdness, entry.human_feasibility,
@@ -416,21 +443,22 @@ class LeaderboardDB:
 
     def insert_from_sync(self, entry: LeaderboardEntry) -> bool:
         """Insert or update an entry received from a remote peer. Returns True if new."""
-        existing = self._get_by_id(entry.combo_id)
+        existing = self._get_by_id(entry.run_id)
         if existing and existing.created_at >= entry.created_at:
             return False  # already have same or newer
 
         with self._connect() as conn:
             conn.execute("""
                 INSERT OR REPLACE INTO combinations
-                (combo_id, method_name, method_domain, method_level,
+                (run_id, combo_group_id, method_name, method_domain, method_level,
                  problem_title, problem_domain, best_dim, best_score,
                  elegance, weirdness, human_feasibility, ai_feasibility,
                  novelty, analogy_distance, scaling_potential, side_effects,
                  miner_addr, created_at, analysis_text)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """, (
-                entry.combo_id, entry.method_name, entry.method_domain,
+                entry.run_id, entry.combo_group_id,
+                entry.method_name, entry.method_domain,
                 entry.method_level, entry.problem_title, entry.problem_domain,
                 entry.best_dimension, entry.best_score,
                 entry.elegance, entry.weirdness, entry.human_feasibility,
@@ -441,10 +469,10 @@ class LeaderboardDB:
             ))
         return True
 
-    def _get_by_id(self, combo_id: str) -> Optional[LeaderboardEntry]:
+    def _get_by_id(self, run_id: str) -> Optional[LeaderboardEntry]:
         with self._connect() as conn:
             row = conn.execute(
-                "SELECT * FROM combinations WHERE combo_id = ?", (combo_id,)
+                "SELECT * FROM combinations WHERE run_id = ?", (run_id,)
             ).fetchone()
             if row:
                 return self._row_to_entry(0, row)
@@ -512,7 +540,7 @@ class LeaderboardDB:
         # Get previously drawn IDs for this viewer + board
         with self._connect() as conn:
             prev = conn.execute(
-                "SELECT drawn_combo_ids FROM user_draws WHERE viewer_addr = ? AND board_name = ?",
+                "SELECT drawn_run_ids FROM user_draws WHERE viewer_addr = ? AND board_name = ?",
                 (viewer_addr, board_name),
             ).fetchall()
 
@@ -527,8 +555,8 @@ class LeaderboardDB:
             ).fetchall()
 
         # Filter out previously drawn
-        available = [r for r in rows if r["combo_id"] not in previously_drawn_ids]
-        previously_drawn_rows = [r for r in rows if r["combo_id"] in previously_drawn_ids]
+        available = [r for r in rows if r["run_id"] not in previously_drawn_ids]
+        previously_drawn_rows = [r for r in rows if r["run_id"] in previously_drawn_ids]
 
         draw_seed = int(time.time() * 1000) % (2**31)
         rng = random.Random(draw_seed)
@@ -542,9 +570,9 @@ class LeaderboardDB:
         if viewer_addr:
             with self._connect() as conn:
                 conn.execute(
-                    "INSERT INTO user_draws (viewer_addr, board_name, drawn_combo_ids, draw_seed, drawn_at) "
+                    "INSERT INTO user_draws (viewer_addr, board_name, drawn_run_ids, draw_seed, drawn_at) "
                     "VALUES (?, ?, ?, ?, ?)",
-                    (viewer_addr, board_name, ",".join(r["combo_id"] for r in drawn),
+                    (viewer_addr, board_name, ",".join(r["run_id"] for r in drawn),
                      draw_seed, time.time()),
                 )
 
@@ -579,25 +607,25 @@ class LeaderboardDB:
 
         return [self._row_to_entry(i + 1, row) for i, row in enumerate(rows)]
 
-    def has_paid(self, viewer_addr: str, combo_id: str) -> bool:
-        """Check if a viewer has paid for an analysis."""
+    def has_paid(self, viewer_addr: str, combo_group_id: str) -> bool:
+        """Check if a viewer has paid for a combo group's analyses."""
         with self._connect() as conn:
             row = conn.execute(
-                "SELECT 1 FROM paid_views WHERE viewer_addr = ? AND combo_id = ?",
-                (viewer_addr, combo_id),
+                "SELECT 1 FROM paid_views WHERE viewer_addr = ? AND combo_group_id = ?",
+                (viewer_addr, combo_group_id),
             ).fetchone()
             return row is not None
 
-    def record_payment(self, viewer_addr: str, combo_id: str,
+    def record_payment(self, viewer_addr: str, combo_group_id: str,
                        paid_amount: int = 0, analyzer_addr: str = "",
                        protocol_addr: str = ""):
-        """Record that a viewer paid to view an analysis."""
+        """Record that a viewer paid to view a combo group's analyses."""
         with self._connect() as conn:
             conn.execute(
                 "INSERT OR IGNORE INTO paid_views "
-                "(viewer_addr, combo_id, paid_at, paid_amount, analyzer_addr, protocol_addr) "
+                "(viewer_addr, combo_group_id, paid_at, paid_amount, analyzer_addr, protocol_addr) "
                 "VALUES (?, ?, ?, ?, ?, ?)",
-                (viewer_addr, combo_id, time.time(), paid_amount,
+                (viewer_addr, combo_group_id, time.time(), paid_amount,
                  analyzer_addr, protocol_addr),
             )
 
@@ -651,38 +679,45 @@ class LeaderboardDB:
             ).fetchone()
             return row is not None
 
-    def record_rating(self, viewer_addr: str, combo_id: str,
+    def record_rating(self, viewer_addr: str, run_id: str,
                       rating: int, comment: str = "") -> bool:
         """Record a viewer rating. Returns True if inserted, False if already rated."""
         now = time.time()
         with self._connect() as conn:
             try:
                 conn.execute(
-                    "INSERT INTO viewer_ratings (viewer_addr, combo_id, rating, comment, created_at) "
+                    "INSERT INTO viewer_ratings (viewer_addr, run_id, rating, comment, created_at) "
                     "VALUES (?, ?, ?, ?, ?)",
-                    (viewer_addr, combo_id, rating, comment, now),
+                    (viewer_addr, run_id, rating, comment, now),
                 )
                 return True
             except sqlite3.IntegrityError:
                 return False
 
-    def get_ratings_for_combo(self, combo_id: str) -> list[dict]:
-        """Get all ratings for a combination."""
+    def get_ratings_for_run(self, run_id: str) -> list[dict]:
+        """Get all ratings for a single run."""
         with self._connect() as conn:
             rows = conn.execute(
-                "SELECT * FROM viewer_ratings WHERE combo_id = ? ORDER BY created_at DESC",
-                (combo_id,),
+                "SELECT * FROM viewer_ratings WHERE run_id = ? ORDER BY created_at DESC",
+                (run_id,),
             ).fetchall()
             return [dict(r) for r in rows]
 
-    def get_avg_rating_for_combo(self, combo_id: str) -> float:
-        """Get the average rating for a combination."""
+    def get_avg_rating_for_run(self, run_id: str) -> float:
+        """Get the average rating for a single run."""
         with self._connect() as conn:
             row = conn.execute(
-                "SELECT AVG(rating) FROM viewer_ratings WHERE combo_id = ?",
-                (combo_id,),
+                "SELECT AVG(rating) FROM viewer_ratings WHERE run_id = ?",
+                (run_id,),
             ).fetchone()
             return round(row[0], 1) if row and row[0] else 0.0
+
+    # Backward-compat aliases
+    def get_ratings_for_combo(self, combo_id: str) -> list[dict]:
+        return self.get_ratings_for_run(combo_id)
+
+    def get_avg_rating_for_combo(self, combo_id: str) -> float:
+        return self.get_avg_rating_for_run(combo_id)
 
     def total_entries(self, domain: Optional[Domain] = None) -> int:
         with self._connect() as conn:
@@ -705,11 +740,22 @@ class LeaderboardDB:
             ).fetchall()
         return [self._row_to_entry(i + 1, row) for i, row in enumerate(rows)]
 
+    def get_group_runs(self, combo_group_id: str) -> list[LeaderboardEntry]:
+        """Get all runs for a method x problem group, newest first."""
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM combinations WHERE combo_group_id = ? "
+                "ORDER BY created_at DESC",
+                (combo_group_id,),
+            ).fetchall()
+        return [self._row_to_entry(i + 1, row) for i, row in enumerate(rows)]
+
     @staticmethod
     def _row_to_entry(rank: int, row: sqlite3.Row) -> LeaderboardEntry:
         return LeaderboardEntry(
             rank=rank,
-            combo_id=row["combo_id"],
+            run_id=row["run_id"],
+            combo_group_id=row["combo_group_id"],
             method_name=row["method_name"],
             method_domain=row["method_domain"],
             method_level=row["method_level"],
@@ -1085,15 +1131,14 @@ class LeaderboardDB:
 
     def _migrate_math_to_tree(self, conn: sqlite3.Connection) -> None:
         """Migrate old math_solutions rows into tree nodes/edges (v0 -> v1)."""
-        row = conn.execute(
-            "SELECT version FROM _schema_version WHERE version >= 1"
-        ).fetchone()
-        if row:
+        row = conn.execute("SELECT MAX(version) FROM _schema_version").fetchone()
+        if row and row[0] and row[0] >= 1:
             return  # already migrated
 
         rows = conn.execute("SELECT * FROM math_solutions ORDER BY id").fetchall()
         if not rows:
-            conn.execute("UPDATE _schema_version SET version = 1")
+            conn.execute("DELETE FROM _schema_version")
+            conn.execute("INSERT INTO _schema_version (version) VALUES (1)")
             return
 
         for sol in rows:
@@ -1143,7 +1188,142 @@ class LeaderboardDB:
                 )
                 parent_id = child_id
 
-        conn.execute("UPDATE _schema_version SET version = 1")
+        conn.execute("DELETE FROM _schema_version")
+        conn.execute("INSERT INTO _schema_version (version) VALUES (1)")
+        conn.commit()
+
+    def _migrate_schema_v2(self, conn: sqlite3.Connection) -> None:
+        """Migrate schema from v1 to v2: run_id/combo_group_id split.
+
+        Changes:
+          - combinations: combo_id (old PK) → run_id (new PK) + combo_group_id
+          - paid_views: combo_id col → combo_group_id col
+          - viewer_ratings: combo_id col → run_id col
+          - user_draws: drawn_combo_ids col → drawn_run_ids col
+        """
+        row = conn.execute("SELECT MAX(version) FROM _schema_version").fetchone()
+        if row and row[0] and row[0] >= 2:
+            return  # already migrated
+
+        # Detect if this is already a v2 schema (fresh :memory: DBs get
+        # version=1 set by _migrate_math_to_tree but have no combo_id col).
+        v2_cols = {c[1] for c in conn.execute("PRAGMA table_info(combinations)").fetchall()}
+        if "combo_group_id" in v2_cols and "combo_id" not in v2_cols:
+            conn.execute("DELETE FROM _schema_version")
+            conn.execute("INSERT INTO _schema_version (version) VALUES (2)")
+            return  # already v2 schema, nothing to migrate
+
+        # === 1. combinations table ===
+        # Try adding new columns (safe if already added by fresh schema above)
+        for col, col_type in [("run_id", "TEXT"), ("combo_group_id", "TEXT")]:
+            try:
+                conn.execute(f"ALTER TABLE combinations ADD COLUMN {col} {col_type}")
+            except sqlite3.OperationalError:
+                pass
+
+        # Backfill: old combo_id becomes both run_id and combo_group_id
+        conn.execute("UPDATE combinations SET run_id = combo_id, combo_group_id = combo_id")
+
+        # Recreate combinations with correct PK naming
+        conn.executescript("""
+            CREATE TABLE IF NOT EXISTS combinations_v2 (
+                run_id TEXT PRIMARY KEY,
+                combo_group_id TEXT NOT NULL,
+                method_name TEXT NOT NULL,
+                method_domain TEXT NOT NULL,
+                method_level INTEGER NOT NULL,
+                problem_title TEXT NOT NULL,
+                problem_domain TEXT NOT NULL,
+                best_dim TEXT NOT NULL,
+                best_score REAL NOT NULL DEFAULT 0,
+                elegance REAL DEFAULT 0,
+                weirdness REAL DEFAULT 0,
+                human_feasibility REAL DEFAULT 0,
+                ai_feasibility REAL DEFAULT 0,
+                novelty REAL DEFAULT 0,
+                analogy_distance REAL DEFAULT 0,
+                scaling_potential REAL DEFAULT 0,
+                side_effects REAL DEFAULT 0,
+                miner_addr TEXT DEFAULT '',
+                created_at REAL DEFAULT 0,
+                analysis_text TEXT DEFAULT ''
+            );
+            INSERT INTO combinations_v2 SELECT
+                run_id, combo_group_id,
+                method_name, method_domain, method_level,
+                problem_title, problem_domain,
+                best_dim, best_score,
+                elegance, weirdness, human_feasibility, ai_feasibility,
+                novelty, analogy_distance, scaling_potential, side_effects,
+                miner_addr, created_at, analysis_text
+            FROM combinations;
+            DROP TABLE combinations;
+            ALTER TABLE combinations_v2 RENAME TO combinations;
+            CREATE INDEX IF NOT EXISTS idx_combo_group_id ON combinations(combo_group_id);
+            CREATE INDEX IF NOT EXISTS idx_best_dim ON combinations(best_dim);
+            CREATE INDEX IF NOT EXISTS idx_best_score ON combinations(best_score DESC);
+            CREATE INDEX IF NOT EXISTS idx_problem_domain ON combinations(problem_domain);
+            CREATE INDEX IF NOT EXISTS idx_method_domain ON combinations(method_domain);
+        """)
+
+        # === 2. paid_views table ===
+        conn.executescript("""
+            CREATE TABLE IF NOT EXISTS paid_views_v2 (
+                viewer_addr TEXT NOT NULL,
+                combo_group_id TEXT NOT NULL,
+                paid_at REAL DEFAULT 0,
+                paid_amount INTEGER DEFAULT 0,
+                analyzer_addr TEXT DEFAULT '',
+                protocol_addr TEXT DEFAULT '',
+                PRIMARY KEY (viewer_addr, combo_group_id)
+            );
+            INSERT OR IGNORE INTO paid_views_v2
+                (viewer_addr, combo_group_id, paid_at, paid_amount, analyzer_addr, protocol_addr)
+            SELECT
+                viewer_addr, combo_id, paid_at, paid_amount, analyzer_addr, protocol_addr
+            FROM paid_views;
+            DROP TABLE paid_views;
+            ALTER TABLE paid_views_v2 RENAME TO paid_views;
+        """)
+
+        # === 3. viewer_ratings table ===
+        conn.executescript("""
+            CREATE TABLE IF NOT EXISTS viewer_ratings_v2 (
+                id INTEGER PRIMARY KEY AUTOINCREMENT,
+                viewer_addr TEXT NOT NULL,
+                run_id TEXT NOT NULL,
+                rating INTEGER NOT NULL CHECK(rating >= 1 AND rating <= 5),
+                comment TEXT DEFAULT '',
+                created_at REAL DEFAULT 0,
+                UNIQUE(viewer_addr, run_id)
+            );
+            INSERT INTO viewer_ratings_v2
+                (id, viewer_addr, run_id, rating, comment, created_at)
+            SELECT
+                id, viewer_addr, combo_id, rating, comment, created_at
+            FROM viewer_ratings;
+            DROP TABLE viewer_ratings;
+            ALTER TABLE viewer_ratings_v2 RENAME TO viewer_ratings;
+        """)
+
+        # === 4. user_draws table ===
+        conn.executescript("""
+            CREATE TABLE IF NOT EXISTS user_draws_v2 (
+                viewer_addr TEXT NOT NULL,
+                board_name TEXT NOT NULL,
+                drawn_run_ids TEXT NOT NULL,
+                draw_seed INTEGER NOT NULL,
+                drawn_at REAL DEFAULT 0
+            );
+            INSERT INTO user_draws_v2
+                SELECT viewer_addr, board_name, drawn_combo_ids, draw_seed, drawn_at
+                FROM user_draws;
+            DROP TABLE user_draws;
+            ALTER TABLE user_draws_v2 RENAME TO user_draws;
+        """)
+
+        conn.execute("DELETE FROM _schema_version")
+        conn.execute("INSERT INTO _schema_version (version) VALUES (2)")
         conn.commit()
 
     # -- Node CRUD ----------------------------------------------------------------

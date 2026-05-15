@@ -470,23 +470,23 @@ class AgentAssistant:
             results = []
             for combo in combos:
                 result = pipeline.evaluate(combo)
-                self.db.insert(combo, miner_addr=viewer_addr or "0xAGENT")
+                entry = self.db.insert(combo, miner_addr=viewer_addr or "0xAGENT")
                 scores = result.analysis.scores
                 best = max(scores, key=lambda s: s.score)
-                results.append((combo, best))
+                results.append((combo, best, entry.run_id))
 
             if batch == 1:
-                combo, best = results[0]
+                combo, best, run_id = results[0]
                 return self._t("agent.mine_ok", lang,
                               method=combo.method.name, problem=combo.problem.title,
-                              combo_id=combo.id,
+                              combo_id=run_id,
                               dim=best.dimension.value, score=best.score)
             else:
                 lines = [self._t("agent.mine_ok_batch", lang, n=len(results))]
-                for combo, best in results:
+                for combo, best, run_id in results:
                     lines.append(f"  · {combo.method.name} × {combo.problem.title} "
                                 f"[{best.dimension.value}: {best.score:.1f}]"
-                                f"\n    ID: {combo.id}")
+                                f"\n    ID: {run_id}")
                 return "\n".join(lines)
         except Exception as e:
             return self._t("agent.mine_fail", lang, error=str(e))

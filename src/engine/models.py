@@ -118,6 +118,10 @@ class Combination:
     def make_id(method_id: str, problem_id: str) -> str:
         return f"combo_{method_id}_{problem_id}"
 
+    @staticmethod
+    def make_run_id(method_id: str, problem_id: str) -> str:
+        return f"combo_{method_id}_{problem_id}_{int(time.time() * 1000)}_{uuid.uuid4().hex[:4]}"
+
     @property
     def best_score(self) -> Optional[float]:
         if not self.analyses:

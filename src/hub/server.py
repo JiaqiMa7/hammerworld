@@ -158,7 +158,8 @@ class _HubHandler(BaseHTTPRequestHandler):
             render_buffer_classify, render_buffer_submissions,
             render_buffer_submission_detail, render_buffer_tokens,
             render_buffer_leaderboard, render_token_dashboard,
-            render_agent_chat, render_my_entries, render_settings, _parse_query,
+            render_agent_chat, render_my_entries, render_settings,
+            render_combo_group, _parse_query,
         )
         db = self.db
         pm = self.peer_manager
@@ -255,6 +256,9 @@ class _HubHandler(BaseHTTPRequestHandler):
             html = render_buffer_leaderboard(db, lang=lang, viewer_addr=viewer)
         elif path == "/web/settings" or path == "/web/settings/":
             html = render_settings(self.path, lang=lang, viewer_addr=viewer)
+        elif path.startswith("/web/combo/"):
+            combo_group_id = path.split("/web/combo/", 1)[1]
+            html = render_combo_group(db, combo_group_id, viewer_addr=viewer, token_gate=tg, lang=lang)
         elif path == "/web/my-entries" or path.startswith("/web/my-entries"):
             html = render_my_entries(db, viewer_addr=viewer, lang=lang)
         elif path == "/web/agent":

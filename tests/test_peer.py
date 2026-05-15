@@ -27,7 +27,8 @@ class TestPeerInfo(unittest.TestCase):
 class TestEntrySerialization(unittest.TestCase):
     def test_roundtrip(self):
         entry = LeaderboardEntry(
-            rank=0, combo_id="c1", method_name="M", method_domain="D",
+            rank=0, run_id="c1", combo_group_id="c1_g",
+            method_name="M", method_domain="D",
             method_level=2, problem_title="P", problem_domain="medicine",
             best_dimension="weirdness", best_score=9.0,
             elegance=5.0, weirdness=9.0, human_feasibility=6.0,
@@ -38,9 +39,21 @@ class TestEntrySerialization(unittest.TestCase):
         data = _entry_to_json(entry)
         restored = _json_to_entry(data)
         self.assertIsNotNone(restored)
-        self.assertEqual(restored.combo_id, "c1")
+        self.assertEqual(restored.run_id, "c1")
+        self.assertEqual(restored.combo_id, "c1")  # backward compat
+        self.assertEqual(restored.combo_group_id, "c1_g")
         self.assertEqual(restored.best_score, 9.0)
         self.assertEqual(restored.miner_address, "0xMINER")
+
+    def test_roundtrip_old_format(self):
+        """Old peers send only combo_id — should be treated as both run_id and combo_group_id."""
+        data = {"combo_id": "old_1", "method_name": "M", "method_domain": "D",
+                "method_level": 2, "problem_title": "P", "problem_domain": "energy",
+                "best_dimension": "novelty", "best_score": 7.0}
+        entry = _json_to_entry(data)
+        self.assertIsNotNone(entry)
+        self.assertEqual(entry.run_id, "old_1")
+        self.assertEqual(entry.combo_group_id, "old_1")
 
     def test_invalid_json(self):
         self.assertIsNone(_json_to_entry({}))
@@ -86,7 +99,8 @@ class TestPeerManager(unittest.TestCase):
 
     def test_insert_from_sync(self):
         entry = LeaderboardEntry(
-            rank=0, combo_id="sync_test", method_name="M", method_domain="D",
+            rank=0, run_id="sync_test", combo_group_id="sync_test_g",
+            method_name="M", method_domain="D",
             method_level=2, problem_title="P", problem_domain="medicine",
             best_dimension="elegance", best_score=8.5,
             elegance=8.5, weirdness=5.0, human_feasibility=5.0,
@@ -101,7 +115,8 @@ class TestPeerManager(unittest.TestCase):
     def test_insert_from_sync_duplicate_returns_false(self):
         t = time.time()
         entry = LeaderboardEntry(
-            rank=0, combo_id="dup_test", method_name="M", method_domain="D",
+            rank=0, run_id="dup_test", combo_group_id="dup_test_g",
+            method_name="M", method_domain="D",
             method_level=2, problem_title="P", problem_domain="medicine",
             best_dimension="elegance", best_score=8.0,
             elegance=8.0, weirdness=5.0, human_feasibility=5.0,
@@ -112,7 +127,8 @@ class TestPeerManager(unittest.TestCase):
         self.assertTrue(self.db.insert_from_sync(entry))
         # Same entry with older timestamp should be rejected
         entry2 = LeaderboardEntry(
-            rank=0, combo_id="dup_test", method_name="M", method_domain="D",
+            rank=0, run_id="dup_test", combo_group_id="dup_test_g",
+            method_name="M", method_domain="D",
             method_level=2, problem_title="P", problem_domain="medicine",
             best_dimension="elegance", best_score=7.0,
             elegance=7.0, weirdness=5.0, human_feasibility=5.0,
@@ -127,7 +143,8 @@ class TestPeerManager(unittest.TestCase):
         t0 = time.time()
         for i in range(3):
             entry = LeaderboardEntry(
-                rank=0, combo_id=f"since_test_{i}", method_name="M", method_domain="D",
+                rank=0, run_id=f"since_test_{i}", combo_group_id=f"since_test_g_{i}",
+                method_name="M", method_domain="D",
                 method_level=2, problem_title="P", problem_domain="medicine",
                 best_dimension="elegance", best_score=5.0 + i,
                 elegance=5.0, weirdness=5.0, human_feasibility=5.0,
