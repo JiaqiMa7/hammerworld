@@ -962,20 +962,51 @@ class _HubHandler(BaseHTTPRequestHandler):
         from src.hub.web import render_triz_analysis_result_html
         from src.engine.config import HammerConfig
         from src.evaluation.providers import OpenAIProvider
+        import os
 
         cfg = HammerConfig.load()
+
+        # Check config status for diagnostics
+        config_path = os.path.expanduser("~/.hammerworld/config")
+        config_exists = os.path.isfile(config_path)
+        has_api_key = bool(cfg.api_key)
+
         agent = TRIZAgent()
         if cfg.api_key:
-            agent = TRIZAgent(ai_provider=OpenAIProvider(
-                api_key=cfg.api_key, api_base=cfg.api_base,
-                model=cfg.get_model("triz"),
-            ))
+            try:
+                provider = OpenAIProvider(
+                    api_key=cfg.api_key, api_base=cfg.api_base,
+                    model=cfg.get_model("triz"),
+                )
+                agent = TRIZAgent(ai_provider=provider)
+            except Exception as e:
+                self._send_json({"ok": False, "error": (
+                    f"AI provider init failed: {e}. "
+                    f"Config file: {config_path} {'[found]' if config_exists else '[not found]'}, "
+                    f"API key: {'[set]' if has_api_key else '[not set]'}"
+                )})
+                return
         try:
             report = agent.full_analysis(description)
         except Exception as e:
-            self._send_json({"ok": False, "error": f"Analysis failed: {e}"})
+            self._send_json({"ok": False, "error": (
+                f"Analysis failed: {e}. "
+                f"Config: {config_path} {'[found]' if config_exists else '[not found]'}, "
+                f"API key: {'[set]' if has_api_key else '[not set]'}, "
+                f"Mode: {'AI' if has_api_key else 'rule-based'}"
+            )})
             return
 
+        # Tag report with config diagnostics
+        report.setdefault("_meta", {})["_config"] = {
+            "config_file_exists": config_exists,
+            "api_key_set": has_api_key,
+            "mode": "ai" if has_api_key else "rule-based",
+            "config_path": config_path,
+        }
+
+        # Convert dataclass objects to dicts for both HTML render and JSON
+        report = _make_json_safe(report)
         html = render_triz_analysis_result_html(report, lang=self._lang)
 
         # Build history HTML (simple, just for this session)
@@ -1714,6 +1745,23 @@ def _match_rate_post(path: str) -> bool:
 def _parse_rate_post(path: str) -> str:
     """Extract combo_id from rate path."""
     return path.split("/web/rate/", 1)[1]
+
+
+def _make_json_safe(obj):
+    """Recursively convert dataclass objects and non-serializable types to JSON-safe dicts."""
+    if hasattr(obj, '__dataclass_fields__'):
+        return {k: _make_json_safe(v) for k, v in obj.__dict__.items()}
+    if isinstance(obj, dict):
+        return {k: _make_json_safe(v) for k, v in obj.items()}
+    if isinstance(obj, (list, tuple)):
+        return [_make_json_safe(v) for v in obj]
+    if isinstance(obj, (set, frozenset)):
+        return list(obj)
+    if hasattr(obj, 'isoformat'):  # datetime
+        return obj.isoformat()
+    if isinstance(obj, (int, float, str, bool)) or obj is None:
+        return obj
+    return str(obj)
 
 
 class HubAPI:

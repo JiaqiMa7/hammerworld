@@ -700,6 +700,7 @@ details.feature-details > summary:hover { border-left-color: #1d4ed8; color: #1f
     box-shadow: 0 1px 3px rgba(0,0,0,0.04);
 }
 .triz-section h4 { font-size: 14px; color: #6d28d9; margin-bottom: 8px; }
+.triz-config-banner { font-size: 12px; color: #666; margin-bottom: 12px; display: flex; gap: 16px; flex-wrap: wrap; }
 .triz-table { width: auto; border-collapse: collapse; }
 .triz-table td { padding: 3px 12px 3px 0; font-size: 13px; }
 .triz-table td:first-child { font-weight: 600; color: #555; width: 60px; }
@@ -3944,8 +3945,24 @@ def render_triz_analysis_result_html(analysis: dict, lang: str) -> str:
         for content in [tab_contents[tid]]
     )
 
+    # Config diagnostics banner
+    meta = analysis.get("_meta", {})
+    cfg_info = meta.get("_config", {})
+    config_banner = ""
+    if cfg_info:
+        mode_label = {"ai": "AI", "rule-based": "Rule-based"}.get(cfg_info.get("mode", ""), cfg_info.get("mode", "?"))
+        cfg_path = cfg_info.get("config_path", "~/.hammerworld/config")
+        api_icon = "✓" if cfg_info.get("api_key_set") else "✗"
+        file_icon = "✓" if cfg_info.get("config_file_exists") else "✗"
+        config_banner = '<div class="triz-config-banner" style="font-size:12px;color:#666;margin-bottom:12px;display:flex;gap:16px;">'
+        config_banner += f'<span><strong>Config:</strong> <code>{cfg_path}</code> [{file_icon}]</span>'
+        config_banner += f'<span><strong>API key:</strong> [{api_icon}]</span>'
+        config_banner += f'<span><strong>Mode:</strong> {mode_label}</span>'
+        config_banner += '</div>'
+
     return f"""
     <h3 style="margin-bottom:8px;">{_t('triz.analysis_result', lang)}</h3>
+    {config_banner}
     <div class="triz-tabs">{tab_headers}</div>
     {panels}
     """
