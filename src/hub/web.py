@@ -701,6 +701,16 @@ details.feature-details > summary:hover { border-left-color: #1d4ed8; color: #1f
 }
 .triz-section h4 { font-size: 14px; color: #6d28d9; margin-bottom: 8px; }
 .triz-config-banner { font-size: 12px; color: #666; margin-bottom: 12px; display: flex; gap: 16px; flex-wrap: wrap; }
+.triz-progress { background: #f9fafb; border: 1px solid #e5e7eb; border-radius: 8px; padding: 16px; margin-bottom: 16px; }
+.triz-pbar { height: 6px; background: #e5e7eb; border-radius: 3px; margin-bottom: 12px; overflow: hidden; }
+.triz-pfill { height: 100%; background: #6d28d9; border-radius: 3px; transition: width 0.3s ease; }
+.triz-pcount { font-size: 12px; color: #888; margin-bottom: 8px; }
+.triz-plist { display: grid; grid-template-columns: 1fr 1fr; gap: 2px 24px; font-size: 13px; }
+.triz-pstep { display: flex; align-items: center; padding: 3px 6px; border-radius: 4px; }
+.triz-pstep.done { color: #888; }
+.triz-picon { width: 20px; text-align: center; margin-right: 6px; }
+.triz-pname { flex: 1; }
+.triz-ptime { font-size: 11px; color: #aaa; margin-left: 8px; min-width: 40px; text-align: right; }
 .triz-table { width: auto; border-collapse: collapse; }
 .triz-table td { padding: 3px 12px 3px 0; font-size: 13px; }
 .triz-table td:first-child { font-weight: 600; color: #555; width: 60px; }
@@ -3653,45 +3663,151 @@ def render_triz_agent(db: LeaderboardDB, lang: str = "en",
 
     <script>
     var _lastAnalysis = null;
+    var _toolLabels = {
+        standardize: 'Standardize',
+        su_field: 'Su-Field',
+        cause_effect: 'Cause-Effect',
+        resources: 'Resources',
+        nine_windows: '9-Windows',
+        trimming: 'Trimming',
+        function_ranking: 'Function Ranking',
+        stc: 'STC Operator',
+        slp: 'Smart People',
+        standard_solutions: 'Standard Solutions',
+        ariz: 'ARIZ',
+        insights: 'Integration',
+    };
 
-    function runTrizAnalysis() {{
+    function runTrizAnalysis() {
         var input = document.getElementById('triz-input');
         var domain = document.getElementById('triz-domain');
         var btn = document.getElementById('triz-btn');
         var result = document.getElementById('triz-result');
         var desc = input.value.trim();
-        if (!desc) {{ alert('Please enter a description'); return; }}
+        if (!desc) { alert('Please enter a description'); return; }
 
         btn.disabled = true;
-        btn.textContent = '{_t("triz.analyzing", lang)}';
-        result.innerHTML = '<div class="mine-progress">{_t("triz.analyzing", lang)}</div>';
+        btn.textContent = 'Analyzing...';
+        _lastAnalysis = null;
 
-        fetch('/web/triz/analyze', {{
+        // Build progress UI
+        var toolNames = ['standardize','su_field','cause_effect','resources','nine_windows',
+                         'trimming','function_ranking','stc','slp','standard_solutions','ariz','insights'];
+        var progressRows = toolNames.map(function(n) {
+            return '<div class="triz-pstep" data-tool="' + n + '">' +
+                   '<span class="triz-picon">⏳</span>' +
+                   '<span class="triz-pname">' + (_toolLabels[n] || n) + '</span>' +
+                   '<span class="triz-ptime"></span></div>';
+        }).join('');
+        result.innerHTML = '<div class="triz-progress" id="triz-progress">' +
+            '<div class="triz-pbar"><div class="triz-pfill" id="triz-pfill" style="width:0%"></div></div>' +
+            '<div class="triz-pcount" id="triz-pcount">0/12</div>' +
+            '<div class="triz-plist">' + progressRows + '</div></div>' +
+            '<div class="triz-pcurrent" id="triz-pcurrent" style="font-size:13px;color:#6d28d9;margin-top:8px;">Starting...</div>';
+
+        var startTime = Date.now();
+
+        fetch('/web/triz/analyze', {
             method: 'POST',
-            headers: {{'Content-Type': 'application/json'}},
-            body: JSON.stringify({{description: desc, domain: domain.value}})
-        }})
-        .then(function(r) {{ return r.json(); }})
-        .then(function(d) {{
+            headers: {'Content-Type': 'application/json'},
+            body: JSON.stringify({description: desc, domain: domain.value})
+        })
+        .then(function(r) {
+            if (!r.ok) return r.json().then(function(d) { throw new Error(d.error || 'HTTP ' + r.status); });
+            var reader = r.body.getReader();
+            var decoder = new TextDecoder();
+            var buffer = '';
+
+            function readChunk() {
+                reader.read().then(function(result) {
+                    if (result.done) {
+                        btn.disabled = false;
+                        btn.textContent = 'Analyze';
+                        return;
+                    }
+                    buffer += decoder.decode(result.value, {stream: true});
+                    var lines = buffer.split('\n');
+                    buffer = lines.pop() || '';
+                    for (var i = 0; i < lines.length; i++) {
+                        var line = lines[i];
+                        if (line.indexOf('data: ') === 0) {
+                            try {
+                                var data = JSON.parse(line.slice(6));
+                                handleEvent(data);
+                            } catch(e) { /* skip malformed */ }
+                        }
+                    }
+                    readChunk();
+                }).catch(function(e) {
+                    btn.disabled = false;
+                    btn.textContent = 'Analyze';
+                    result.innerHTML = '<div class="empty" style="color:#991b1b;">Stream error: ' + e + '</div>';
+                });
+            }
+            readChunk();
+        })
+        .catch(function(e) {
             btn.disabled = false;
-            btn.textContent = '{_t("triz.analyze_btn", lang)}';
-            if (d.ok) {{
-                _lastAnalysis = d;
-                result.innerHTML = d.html;
-                document.getElementById('triz-actions').style.display = '';
-                // Refresh history
-                var hist = document.getElementById('triz-history');
-                if (d.history_html) hist.innerHTML = d.history_html;
-            }} else {{
-                result.innerHTML = '<div class="empty" style="color:#991b1b;">' + (d.error || 'Analysis failed') + '</div>';
-            }}
-        }})
-        .catch(function(e) {{
-            btn.disabled = false;
-            btn.textContent = '{_t("triz.analyze_btn", lang)}';
+            btn.textContent = 'Analyze';
             result.innerHTML = '<div class="empty" style="color:#991b1b;">' + e + '</div>';
-        }});
-    }}
+        });
+
+        function handleEvent(data) {
+            if (data.error) {
+                btn.disabled = false;
+                btn.textContent = 'Analyze';
+                result.innerHTML = '<div class="empty" style="color:#991b1b;">' + data.error + '</div>';
+                return;
+            }
+
+            if (data.done) {
+                _lastAnalysis = data;
+                result.innerHTML = data.html;
+                document.getElementById('triz-actions').style.display = '';
+                var hist = document.getElementById('triz-history');
+                if (data.history_html) hist.innerHTML = data.history_html;
+                btn.disabled = false;
+                btn.textContent = 'Analyze';
+                return;
+            }
+
+            if (data.step) {
+                var elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
+                document.getElementById('triz-pcurrent').textContent =
+                    'Running: ' + (_toolLabels[data.step] || data.step) + ' (' + data.current + '/' + data.total + ')';
+
+                // Update bar
+                var pct = Math.round((data.current / data.total) * 100);
+                var fill = document.getElementById('triz-pfill');
+                if (fill) fill.style.width = pct + '%';
+                var count = document.getElementById('triz-pcount');
+                if (count) count.textContent = data.current + '/' + data.total;
+
+                // Update row
+                var row = document.querySelector('.triz-pstep[data-tool="' + data.step + '"]');
+                if (row) {
+                    var icon = row.querySelector('.triz-picon');
+                    var time = row.querySelector('.triz-ptime');
+                    if (icon) icon.textContent = '✓';
+                    if (time) time.textContent = elapsed + 's';
+                    row.classList.add('done');
+                }
+
+                // Mark in-progress rows
+                var allRows = document.querySelectorAll('.triz-pstep');
+                var found = false;
+                var remainingTotal = data.total;
+                for (var j = 0; j < allRows.length; j++) {
+                    var r = allRows[j];
+                    if (!r.classList.contains('done')) {
+                        var rIcon = r.querySelector('.triz-picon');
+                        if (rIcon) rIcon.textContent = found ? '⏳' : '⟳';
+                        found = true;
+                    }
+                }
+            }
+        }
+    }
 
     function showTab(tabId) {{
         document.querySelectorAll('.triz-tab-content').forEach(function(el) {{ el.classList.remove('active'); }});

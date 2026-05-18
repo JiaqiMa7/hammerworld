@@ -943,7 +943,8 @@ class _HubHandler(BaseHTTPRequestHandler):
     # ------------------------------------------------------------------
 
     def _handle_triz_analyze(self, body: bytes):
-        """Handle POST /web/triz/analyze — run full TRIZ analysis."""
+        """Handle POST /web/triz/analyze — SSE stream with real-time progress."""
+        # Parse input (before SSE headers so we can return JSON errors)
         try:
             data = json.loads(body)
         except json.JSONDecodeError:
@@ -957,7 +958,7 @@ class _HubHandler(BaseHTTPRequestHandler):
             self._send_json({"ok": False, "error": "Description is required"})
             return
 
-        # Run TRIZ analysis
+        # Setup config
         from src.triz.agent import TRIZAgent
         from src.hub.web import render_triz_analysis_result_html
         from src.engine.config import HammerConfig
@@ -965,8 +966,6 @@ class _HubHandler(BaseHTTPRequestHandler):
         import os
 
         cfg = HammerConfig.load()
-
-        # Check config status for diagnostics
         config_path = os.path.expanduser("~/.hammerworld/config")
         config_exists = os.path.isfile(config_path)
         has_api_key = bool(cfg.api_key)
@@ -986,12 +985,32 @@ class _HubHandler(BaseHTTPRequestHandler):
                     f"API key: {'[set]' if has_api_key else '[not set]'}"
                 )})
                 return
+
+        # --- SSE stream starts here ---
+        self.send_response(200)
+        self.send_header("Content-Type", "text/event-stream; charset=utf-8")
+        self.send_header("Cache-Control", "no-cache")
+        self.send_header("Connection", "keep-alive")
+        self.send_header("X-Accel-Buffering", "no")
+        self.end_headers()
+
+        def _sse(event_data: dict):
+            """Write a single SSE event and flush."""
+            payload = json.dumps(event_data, ensure_ascii=False)
+            self.wfile.write(f"data: {payload}\n\n".encode())
+            self.wfile.flush()
+
+        # Progress callback: stream each step
+        def on_progress(step, current, total):
+            _sse({"step": step, "current": current, "total": total, "status": "running"})
+
+        # Run analysis
+        import traceback
         try:
-            report = agent.full_analysis(description)
+            report = agent.full_analysis(description, domain, progress_callback=on_progress)
         except Exception as e:
-            import traceback
             tb = traceback.format_exc()
-            self._send_json({"ok": False, "error": (
+            _sse({"error": (
                 f"Analysis failed: {e}\n"
                 f"Config: {config_path} {'[found]' if config_exists else '[not found]'}, "
                 f"API key: {'[set]' if has_api_key else '[not set]'}, "
@@ -1012,11 +1031,10 @@ class _HubHandler(BaseHTTPRequestHandler):
         report = _make_json_safe(report)
         html = render_triz_analysis_result_html(report, lang=self._lang)
 
-        # Build history HTML (simple, just for this session)
-        self._send_json({
-            "ok": True,
+        # Send final result
+        _sse({
+            "done": True,
             "html": html,
-            "analysis_id": 0,
             "analysis": report,
             "history_html": "",
         })

@@ -58,11 +58,13 @@ class TRIZAgent:
         else:
             return self._rule_based_analyze(problem)
 
-    def standardize(self, problem_description: str, domain: str = "") -> Problem:
+    def standardize(self, problem_description: str, domain: str = "",
+                    skip_ai_enrichment: bool = False) -> Problem:
         """Standardize a raw problem description into a Problem with TRIZ analysis.
 
         In AI mode, also runs Su-Field, cause-effect, and resource analysis
         to enrich triz_standardized with deeper TRIZ context.
+        Set skip_ai_enrichment=True when full_analysis() handles these separately.
         """
         analysis = self._ai_analyze_from_text(problem_description, domain) if self.ai_provider \
                    else self._rule_based_from_text(problem_description, domain)
@@ -84,7 +86,8 @@ class TRIZAgent:
         }
 
         # AI mode: enrich with Su-Field, cause-effect, resource analysis
-        if self.ai_provider:
+        # Skipped when called from full_analysis() to avoid redundant AI calls
+        if self.ai_provider and not skip_ai_enrichment:
             sf = self.su_field_analysis(problem_description)
             triz_std["su_field"] = {
                 "s1": sf.substance1, "s2": sf.substance2, "field": sf.field,
@@ -407,16 +410,34 @@ class TRIZAgent:
             "recommended_class": recommended_class,
         }
 
-    def full_analysis(self, description: str, domain: str = "") -> dict:
-        """Run all TRIZ tools and return an integrated analysis report."""
+    def full_analysis(self, description: str, domain: str = "",
+                      progress_callback=None) -> dict:
+        """Run all TRIZ tools and return an integrated analysis report.
+
+        If progress_callback is provided, calls progress_callback(step, current, total)
+        as each phase/tool completes. Independent tools run in parallel via ThreadPoolExecutor.
+        """
         import traceback
         from dataclasses import asdict
+        from concurrent.futures import ThreadPoolExecutor, as_completed
+
+        TOTAL_STEPS = 12
+
+        def _progress(step, current):
+            if progress_callback:
+                progress_callback(step, current, TOTAL_STEPS)
+
+        # Phase 1: standardize (sequential, no AI enrichment to avoid redundant calls)
         try:
-            problem = self.standardize(description, domain)
+            problem = self.standardize(description, domain, skip_ai_enrichment=True)
+            _progress("standardize", 1)
         except Exception as e:
-            return {"_meta": {"_error": f"standardize() failed: {type(e).__name__}: {e}", "_traceback": traceback.format_exc()}}
+            return {"_meta": {"_error": f"standardize() failed: {type(e).__name__}: {e}",
+                              "_traceback": traceback.format_exc()}}
+
         report = {"standardized_problem": problem.triz_standardized or {}}
 
+        # Phase 2: run independent tools in parallel
         _tools = [
             ("su_field", lambda: su_field.analyze(description, self.ai_provider)),
             ("cause_effect", lambda: cause_effect.analyze(description, self.ai_provider)),
@@ -427,28 +448,44 @@ class TRIZAgent:
             ("stc", lambda: stc_operator.analyze(description, self.ai_provider)),
             ("slp", lambda: smart_little_people.analyze(description, self.ai_provider)),
         ]
-        sf = None
-        for name, fn in _tools:
-            try:
-                result = fn()
-                if name == "su_field":
-                    sf = result
-                report[name] = result
-            except Exception as e:
-                tb = traceback.format_exc()
-                report[name] = {"_error": f"{type(e).__name__}: {e}", "_traceback": tb}
 
+        sf = None
+        completed = 1  # standardize done
+
+        with ThreadPoolExecutor(max_workers=5) as pool:
+            futures = {pool.submit(fn): name for name, fn in _tools}
+            for future in as_completed(futures):
+                name = futures[future]
+                try:
+                    result = future.result()
+                    if name == "su_field":
+                        sf = result
+                    report[name] = result
+                except Exception as e:
+                    tb = traceback.format_exc()
+                    report[name] = {"_error": f"{type(e).__name__}: {e}", "_traceback": tb}
+                completed += 1
+                _progress(name, completed)
+
+        # Phase 3: match_standard_solutions (depends on su_field result)
         try:
             report["standard_solutions"] = self.match_standard_solutions(description, sf)
         except Exception as e:
-            report["standard_solutions"] = {"_error": f"{type(e).__name__}: {e}", "_traceback": traceback.format_exc()}
+            report["standard_solutions"] = {"_error": f"{type(e).__name__}: {e}",
+                                            "_traceback": traceback.format_exc()}
+        completed += 1
+        _progress("standard_solutions", completed)
 
+        # Phase 4: ARIZ
         try:
             report["ariz"] = asdict(run_simplified(description, self.ai_provider))
         except Exception as e:
-            report["ariz"] = {"_error": f"{type(e).__name__}: {e}", "_traceback": traceback.format_exc()}
+            report["ariz"] = {"_error": f"{type(e).__name__}: {e}",
+                              "_traceback": traceback.format_exc()}
+        completed += 1
+        _progress("ariz", completed)
 
-        # Cross-tool integration insights
+        # Phase 5: integration insights
         insights = []
         if hasattr(sf, 'interaction_type') and sf.interaction_type in ("harmful", "excessive"):
             insights.append(
@@ -461,4 +498,5 @@ class TRIZAgent:
                 f'{report["standard_solutions"]["recommended_class"]}'
             )
         report["_meta"] = {"tool_count": 11, "integration_insights": insights}
+        _progress("insights", TOTAL_STEPS)
         return report
