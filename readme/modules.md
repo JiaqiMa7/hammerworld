@@ -311,9 +311,31 @@ draw = db.random_draw(domain=Domain.MEDICINE, draw_count=5)
 
 ---
 
-## 11. `src/hub/web.py` — 服務端 HTML 渲染
+## 11. `src/hub/web/` — 服務端 HTML 渲染（頁面模塊包）
 
-純 Python HTML 渲染（無前端框架、無 JS）。
+純 Python HTML 渲染（無前端框架、無 JS）。由單一 4157 行 `web.py` 重構為按頁面分類的模塊包。
+
+**目錄結構：**
+
+| 模塊 | 說明 |
+|------|------|
+| `_translation.py` | 中英翻譯字典 + `_t()` |
+| `_utils.py` | `_esc()`, `_parse_query()`, `_score_bar()` |
+| `_layout.py` | `_CSS`, `_base_page()`, `_lang_toggle()`, `_login_widget()` |
+| `_components.py` | `_entry_table()`, `_render_triz_analysis()`, `_render_previously_drawn()` |
+| `dashboard.py` | Dashboard 儀表板 |
+| `leaderboard.py` | Leaderboard + Search + Random Draw |
+| `peers.py` | Peers 節點列表 |
+| `entry.py` | Entry Detail + Combo Group + My Entries |
+| `tokens.py` | Token Dashboard |
+| `collections.py` | Collections Browse / Create / Detail |
+| `math.py` | Math Zone（問題/解法/樹狀視圖/解鎖） |
+| `submit.py` | Community Submit（方法/問題/審核） |
+| `buffer.py` | Buffer Zone（儀表板/分類/代幣/排行榜） |
+| `settings.py` | Settings 系統配置 |
+| `agent.py` | Agent Chat 對話界面 |
+| `triz.py` | TRIZ Agent 分析界面 |
+| `bounties.py` | Bounties 懸賞列表 |
 
 **Web 頁面覆蓋：**
 | 頁面 | 路徑 |
@@ -324,15 +346,24 @@ draw = db.random_draw(domain=Domain.MEDICINE, draw_count=5)
 | Random Draw | `/web/random` |
 | Peers | `/web/peers` |
 | Entry Detail | `/web/entry/{id}` |
-| Submit Method/Problem | `/web/submit` |
-| Submissions Review | `/web/submissions` |
+| Combo Group | `/web/combo/{id}` |
+| My Entries | `/web/my-entries` |
+| Token Dashboard | `/web/tokens` |
 | Collections Browse | `/web/collections` |
 | Collection Detail | `/web/collections/{type}/{id}` |
+| Submit Method/Problem | `/web/submit` |
+| Submissions Review | `/web/submissions` |
+| Buffer Zone | `/web/buffer` |
+| Settings | `/web/settings` |
+| Agent Chat | `/web/agent` |
+| TRIZ Agent | `/web/triz` |
+| Bounties | `/web/bounties` |
 | Math Zone Home | `/web/math` |
 | Math Problem | `/web/math/{pid}` |
 | Math Method Zone | `/web/math/{pid}/{mid}` |
 | Math Solution Detail | `/web/math/{pid}/{mid}/{sid}` |
 | Math Unlock | `/web/math/{pid}/{mid}/unlock` |
+| Math Tree View | `/web/math/{pid}/{mid}/tree` |
 
 ---
 

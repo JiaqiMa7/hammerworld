@@ -21,7 +21,7 @@ hammerworld/
 │   ├── engine/          # 核心引擎：models, combiner, loader
 │   ├── triz/            # TRIZ 理論：knowledge, matrix, agent, prompts
 │   ├── evaluation/      # AI 評估：8 維度評分流水線
-│   ├── hub/             # P2P 聯邦：leaderboard, peer, server, web, discovery, identity, token_layer
+│   ├── hub/             # P2P 聯邦：leaderboard, peer, server, web/, discovery, identity, token_layer
 │   ├── blockchain/      # 區塊鏈緩衝區：token, staking, buffer zone
 │   └── cli/             # CLI：21 個命令（mine/top/search/hub/web/keygen/triz-analyze/...）
 ├── data/                # methods.json (35 條) + problems.json (22 條)
