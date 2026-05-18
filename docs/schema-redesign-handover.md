@@ -4,12 +4,6 @@
 
 2026-05-17
 
-## 更新記錄
-
-| 日期 | 變更 | 說明 |
-|------|------|------|
-| 2026-05-18 | `src/hub/web.py` → `src/hub/web/` 包重構 | ~3000 行單文件拆分爲 17 模塊包，`server.py` 導入保持兼容（通過 `__init__.py` 重新導出） |
-
 ---
 
 # Part 1: 項目全貌
@@ -74,25 +68,10 @@ hammerworld/
 │   │   │                        #   _HubHandler：路由分發（do_GET 35+ 路由，do_POST 25+ 路由）
 │   │   │                        #   HubAPI：REST API 處理器（health, stats, sync, announce）
 │   │   │                        #   發現服務器端點：discovery announce / peers / heartbeat
-│   │   ├── web/                   # 服務端 HTML 渲染包（17 個模塊）
-│   │   │   ├── __init__.py        # 重新導出所有 render_*() 函數
-│   │   │   ├── _translation.py    # 雙語翻譯 _T 詞典（~120 鍵）+ _t()
-│   │   │   ├── _layout.py         # _base_page() 統一框架 + _CSS + _login_widget()
-│   │   │   ├── _utils.py          # 工具：_esc(), _parse_query(), _score_bar()
-│   │   │   ├── _components.py     # 共享：_entry_table(), Triz 分析渲染
-│   │   │   ├── dashboard.py       # render_dashboard()
-│   │   │   ├── leaderboard.py     # render_leaderboard() + search + random
-│   │   │   ├── entry.py           # render_entry() + combo_group + my-entries
-│   │   │   ├── math.py            # 8 個 math_*() 函數（~700 行）
-│   │   │   ├── buffer.py          # 7 個 buffer_*() 函數
-│   │   │   ├── triz.py            # render_triz_agent() + 分析結果頁面
-│   │   │   ├── agent.py           # render_agent_chat() + AI 助手界面
-│   │   │   ├── collections.py     # 合集市場（4 個頁面）
-│   │   │   ├── submit.py          # 提交方法/問題表單
-│   │   │   ├── tokens.py          # 代幣儀表板
-│   │   │   ├── peers.py           # 節點列表
-│   │   │   ├── settings.py        # 設置頁面
-│   │   │   └── bounties.py        # 賞金任務頁面
+│   │   ├── web.py               # 服務端 HTML 渲染（~3000 行）
+│   │   │                        #   雙語翻譯系統 _T（~120 個翻譯鍵）
+│   │   │                        #   30+ render_*() 頁面渲染函數
+│   │   │                        #   _base_page() 統一的 HTML 框架 + _login_widget()
 │   │   ├── discovery.py         # DiscoveryServer：BT tracker 風格的發現服務器
 │   │   │                        #   RateLimiter（每 IP 滑動窗口限流）、LRU 淘汰、NAT 感知
 │   │   │                        #   Ed25519 簽名公告驗證、隱私保護（最多返回 30 個隨機 peer）
@@ -878,7 +857,7 @@ run_id = Combo.id + "_" + timestamp_ms + "_" + uuid4[:4]
 ### 12.1 用法
 
 ```python
-from src.hub.web import _t          # via __init__.py 重新導出，等價於從 web/ 包導入
+from src.hub.web import _t
 _t("nav.dashboard", lang)           # → "Dashboard" (en) / "仪表板" (zh)
 _t("lb.showing", lang, n=5)         # → "Showing 5 results" / "筛选 5 条结果"
 ```
@@ -1137,11 +1116,7 @@ return "no_access"
 **`rate_analysis(viewer_addr, run_id, rating)`**：
 - 評分記錄到 `(viewer_addr, run_id)` — 每個礦工的獨立分析可單獨評分
 
-### 20.4 src/hub/web/（原 web.py → web/ 包重構）
-
-**重構說明**：2026-05-18，原 `web.py`（~3000 行單文件）被拆分爲 `src/hub/web/` 包（17 個模塊）。`server.py` 導入方式不變 — `from src.hub.web import render_X` 通過 `__init__.py` 保持向後兼容。詳見目錄樹（第 2 章）的 `web/` 包結構和模塊清單。
-
-本節 `render_combo_group` 位於重構後的 `entry.py` 中，翻譯鍵位於 `_translation.py` 中。
+### 20.4 src/hub/web.py
 
 **新增 `render_combo_group(db, combo_group_id, ...)`**（~100 行）：
 - Header：method×problem 基本信息（只顯示一次）
