@@ -6,7 +6,9 @@ import argparse
 import json
 import os
 import signal
+import sqlite3
 import sys
+import time
 from pathlib import Path
 
 # Add project root to path
@@ -228,6 +230,29 @@ def cmd_mine(args):
         except Exception as exc:
             print(f"  [{r.combination.id}] error: {exc}")
 
+    # TRIZ enrichment: run full analysis on each saved combo
+    if args.triz and saved:
+        import sqlite3
+        from src.triz.agent import TRIZAgent as _TrizAgent
+        agent = _make_triz_agent()
+        if agent.ai_provider:
+            print(f"Running TRIZ analysis on {saved} combinations...")
+            triz_conn = sqlite3.connect(args.db)
+            for r in results:
+                try:
+                    triz_data = agent.full_analysis(r.combination.problem.description)
+                    triz_json = json.dumps(triz_data, default=str)
+                    triz_conn.execute(
+                        "UPDATE combinations SET triz_data = ? WHERE run_id = ?",
+                        (triz_json, r.combination.id),
+                    )
+                except Exception as exc:
+                    print(f"  TRIZ failed for {r.combination.id}: {exc}")
+            triz_conn.commit()
+            triz_conn.close()
+        else:
+            print("  TRIZ enrichment skipped: no API key configured (--triz requires AI provider)")
+
     print(f"Saved {saved}/{len(combos)} combinations to {args.db}")
 
 
@@ -404,6 +429,180 @@ def cmd_triz_analyze(args):
     print(f"=== Inferred ===")
     print(f"  Domain: {problem.domain.value}")
     print(f"  Constraints: {[c.value for c in problem.constraint_types]}")
+
+
+# ---------------------------------------------------------------------------
+# TRIZ tool CLI commands
+# ---------------------------------------------------------------------------
+
+def _print_json(obj):
+    """Print object as JSON."""
+    import json as _json
+    print(_json.dumps(obj, indent=2, default=str))
+
+
+def cmd_triz_su_field(args):
+    """Su-Field analysis of a problem description."""
+    agent = _make_triz_agent()
+    result = agent.su_field_analysis(args.description)
+    if getattr(args, "json", False) or False:
+        _print_json(result.__dict__)
+        return
+    print(f"=== Su-Field Analysis ===")
+    print(f"  S1 (object acted upon): {result.substance1}")
+    print(f"  S2 (tool/subject):      {result.substance2}")
+    print(f"  Field F:                {result.field}")
+    print(f"  Interaction type:       {result.interaction_type}")
+    print(f"  Su-Field complete:      {'YES' if result.is_complete else 'NO'}")
+    if result.missing_elements:
+        print(f"  Missing elements:       {', '.join(result.missing_elements)}")
+    if result.transformation_suggestions:
+        print(f"  Suggestions: {result.transformation_suggestions[0]}")
+
+
+def cmd_triz_cause_effect(args):
+    """Cause-effect chain analysis."""
+    agent = _make_triz_agent()
+    result = agent.cause_effect_analysis(args.description)
+    if getattr(args, "json", False) or False:
+        _print_json(result.__dict__)
+        return
+    print(f"=== Cause-Effect Chain ===")
+    for link in result.chain:
+        print(f"  {link.cause} → {link.effect}")
+    if result.root_causes:
+        print(f"  Root causes: {', '.join(result.root_causes)}")
+    if result.final_effects:
+        print(f"  Final effects: {', '.join(result.final_effects)}")
+
+
+def cmd_triz_resource(args):
+    """Resource analysis."""
+    agent = _make_triz_agent()
+    result = agent.resource_analysis(args.description)
+    if getattr(args, "json", False) or False:
+        _print_json(result.__dict__)
+        return
+    print(f"=== Resource Analysis ===")
+    for rtype in ["substances", "fields", "space", "time", "information", "function"]:
+        items = getattr(result, rtype, [])
+        if items:
+            print(f"  {rtype.capitalize()}: {', '.join(items)}")
+
+
+def cmd_triz_nine_windows(args):
+    """9-Windows system operator."""
+    agent = _make_triz_agent()
+    result = agent.nine_windows(args.description)
+    if getattr(args, "json", False) or False:
+        _print_json(result.__dict__)
+        return
+    print(f"=== 9-Windows: {result.current_system} ===")
+    for level in ["supersystem", "system", "subsystem"]:
+        print(f"  [{level}]")
+        for time_frame in ["past", "present", "future"]:
+            key = f"{level}_{time_frame}"
+            val = getattr(result, key, "")
+            print(f"    {time_frame}: {val[:60]}")
+
+
+def cmd_triz_trimming(args):
+    """Trimming analysis."""
+    agent = _make_triz_agent()
+    result = agent.trimming_analysis(args.description)
+    if getattr(args, "json", False) or False:
+        _print_json(result.__dict__)
+        return
+    print(f"=== Trimming Analysis ===")
+    for c in result.trimming_candidates:
+        print(f"  Trim '{c['component']}': {c['replacement_strategy']}")
+
+
+def cmd_triz_function_ranking(args):
+    """Function ranking analysis."""
+    agent = _make_triz_agent()
+    result = agent.function_ranking(args.description)
+    if getattr(args, "json", False) or False:
+        _print_json(result.__dict__)
+        return
+    print(f"=== Function Ranking ===")
+    for item in sorted(result.items, key=lambda x: x.score):
+        print(f"  {item.name}: U={item.usefulness} C={item.cost} H={item.harm} Score={item.score:.1f}")
+    for rec in result.trimming_recommendations:
+        print(f"  >> {rec}")
+
+
+def cmd_triz_stc(args):
+    """STC operator analysis."""
+    agent = _make_triz_agent()
+    result = agent.stc_operator(args.description)
+    if getattr(args, "json", False) or False:
+        _print_json(result.__dict__)
+        return
+    print(f"=== STC Operator ===")
+    for d in result.dimensions:
+        print(f"  [{d.dimension} {d.extreme}]")
+        print(f"    Q: {d.question}")
+        print(f"    Insight: {d.insight}")
+
+
+def cmd_triz_smart_people(args):
+    """Smart Little People modeling."""
+    agent = _make_triz_agent()
+    result = agent.smart_little_people(args.description)
+    if getattr(args, "json", False) or False:
+        _print_json(result.__dict__)
+        return
+    print(f"=== Smart Little People ===")
+    for c in result.characters:
+        print(f"  Role: {c.role}")
+        print(f"    Behavior: {c.behavior}")
+        print(f"    Conflict: {c.conflict}")
+    if result.ideal_configuration:
+        print(f"  Ideal: {result.ideal_configuration}")
+    if result.key_insight:
+        print(f"  Insight: {result.key_insight}")
+
+
+def cmd_triz_ariz(args):
+    """ARIZ-85C algorithm (full or simplified)."""
+    agent = _make_triz_agent()
+    simplified = getattr(args, "simplified", False)
+    result = agent.ariz_analyze(args.description, simplified=simplified)
+    if getattr(args, "json", False) or False:
+        _print_json(result)
+        return
+    mode = "Simplified (~30 steps)" if simplified else "Full (85 steps)"
+    print(f"=== ARIZ-85C ({mode}) ===")
+    print(f"  Mini-problem:  {result['mini_problem'][:80]}...")
+    print(f"  Conflict:      {result['conflict_description'][:80]}...")
+    if result['ifr']:
+        print(f"  IFR:           {result['ifr'][:80]}...")
+    print(f"  Steps done:    {result['steps_completed']}")
+    print(f"  Phases:        {', '.join(result['phases_completed'])}")
+    if result['solution_concept']:
+        print(f"  Solution:      {result['solution_concept'][:120]}...")
+
+
+def cmd_triz_full(args):
+    """Run all TRIZ tools and output an integrated report."""
+    agent = _make_triz_agent()
+    report = agent.full_analysis(args.description, getattr(args, "domain", ""))
+    if getattr(args, "json", False) or False:
+        _print_json(report)
+        return
+    print(f"=== Full TRIZ Analysis ===")
+    print(f"  Tools executed: {len(report)} modules")
+    print(f"  Su-Field:  {report.get('su_field', {}).interaction_type}")
+    ce = report.get("cause_effect", {})
+    print(f"  Root causes: {len(getattr(ce, 'root_causes', []))}")
+    rs = report.get("resources", {})
+    for t in ["substances", "fields", "time"]:
+        if getattr(rs, t, None):
+            print(f"    {t}: {len(getattr(rs, t))} found")
+    ariz = report.get("ariz", {})
+    print(f"  ARIZ steps: {ariz.get('steps_completed', 0)}")
+    print(f"  Analysis complete. Use --json for full output.")
 
 
 def cmd_keygen(args):
@@ -623,6 +822,7 @@ def cmd_math_mine(args):
         try:
             entry = db.insert(r.combination, miner_addr=address)
             saved += 1
+            print(f"  [{saved}] combo_id: {entry.run_id}  best={r.combination.best_score:.1f}  {r.combination.method.name[:40]}")
             # Auto-grant access on first successful save
             if not access_granted:
                 analysis_json = json.dumps({
@@ -756,6 +956,653 @@ def cmd_math_tree_status(args):
                 uct_str = f"{c.get('uct_score', 0):.3f}" if c.get("uct_score") != float('inf') else "inf"
                 print(f"    #{c['child_id']}: {c['action_label'][:30]} "
                       f"Q={c['child_q_value']:.3f} N={c['child_visit_count']} UCT={uct_str}")
+
+
+# ---------------------------------------------------------------------------
+# Math Research Zone -- CLI tree helpers (recursive)
+# ---------------------------------------------------------------------------
+
+def _render_tree_text(db, node_id: int, depth: int = 0, max_depth: int = 4) -> str:
+    """Recursively render MCTS tree as indented text with type badges."""
+    node = db.get_tree_node(node_id)
+    if not node:
+        return ""
+    indent = "  " * depth
+    bullet = "" if depth == 0 else "* "
+    snippet = (node.get("content") or "")[:60].replace("\n", " ")
+    ntype = node.get("node_type", "normal")
+    tag = ""
+    if ntype == "terminal_success":
+        tag = " ✓PROVED"  # ✓
+    elif ntype == "terminal_failure":
+        tag = " ✗DEAD"    # ✗
+    elif ntype == "pruned":
+        tag = " ⊘PRUNED"  # ⊘
+    q = node["q_value"]
+    n = node["visit_count"]
+    line = f"{indent}{bullet}#{node_id} \"{snippet}\"  Q={q:.3f} N={n}{tag}"
+    lines = [line]
+    if depth < max_depth:
+        children = db.get_uct_scores(node_id)
+        for child in children:
+            cid = child.get("child_id")
+            if cid is not None:
+                sub = _render_tree_text(db, cid, depth + 1, max_depth)
+                if sub:
+                    lines.append(sub)
+    return "\n".join(lines)
+
+
+def _tree_to_dict(db, node_id: int, max_depth: int = 4) -> dict | None:
+    """Recursively build MCTS tree as nested dict for JSON output."""
+    node = db.get_tree_node(node_id)
+    if not node:
+        return None
+    result = {
+        "id": node["id"],
+        "content": node.get("content", ""),
+        "node_type": node.get("node_type", "normal"),
+        "q_value": node["q_value"],
+        "visit_count": node["visit_count"],
+        "reward": node.get("reward", 0.0),
+        "user_address": node.get("user_address", ""),
+    }
+    if max_depth > 0:
+        children = db.get_uct_scores(node_id)
+        result["children"] = []
+        for child in children:
+            cid = child.get("child_id")
+            if cid is not None:
+                child_dict = _tree_to_dict(db, cid, max_depth - 1)
+                if child_dict:
+                    child_dict["action_label"] = child.get("action_label", "")
+                    child_dict["uct_score"] = child.get("uct_score", 0)
+                    result["children"].append(child_dict)
+    return result
+
+
+# ---------------------------------------------------------------------------
+# Math Research Zone -- CLI view commands (Phase 1)
+# ---------------------------------------------------------------------------
+
+def cmd_math_collection_list(args):
+    """List method collections, optionally filtered by category."""
+    from src.hub.leaderboard import LeaderboardDB
+
+    db = LeaderboardDB(args.db)
+    collections = db.get_collections("method", sort_by=getattr(args, "sort_by", "stars"))
+    category = getattr(args, "category", None)
+    if category:
+        collections = [c for c in collections if c.get("category") == category]
+
+    if getattr(args, "json", False):
+        data = [{
+            "id": c["id"], "name": c["name"], "category": c.get("category", ""),
+            "tool_count": len(json.loads(c.get("methods_json", "[]"))),
+            "stars": c.get("stars", 0), "import_count": c.get("import_count", 0),
+        } for c in collections]
+        print(json.dumps(data, ensure_ascii=False, indent=2))
+        return
+    if not collections:
+        print("No method collections found.")
+        return
+    print(f"Method Collections ({len(collections)}):")
+    for c in collections:
+        tools = len(json.loads(c.get("methods_json", "[]")))
+        stars = c.get("stars", 0)
+        imports = c.get("import_count", 0)
+        cat = c.get("category", "")[:16]
+        name = c["name"][:40]
+        print(f"  #{c['id']}  {name:<40} [{cat}]  {tools} tools  ★{stars}  {imports} imports")
+
+
+def cmd_math_problem_list(args):
+    """List all math problems with solution counts and optional search."""
+    from src.hub.leaderboard import LeaderboardDB
+
+    db = LeaderboardDB(args.db)
+    problems = db.get_math_problems(getattr(args, "status", "active"))
+    query = getattr(args, "search", None)
+    if query:
+        ql = query.lower()
+        problems = [p for p in problems if ql in p["title"].lower()
+                    or ql in (p.get("description") or "").lower()]
+
+    # Count solutions per problem across all method collections
+    conn = sqlite3.connect(db.db_path)
+    counts = {}
+    for row in conn.execute(
+            "SELECT problem_id, COUNT(*) FROM math_solutions GROUP BY problem_id"):
+        counts[row[0]] = row[1]
+    conn.close()
+
+    if getattr(args, "json", False):
+        data = [{
+            "id": p["id"], "title": p["title"],
+            "category": p.get("category", ""), "creator": p.get("creator", ""),
+            "status": p["status"], "solution_count": counts.get(p["id"], 0),
+        } for p in problems]
+        print(json.dumps(data, ensure_ascii=False, indent=2))
+        return
+    status = getattr(args, "status", "active")
+    if not problems:
+        print(f"No math problems found (status={status}).")
+        return
+    print(f"Math Problems (status={status}, {len(problems)} total):")
+    for p in problems:
+        cat = p.get("category", "?").replace("_", " ").title()
+        creator = (p.get("creator") or "?")[:16]
+        sc = counts.get(p["id"], 0)
+        print(f"  #{p['id']}  {p['title'][:50]:<50} [{cat}]  by {creator}  {sc} solution(s)")
+
+
+def cmd_math_problem_show(args):
+    """Show problem detail with method zones and access status."""
+    from src.hub.leaderboard import LeaderboardDB
+
+    db = LeaderboardDB(args.db)
+    problem = db.get_math_problem(args.problem_id)
+    if not problem:
+        print(f"ERROR: Problem #{args.problem_id} not found.", file=sys.stderr)
+        sys.exit(1)
+
+    address = getattr(args, "address", None) or ""
+    collections = db.get_collections("method", sort_by="stars")
+    math_cols = [c for c in collections if c.get("category") == "mathematics"]
+
+    # Count solutions and top step per (problem, collection)
+    conn = sqlite3.connect(db.db_path)
+    sol_counts, top_steps = {}, {}
+    for row in conn.execute(
+            "SELECT method_collection_id, COUNT(*), MAX(max_correct_step) "
+            "FROM math_solutions WHERE problem_id=? GROUP BY method_collection_id",
+            (args.problem_id,)):
+        sol_counts[row[0]] = row[1]
+        top_steps[row[0]] = row[2] or 0
+    conn.close()
+
+    if getattr(args, "json", False):
+        zones = []
+        for c in math_cols:
+            access = db.check_math_access(args.problem_id, c["id"], address) if address else False
+            zones.append({
+                "collection": {
+                    "id": c["id"], "name": c["name"],
+                    "tool_count": len(json.loads(c.get("methods_json", "[]"))),
+                },
+                "access": access,
+                "solution_count": sol_counts.get(c["id"], 0),
+                "top_step": top_steps.get(c["id"], 0),
+            })
+        print(json.dumps({
+            "problem": dict(problem), "method_zones": zones,
+        }, ensure_ascii=False, indent=2, default=str))
+        return
+
+    cat = problem.get("category", "?").replace("_", " ").title()
+    print(f"Problem #{problem['id']}: {problem['title']}")
+    print(f"  Category: {cat}    Creator: {problem.get('creator', '?')}    Status: {problem['status']}")
+    desc = (problem.get("description") or "")[:200]
+    if desc:
+        print(f"  Description: {desc}")
+    print(f"\n  Method Zones ({len(math_cols)}):")
+    for c in math_cols:
+        tools = len(json.loads(c.get("methods_json", "[]")))
+        access = db.check_math_access(args.problem_id, c["id"], address) if address else False
+        lock = "Unlocked" if access else "Locked"
+        sc = sol_counts.get(c["id"], 0)
+        ts = top_steps.get(c["id"], 0)
+        print(f"    #{c['id']}  {c['name'][:35]:<35}  {tools} tools  {lock}  {sc} sols  top={ts}")
+
+
+def cmd_math_zone(args):
+    """Show method zone with solutions list."""
+    from src.hub.leaderboard import LeaderboardDB
+
+    db = LeaderboardDB(args.db)
+    problem = db.get_math_problem(args.problem_id)
+    if not problem:
+        print(f"ERROR: Problem #{args.problem_id} not found.", file=sys.stderr)
+        sys.exit(1)
+    coll = db.get_collection("method", args.method_collection_id)
+    if not coll:
+        print(f"ERROR: Method collection #{args.method_collection_id} not found.", file=sys.stderr)
+        sys.exit(1)
+
+    address = getattr(args, "address", None) or ""
+    access = db.check_math_access(args.problem_id, args.method_collection_id, address) if address else False
+    solutions = db.get_math_solutions(args.problem_id, args.method_collection_id)
+    root = db.get_root_node(args.problem_id, args.method_collection_id)
+
+    if getattr(args, "json", False):
+        print(json.dumps({
+            "problem": dict(problem), "collection": dict(coll),
+            "access": access,
+            "solutions": [dict(s) for s in solutions],
+            "tree_root_id": root["id"] if root else None,
+        }, ensure_ascii=False, indent=2, default=str))
+        return
+
+    print(f"Method Zone: {problem['title']} × {coll['name']}")
+    print(f"  Access: {'Unlocked' if access else 'Locked'}")
+    if not access:
+        print("  Run math-mine or math-unlock to gain access.")
+    print(f"\nSolutions ({len(solutions)}):")
+    if not solutions:
+        print("  No solutions yet.")
+    else:
+        for s in solutions:
+            steps = json.loads(s.get("steps_json", "[]") or "[]") if s.get("steps_json") else []
+            parent = s.get("parent_solution_id")
+            parent_info = f"  Forked from #{parent}" if parent else ""
+            addr = (s.get("user_address") or "?")[:16]
+            print(f"  #{s['id']}  {addr:<16}  Steps: {len(steps)}  Max: {s['max_correct_step']}{parent_info}")
+    tree_status = "Yes (root #{})".format(root["id"]) if root else "Not initialized"
+    print(f"\n  Tree: {tree_status}")
+
+
+def cmd_math_solution_show(args):
+    """Show solution detail with parsed steps."""
+    from src.hub.leaderboard import LeaderboardDB
+
+    db = LeaderboardDB(args.db)
+    solution = db.get_math_solution(args.solution_id)
+    if not solution:
+        print(f"ERROR: Solution #{args.solution_id} not found.", file=sys.stderr)
+        sys.exit(1)
+
+    problem = db.get_math_problem(solution["problem_id"])
+    coll = db.get_collection("method", solution["method_collection_id"])
+    try:
+        steps = json.loads(solution.get("steps_json", "[]") or "[]")
+    except (json.JSONDecodeError, TypeError):
+        steps = []
+
+    if getattr(args, "json", False):
+        data = dict(solution)
+        data["steps"] = steps
+        data["problem"] = dict(problem) if problem else None
+        data["collection"] = dict(coll) if coll else None
+        del data["steps_json"]
+        print(json.dumps(data, ensure_ascii=False, indent=2, default=str))
+        return
+
+    problem_title = problem["title"] if problem else f"#{solution['problem_id']}"
+    coll_name = coll["name"] if coll else f"#{solution['method_collection_id']}"
+    created = (time.strftime("%Y-%m-%d %H:%M:%S",
+               time.localtime(solution["created_at"]))
+               if solution.get("created_at") else "?")
+    print(f"Solution #{solution['id']}")
+    print(f"  Problem: #{solution['problem_id']} {problem_title}")
+    print(f"  Method:  #{solution['method_collection_id']} {coll_name}")
+    print(f"  Author:  {(solution.get('user_address') or '?')[:20]}")
+    if solution.get("parent_solution_id"):
+        print(f"  Forked from: #{solution['parent_solution_id']}")
+    print(f"  Created: {created}")
+    print(f"  Steps: {len(steps)}  Max Correct: {solution['max_correct_step']}")
+    print()
+    if steps:
+        print("  Steps:")
+        for s in steps[:30]:
+            v = s.get("verified", False)
+            check = "✓" if v else " "
+            content = (s.get("content", "") or "")[:80]
+            print(f"    #{s.get('step_num', '?')} [{check}] {content}")
+        if len(steps) > 30:
+            print(f"    ... ({len(steps) - 30} more steps)")
+    else:
+        print("  No steps.")
+
+
+def cmd_math_tree_show(args):
+    """Show recursive MCTS tree visualization with stats."""
+    from src.hub.leaderboard import LeaderboardDB
+
+    db = LeaderboardDB(args.db)
+    root = db.get_root_node(args.problem_id, args.method_collection_id)
+    if not root:
+        print(f"Tree not initialized for problem #{args.problem_id} / method #{args.method_collection_id}.")
+        print("Run math-mine to auto-create the root node.")
+        sys.exit(1)
+
+    nodes = db.get_tree_nodes_for_zone(args.problem_id, args.method_collection_id)
+    terminals = db.get_terminal_nodes(args.problem_id, args.method_collection_id)
+    success_t = [n for n in terminals if n["node_type"] == "terminal_success"]
+    max_depth = getattr(args, "max_depth", 4)
+
+    if getattr(args, "json", False):
+        tree_dict = _tree_to_dict(db, root["id"], max_depth)
+        print(json.dumps({
+            "problem_id": args.problem_id,
+            "method_collection_id": args.method_collection_id,
+            "stats": {
+                "total_nodes": len(nodes),
+                "terminal_nodes": len(terminals),
+                "proofs_found": len(success_t),
+                "root_q": root["q_value"],
+                "root_n": root["visit_count"],
+            },
+            "tree": tree_dict,
+        }, ensure_ascii=False, indent=2, default=str))
+        return
+
+    print(f"Tree: problem #{args.problem_id} / method #{args.method_collection_id}")
+    print(f"Stats: {len(nodes)} nodes  {len(terminals)} terminal ({len(success_t)} success)  "
+          f"Root Q={root['q_value']:.4f}  Root N={root['visit_count']}")
+    print()
+    print(_render_tree_text(db, root["id"], 0, max_depth))
+
+
+def cmd_math_tree_node(args):
+    """Show single tree node detail with children and UCT scores."""
+    from src.hub.leaderboard import LeaderboardDB
+
+    db = LeaderboardDB(args.db)
+    node = db.get_tree_node(args.node_id)
+    if not node:
+        print(f"ERROR: Node #{args.node_id} not found.", file=sys.stderr)
+        sys.exit(1)
+
+    parent = db._get_parent_node(args.node_id)
+    path = db._get_path_to_root(args.node_id)
+    children = db.get_uct_scores(args.node_id)
+
+    if getattr(args, "json", False):
+        print(json.dumps({
+            "node": dict(node),
+            "parent": dict(parent) if parent else None,
+            "path_to_root": list(reversed(path)),
+            "children": children,
+        }, ensure_ascii=False, indent=2, default=str))
+        return
+
+    ntype = node.get("node_type", "normal")
+    created = (time.strftime("%Y-%m-%d %H:%M:%S",
+               time.localtime(node["created_at"]))
+               if node.get("created_at") else "?")
+    print(f"Node #{node['id']}")
+    print(f"  Content: {node.get('content', '')}")
+    print(f"  Type: {ntype}")
+    print(f"  Q-Value: {node['q_value']:.4f}  Visits: {node['visit_count']}  "
+          f"Reward: {node.get('reward', 0.0):.2f}")
+    print(f"  Author: {(node.get('user_address') or '?')[:20]}")
+    print(f"  Created: {created}")
+    print(f"  Path to Root: {' → '.join(str(n) for n in reversed(path))}")
+    if children:
+        print(f"\n  Children (sorted by UCT):")
+        for c in children[:15]:
+            uct = c.get("uct_score", 0)
+            uct_s = f"{uct:.3f}" if uct != float('inf') else "inf"
+            ct = c.get("child_node_type", "normal")
+            tag = ""
+            if ct == "terminal_success":
+                tag = " ✓"
+            elif ct == "terminal_failure":
+                tag = " ✗"
+            elif ct == "pruned":
+                tag = " ⊘"
+            content = (c.get("child_content") or "")[:40]
+            print(f"    #{c['child_id']}  \"{content}\"  "
+                  f"Q={c['child_q_value']:.3f}  N={c['child_visit_count']}  "
+                  f"UCT={uct_s}{tag}")
+    else:
+        print(f"\n  No children.")
+
+
+# ---------------------------------------------------------------------------
+# Math Research Zone -- CLI action commands (Phase 2)
+# ---------------------------------------------------------------------------
+
+def cmd_math_problem_create(args):
+    """Create a new math problem zone."""
+    from src.hub.leaderboard import LeaderboardDB
+
+    if not args.title.strip():
+        print("ERROR: --title is required and cannot be empty.", file=sys.stderr)
+        sys.exit(1)
+    db = LeaderboardDB(args.db)
+    pid = db.create_math_problem(
+        title=args.title.strip(),
+        description=getattr(args, "description", ""),
+        category=getattr(args, "category", "number_theory"),
+        creator=getattr(args, "creator", ""),
+    )
+    problem = db.get_math_problem(pid)
+    if getattr(args, "json", False):
+        print(json.dumps(dict(problem), ensure_ascii=False, indent=2, default=str))
+        return
+    cat = problem["category"].replace("_", " ").title()
+    print(f"Math problem created!")
+    print(f"  ID: {pid}")
+    print(f"  Title: {problem['title']}")
+    print(f"  Category: {cat}")
+    print(f"  Creator: {problem.get('creator', '')}")
+    print(f"  Status: {problem['status']}")
+
+
+def cmd_math_unlock(args):
+    """Manually grant access to a (problem, method) zone."""
+    from src.hub.leaderboard import LeaderboardDB
+
+    db = LeaderboardDB(args.db)
+    problem = db.get_math_problem(args.problem_id)
+    if not problem:
+        print(f"ERROR: Problem #{args.problem_id} not found.", file=sys.stderr)
+        sys.exit(1)
+    coll = db.get_collection("method", args.method_collection_id)
+    if not coll:
+        print(f"ERROR: Method collection #{args.method_collection_id} not found.", file=sys.stderr)
+        sys.exit(1)
+
+    address = _get_user_address(args, "0xUNLOCK")
+    db.grant_math_access(args.problem_id, args.method_collection_id,
+                         address, args.combo_id, "{}")
+    if getattr(args, "json", False):
+        print(json.dumps({
+            "granted": True, "problem_id": args.problem_id,
+            "method_collection_id": args.method_collection_id,
+            "user_address": address, "combo_id": args.combo_id,
+        }, ensure_ascii=False, indent=2))
+        return
+    print(f"Access granted!")
+    print(f"  Problem: #{args.problem_id} {problem['title']}")
+    print(f"  Method:  #{args.method_collection_id} {coll['name']}")
+    print(f"  User: {address}")
+    print(f"  Combo: {args.combo_id}")
+    print(f"  View: /web/math/{args.problem_id}/{args.method_collection_id}")
+
+
+def cmd_math_tree_backpropagate(args):
+    """Mark a node as terminal_success/failure and backpropagate reward."""
+    from src.hub.leaderboard import LeaderboardDB
+
+    db = LeaderboardDB(args.db)
+    node = db.get_tree_node(args.node_id)
+    if not node:
+        print(f"ERROR: Node #{args.node_id} not found.", file=sys.stderr)
+        sys.exit(1)
+
+    ntype = args.type  # terminal_success or terminal_failure
+    reward = getattr(args, "reward", None)
+    if reward is None:
+        reward = 1.0 if ntype == "terminal_success" else 0.0
+    reward = max(0.0, min(1.0, reward))
+
+    db.update_tree_node(args.node_id, node_type=ntype, reward=reward)
+    db.backpropagate(args.node_id, reward)
+
+    # Fetch updated root Q
+    root = db._get_parent_node(args.node_id) if node.get("is_root") else None
+    # Walk to root for final Q
+    path = db._get_path_to_root(args.node_id)
+    root_node = db.get_tree_node(path[-1]) if path else None
+    root_q = root_node["q_value"] if root_node else 0.0
+
+    if getattr(args, "json", False):
+        print(json.dumps({
+            "node_id": args.node_id, "node_type": ntype, "reward": reward,
+            "path_updated": path, "root_q": root_q,
+        }, ensure_ascii=False, indent=2))
+        return
+    print(f"Backpropagated node #{args.node_id}")
+    print(f"  Type: {ntype}  Reward: {reward}")
+    print(f"  Path: {' -> '.join(str(n) for n in reversed(path))}  Root Q: {root_q:.4f}")
+
+
+def cmd_math_tree_prune(args):
+    """Prune a tree node (mark as pruned, backpropagate neutral reward)."""
+    from src.hub.leaderboard import LeaderboardDB
+
+    db = LeaderboardDB(args.db)
+    node = db.get_tree_node(args.node_id)
+    if not node:
+        print(f"ERROR: Node #{args.node_id} not found.", file=sys.stderr)
+        sys.exit(1)
+
+    db.prune_node(args.node_id)
+    updated = db.get_tree_node(args.node_id)
+
+    if getattr(args, "json", False):
+        print(json.dumps({
+            "node_id": args.node_id, "node_type": "pruned", "reward": 0.0,
+        }, ensure_ascii=False, indent=2))
+        return
+    print(f"Pruned node #{args.node_id}")
+    print(f"  Type: {updated['node_type']}")
+    print(f"  Reward: 0.0 (neutral)")
+
+
+def cmd_math_pull(args):
+    """Pull the best solutions from a (problem, method) zone to local file."""
+    from src.hub.leaderboard import LeaderboardDB
+
+    db = LeaderboardDB(args.db)
+    problem = db.get_math_problem(args.problem_id)
+    if not problem:
+        print(f"ERROR: Problem #{args.problem_id} not found.", file=sys.stderr)
+        sys.exit(1)
+    coll = db.get_collection("method", args.method_collection_id)
+    if not coll:
+        print(f"ERROR: Method collection #{args.method_collection_id} not found.", file=sys.stderr)
+        sys.exit(1)
+
+    solutions = db.get_math_solutions(args.problem_id, args.method_collection_id)
+    min_correct = getattr(args, "min_correct", 0)
+    if min_correct > 0:
+        solutions = [s for s in solutions if s["max_correct_step"] >= min_correct]
+    if getattr(args, "best_only", True) and solutions:
+        kept = {}
+        seen = set()
+        for s in solutions:
+            ua = s.get("user_address", "")
+            if ua not in seen:
+                kept[ua] = s
+                seen.add(ua)
+        solutions = list(kept.values())
+
+    # Parse steps from JSON
+    parsed = []
+    for s in solutions:
+        try:
+            steps = json.loads(s.get("steps_json", "[]") or "[]")
+        except (json.JSONDecodeError, TypeError):
+            steps = []
+        parsed.append({
+            "id": s["id"],
+            "user_address": s.get("user_address", ""),
+            "max_correct_step": s["max_correct_step"],
+            "steps": steps,
+            "forked_from": s.get("parent_solution_id"),
+        })
+
+    result = {
+        "pulled_at": time.time(),
+        "problem": {"id": problem["id"], "title": problem["title"]},
+        "method_collection": {"id": coll["id"], "name": coll["name"]},
+        "solutions": parsed,
+    }
+    if getattr(args, "include_tree", False):
+        root = db.get_root_node(args.problem_id, args.method_collection_id)
+        result["tree"] = _tree_to_dict(db, root["id"]) if root else None
+
+    output = getattr(args, "output", None)
+    output_str = json.dumps(result, ensure_ascii=False, indent=2, default=str)
+    if output:
+        Path(output).write_text(output_str)
+        print(f"Pulled {len(parsed)} solution(s) to {output}")
+    else:
+        print(output_str)
+
+
+def cmd_math_search(args):
+    """Search across math problems, solutions, and tree nodes."""
+    query = getattr(args, "query", "")
+    if not query:
+        print("ERROR: --query is required.", file=sys.stderr)
+        sys.exit(1)
+    like = f"%{query}%"
+    scope = getattr(args, "scope", "all")
+    limit = getattr(args, "limit", 20)
+
+    conn = sqlite3.connect(args.db)
+    conn.row_factory = sqlite3.Row
+
+    results = {"problems": [], "solutions": [], "tree_nodes": []}
+
+    if scope in ("all", "problems"):
+        sql = "SELECT * FROM math_problems WHERE title LIKE ? OR description LIKE ?"
+        params = [like, like]
+        if getattr(args, "category", None):
+            sql += " AND category = ?"
+            params.append(args.category)
+        for row in conn.execute(sql, params):
+            results["problems"].append(dict(row))
+
+    if scope in ("all", "solutions"):
+        sql = "SELECT * FROM math_solutions WHERE steps_json LIKE ?"
+        params = [like]
+        if getattr(args, "address", None):
+            sql += " AND user_address = ?"
+            params.append(args.address)
+        for row in conn.execute(sql, params):
+            results["solutions"].append(dict(row))
+
+    if scope in ("all", "nodes"):
+        sql = "SELECT * FROM math_tree_nodes WHERE content LIKE ?"
+        params = [like]
+        if getattr(args, "address", None):
+            sql += " AND user_address = ?"
+            params.append(args.address)
+        for row in conn.execute(sql, params):
+            results["tree_nodes"].append(dict(row))
+
+    conn.close()
+    for k in results:
+        results[k] = results[k][:limit]
+
+    if getattr(args, "json", False):
+        print(json.dumps(results, ensure_ascii=False, indent=2, default=str))
+        return
+
+    total = sum(len(v) for v in results.values())
+    print(f'Math Search Results for "{query}" (scope={scope}, {total} matches)')
+    for key, label in [("problems", "Problems"), ("solutions", "Solutions"),
+                       ("tree_nodes", "Tree Nodes")]:
+        items = results[key]
+        if not items:
+            continue
+        print(f"\n{label} ({len(items)}):")
+        for it in items:
+            if key == "problems":
+                cat = it.get("category", "").replace("_", " ").title()
+                print(f"  #{it['id']}  {it['title'][:50]}  [{cat}]  by {it.get('creator', '?')}")
+            elif key == "solutions":
+                print(f"  #{it['id']}  Problem #{it['problem_id']} × Method #{it['method_collection_id']}  "
+                      f"by {(it.get('user_address') or '?')[:16]}  steps: {it.get('max_correct_step', 0)}")
+            elif key == "nodes":
+                content = (it.get("content") or "")[:60]
+                ntype = it.get("node_type", "")
+                print(f"  #{it['id']}  \"{content}\"  Q={it.get('q_value', 0):.2f}  N={it.get('visit_count', 0)}  {ntype}")
 
 
 def cmd_buffer_submit(args):
@@ -1061,6 +1908,8 @@ def main():
     p_mine.add_argument("--problem-step", type=int, default=0, help="Problem stepping (0=auto-tune based on matrix size)")
     p_mine.add_argument("--problem-offset", type=int, default=0, help="Base offset into shuffled problem list (0=auto)")
     p_mine.add_argument("--max-attempts", type=int, default=0, help="Max attempts multiplier (0=auto-tune based on matrix size)")
+    p_mine.add_argument("--triz", action="store_true",
+        help="Run TRIZ full analysis on each combination and store metadata in leaderboard")
 
     p_top = sub.add_parser("top", help="Show top-N leaderboard")
     p_top.add_argument("--dimension", default=None, help="Filter by dimension (elegance, weirdness, etc.)")
@@ -1148,6 +1997,48 @@ def main():
     p_triz_analyze.add_argument("--description", required=True, help="Problem description to analyze")
     p_triz_analyze.add_argument("--domain", default="medicine", help="Problem domain (default: medicine)")
 
+    p = sub.add_parser("triz-su-field", help="Su-Field analysis of a problem")
+    p.add_argument("--description", required=True)
+    p.add_argument("--json", action="store_true")
+
+    p = sub.add_parser("triz-cause-effect", help="Cause-effect chain analysis")
+    p.add_argument("--description", required=True)
+    p.add_argument("--json", action="store_true")
+
+    p = sub.add_parser("triz-resource", help="Resource analysis")
+    p.add_argument("--description", required=True)
+    p.add_argument("--json", action="store_true")
+
+    p = sub.add_parser("triz-nine-windows", help="9-Windows system operator")
+    p.add_argument("--description", required=True)
+    p.add_argument("--json", action="store_true")
+
+    p = sub.add_parser("triz-trimming", help="Trimming analysis")
+    p.add_argument("--description", required=True)
+    p.add_argument("--json", action="store_true")
+
+    p = sub.add_parser("triz-function-ranking", help="Function ranking analysis")
+    p.add_argument("--description", required=True)
+    p.add_argument("--json", action="store_true")
+
+    p = sub.add_parser("triz-stc", help="STC operator (Size-Time-Cost)")
+    p.add_argument("--description", required=True)
+    p.add_argument("--json", action="store_true")
+
+    p = sub.add_parser("triz-smart-people", help="Smart Little People modeling")
+    p.add_argument("--description", required=True)
+    p.add_argument("--json", action="store_true")
+
+    p = sub.add_parser("triz-ariz", help="ARIZ-85C algorithm")
+    p.add_argument("--description", required=True)
+    p.add_argument("--simplified", action="store_true", help="Use simplified ~30 step version")
+    p.add_argument("--json", action="store_true")
+
+    p = sub.add_parser("triz-full", help="Run all TRIZ tools (integrated report)")
+    p.add_argument("--description", required=True)
+    p.add_argument("--domain", default="", help="Problem domain")
+    p.add_argument("--json", action="store_true")
+
     p_math_mine = sub.add_parser("math-mine", help="Generate seed analysis to unlock a math problem zone")
     p_math_mine.add_argument("--problem-id", type=int, required=True, help="Math problem ID")
     p_math_mine.add_argument("--methods-collection", required=True, help="Math method collection name")
@@ -1185,6 +2076,101 @@ def main():
     p_math_tree_status.add_argument("--problem-id", type=int, required=True)
     p_math_tree_status.add_argument("--method-collection-id", type=int, required=True)
     p_math_tree_status.add_argument("--db", default="data/leaderboard.db")
+
+    # -- Math CLI view commands --
+    p = sub.add_parser("math-collection-list", help="List method collections")
+    p.add_argument("--category", default=None, help="Filter by category (e.g. mathematics)")
+    p.add_argument("--sort-by", choices=["stars", "imports", "newest"], default="stars")
+    p.add_argument("--json", action="store_true", help="JSON output")
+    p.add_argument("--db", default="data/leaderboard.db")
+
+    p = sub.add_parser("math-problem-list", help="List math problem zones")
+    p.add_argument("--status", default="active", help="Filter by problem status")
+    p.add_argument("--search", default=None, help="Search by title/description keyword")
+    p.add_argument("--json", action="store_true", help="JSON output")
+    p.add_argument("--db", default="data/leaderboard.db")
+
+    p = sub.add_parser("math-problem-show", help="Show problem detail with method zones")
+    p.add_argument("--problem-id", type=int, required=True)
+    p.add_argument("--address", default=None, help="User address for access check")
+    p.add_argument("--json", action="store_true", help="JSON output")
+    p.add_argument("--db", default="data/leaderboard.db")
+
+    p = sub.add_parser("math-zone", help="Show method zone with solutions")
+    p.add_argument("--problem-id", type=int, required=True)
+    p.add_argument("--method-collection-id", type=int, required=True)
+    p.add_argument("--address", default=None, help="User address for access check")
+    p.add_argument("--json", action="store_true", help="JSON output")
+    p.add_argument("--db", default="data/leaderboard.db")
+
+    p = sub.add_parser("math-solution-show", help="Show solution detail with steps")
+    p.add_argument("--solution-id", type=int, required=True)
+    p.add_argument("--json", action="store_true", help="JSON output")
+    p.add_argument("--db", default="data/leaderboard.db")
+
+    p = sub.add_parser("math-tree-show", help="Show recursive MCTS tree visualization")
+    p.add_argument("--problem-id", type=int, required=True)
+    p.add_argument("--method-collection-id", type=int, required=True)
+    p.add_argument("--max-depth", type=int, default=4, help="Max recursion depth")
+    p.add_argument("--json", action="store_true", help="JSON output")
+    p.add_argument("--db", default="data/leaderboard.db")
+
+    p = sub.add_parser("math-tree-node", help="Show single tree node detail with children")
+    p.add_argument("--node-id", type=int, required=True)
+    p.add_argument("--json", action="store_true", help="JSON output")
+    p.add_argument("--db", default="data/leaderboard.db")
+
+    # -- Math CLI action commands --
+    p = sub.add_parser("math-problem-create", help="Create a new math problem zone")
+    p.add_argument("--title", required=True, help="Problem title")
+    p.add_argument("--description", default="", help="Problem description")
+    p.add_argument("--category", default="number_theory",
+                   choices=["number_theory", "analysis", "algebra", "geometry",
+                            "topology", "combinatorics", "logic", "other"],
+                   help="Math problem category")
+    p.add_argument("--creator", default="", help="Creator address or name")
+    p.add_argument("--json", action="store_true", help="JSON output")
+    p.add_argument("--db", default="data/leaderboard.db")
+
+    p = sub.add_parser("math-unlock", help="Manually grant zone access")
+    p.add_argument("--problem-id", type=int, required=True)
+    p.add_argument("--method-collection-id", type=int, required=True)
+    p.add_argument("--combo-id", required=True, help="Combo/run ID from math-mine output")
+    p.add_argument("--address", default=None, help="User address (reads from config if not set)")
+    p.add_argument("--json", action="store_true", help="JSON output")
+    p.add_argument("--db", default="data/leaderboard.db")
+
+    p = sub.add_parser("math-tree-backpropagate", help="Mark node terminal and backpropagate reward")
+    p.add_argument("--node-id", type=int, required=True)
+    p.add_argument("--type", required=True, choices=["terminal_success", "terminal_failure"],
+                   help="Terminal node type")
+    p.add_argument("--reward", type=float, default=None, help="Reward (1.0 success, 0.0 failure)")
+    p.add_argument("--json", action="store_true", help="JSON output")
+    p.add_argument("--db", default="data/leaderboard.db")
+
+    p = sub.add_parser("math-tree-prune", help="Prune a tree node (dead end)")
+    p.add_argument("--node-id", type=int, required=True)
+    p.add_argument("--json", action="store_true", help="JSON output")
+    p.add_argument("--db", default="data/leaderboard.db")
+
+    p = sub.add_parser("math-pull", help="Pull best solutions from a zone to local JSON")
+    p.add_argument("--problem-id", type=int, required=True)
+    p.add_argument("--method-collection-id", type=int, required=True)
+    p.add_argument("--output", default=None, help="Output file path (default: stdout)")
+    p.add_argument("--min-correct", type=int, default=0, help="Min max_correct_step filter")
+    p.add_argument("--best-only", action="store_true", default=True, help="Only best per user")
+    p.add_argument("--include-tree", action="store_true", help="Include MCTS tree in output")
+    p.add_argument("--json", action="store_true", help="JSON output (default for this command)")
+    p.add_argument("--db", default="data/leaderboard.db")
+
+    p = sub.add_parser("math-search", help="Search math zone across problems/solutions/nodes")
+    p.add_argument("--query", required=True, help="Search keyword")
+    p.add_argument("--scope", choices=["all", "problems", "solutions", "nodes"], default="all")
+    p.add_argument("--category", default=None, help="Filter problems by category")
+    p.add_argument("--address", default=None, help="Filter solutions/nodes by address")
+    p.add_argument("--limit", type=int, default=20, help="Max results per scope")
+    p.add_argument("--json", action="store_true", help="JSON output")
+    p.add_argument("--db", default="data/leaderboard.db")
 
     p_buf_submit = sub.add_parser("buffer-submit", help="Submit an AI analysis to the blockchain buffer zone")
     p_buf_submit.add_argument("--combo-id", required=True, help="Combination ID")
@@ -1268,6 +2254,26 @@ def main():
         cmd_submit_problem(args)
     elif args.command == "triz-analyze":
         cmd_triz_analyze(args)
+    elif args.command == "triz-su-field":
+        cmd_triz_su_field(args)
+    elif args.command == "triz-cause-effect":
+        cmd_triz_cause_effect(args)
+    elif args.command == "triz-resource":
+        cmd_triz_resource(args)
+    elif args.command == "triz-nine-windows":
+        cmd_triz_nine_windows(args)
+    elif args.command == "triz-trimming":
+        cmd_triz_trimming(args)
+    elif args.command == "triz-function-ranking":
+        cmd_triz_function_ranking(args)
+    elif args.command == "triz-stc":
+        cmd_triz_stc(args)
+    elif args.command == "triz-smart-people":
+        cmd_triz_smart_people(args)
+    elif args.command == "triz-ariz":
+        cmd_triz_ariz(args)
+    elif args.command == "triz-full":
+        cmd_triz_full(args)
     elif args.command == "math-mine":
         cmd_math_mine(args)
     elif args.command == "math-submit":
@@ -1276,6 +2282,32 @@ def main():
         cmd_math_tree_add(args)
     elif args.command == "math-tree-status":
         cmd_math_tree_status(args)
+    elif args.command == "math-collection-list":
+        cmd_math_collection_list(args)
+    elif args.command == "math-problem-list":
+        cmd_math_problem_list(args)
+    elif args.command == "math-problem-show":
+        cmd_math_problem_show(args)
+    elif args.command == "math-zone":
+        cmd_math_zone(args)
+    elif args.command == "math-solution-show":
+        cmd_math_solution_show(args)
+    elif args.command == "math-tree-show":
+        cmd_math_tree_show(args)
+    elif args.command == "math-tree-node":
+        cmd_math_tree_node(args)
+    elif args.command == "math-problem-create":
+        cmd_math_problem_create(args)
+    elif args.command == "math-unlock":
+        cmd_math_unlock(args)
+    elif args.command == "math-tree-backpropagate":
+        cmd_math_tree_backpropagate(args)
+    elif args.command == "math-tree-prune":
+        cmd_math_tree_prune(args)
+    elif args.command == "math-pull":
+        cmd_math_pull(args)
+    elif args.command == "math-search":
+        cmd_math_search(args)
     elif args.command == "buffer-submit":
         cmd_buffer_submit(args)
     elif args.command == "buffer-classify":

@@ -52,6 +52,7 @@ class TestCLIMine(unittest.TestCase):
             methods=None, problems=None,
             methods_collection=None, problems_collection=None,
             method_step=0, problem_step=0, problem_offset=0, max_attempts=0,
+            triz=False,
         )
         old_stdout = sys.stdout
         sys.stdout = io.StringIO()
@@ -71,6 +72,7 @@ class TestCLIMine(unittest.TestCase):
             methods=None, problems=None,
             methods_collection=None, problems_collection=None,
             method_step=0, problem_step=0, problem_offset=0, max_attempts=0,
+            triz=False,
         )
         old_stdout = sys.stdout
         sys.stdout = io.StringIO()

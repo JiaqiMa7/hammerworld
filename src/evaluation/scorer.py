@@ -102,7 +102,12 @@ class EvaluationPipeline:
         return sub
 
     def _build_prompt(self, method: Method, problem: Problem) -> str:
-        """Build the evaluation prompt for a method-problem pair."""
+        """Build the evaluation prompt for a method-problem pair.
+
+        Injects TRIZ context from problem.triz_standardized when available,
+        including Su-Field, cause-effect, and resource analysis from the
+        newly enriched standardization pipeline.
+        """
         triz_context = ""
         if problem.triz_standardized:
             ctx = problem.triz_standardized
@@ -110,6 +115,30 @@ class EvaluationPipeline:
                 f"TRIZ Contradiction: {ctx.get('contradiction', {})}\n"
                 f"Ideal Final Result: {ctx.get('ifr', '')}\n"
             )
+            if ctx.get("su_field"):
+                sf = ctx["su_field"]
+                triz_context += (
+                    f"Su-Field: S1={sf.get('s1', '?')}, "
+                    f"S2={sf.get('s2', '?')}, "
+                    f"Field={sf.get('field', '?')}, "
+                    f"Type={sf.get('interaction_type', '?')}, "
+                    f"Complete={sf.get('is_complete', '?')}\n"
+                )
+            if ctx.get("cause_effect"):
+                ce = ctx["cause_effect"]
+                rc = ce.get("root_causes", [])
+                fe = ce.get("final_effects", [])
+                if rc:
+                    triz_context += f"Root Causes: {', '.join(rc[:5])}\n"
+                if fe:
+                    triz_context += f"Final Effects: {', '.join(fe[:5])}\n"
+            if ctx.get("resources"):
+                res = ctx["resources"]
+                avail = []
+                avail.extend(res.get("substances", []))
+                avail.extend(res.get("fields", []))
+                if avail:
+                    triz_context += f"Available Resources: {', '.join(avail[:8])}\n"
 
         return EVALUATION_PROMPT_TEMPLATE.format(
             method_name=method.name,

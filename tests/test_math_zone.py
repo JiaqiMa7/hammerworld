@@ -707,5 +707,341 @@ class TestTreeWebPages(unittest.TestCase):
         self.assertIn("Tree View", html)
 
 
+class TestNewMathCLI(unittest.TestCase):
+    """Tests for the new math zone CLI view and action commands."""
+
+    class _Args:
+        """Simple argparse.Namespace stand-in."""
+        def __init__(self, **kwargs):
+            for k, v in kwargs.items():
+                setattr(self, k, v)
+
+    def setUp(self):
+        self.db_path = tempfile.mktemp(suffix=".db")
+        self.db = LeaderboardDB(self.db_path)
+        # Seed: problem + method collection + solution + tree
+        self.pid = self.db.create_math_problem(
+            "Goldbach Conjecture", "Every even integer > 2 is sum of two primes",
+            "number_theory", "alice")
+        self.cid = self.db.create_collection(
+            "method", "Number Theory", "desc", "mathematics", "bob",
+            [{"name": "Modular Arithmetic", "domain": "mathematics", "level": 2, "description": "d"}])
+        self.steps = [
+            {"step_num": 1, "content": "Let 2n be even", "verified": True},
+            {"step_num": 2, "content": "Apply theorem", "verified": True},
+            {"step_num": 3, "content": "Attempt", "verified": False},
+        ]
+        self.sid = self.db.submit_math_solution(self.pid, self.cid, "0xALICE", self.steps)
+        # Grant access + seed tree
+        self.db.grant_math_access(self.pid, self.cid, "0xALICE", "combo_001", "{}")
+        self.root = self.db.get_root_node(self.pid, self.cid)
+
+    def tearDown(self):
+        if os.path.exists(self.db_path):
+            os.unlink(self.db_path)
+
+    def _run(self, cmd_func, **kwargs):
+        """Run a CLI command with kwargs as args, return stdout string."""
+        merged = dict(db=self.db_path)
+        merged.update(kwargs)
+        args = self._Args(**merged)
+        old = sys.stdout
+        sys.stdout = buf = io.StringIO()
+        try:
+            cmd_func(args)
+            return buf.getvalue()
+        finally:
+            sys.stdout = old
+
+    # -- View commands --
+
+    def test_math_collection_list(self):
+        from src.cli.main import cmd_math_collection_list
+        out = self._run(cmd_math_collection_list)
+        self.assertIn("Number Theory", out)
+        self.assertIn("1 tools", out)
+
+    def test_math_collection_list_json(self):
+        from src.cli.main import cmd_math_collection_list
+        out = self._run(cmd_math_collection_list, json=True)
+        data = json.loads(out)
+        self.assertIsInstance(data, list)
+        self.assertEqual(data[0]["name"], "Number Theory")
+
+    def test_math_collection_list_empty(self):
+        from src.cli.main import cmd_math_collection_list
+        db_path2 = tempfile.mktemp(suffix=".db")
+        LeaderboardDB(db_path2)  # fresh DB, no collections
+        out = self._run(cmd_math_collection_list, db=db_path2)
+        self.assertIn("No method collections", out)
+        os.unlink(db_path2)
+
+    def test_math_problem_list(self):
+        from src.cli.main import cmd_math_problem_list
+        out = self._run(cmd_math_problem_list)
+        self.assertIn("Goldbach Conjecture", out)
+        self.assertIn("solution(s)", out)
+
+    def test_math_problem_list_json(self):
+        from src.cli.main import cmd_math_problem_list
+        out = self._run(cmd_math_problem_list, json=True)
+        data = json.loads(out)
+        self.assertEqual(data[0]["title"], "Goldbach Conjecture")
+        self.assertIn("solution_count", data[0])
+
+    def test_math_problem_list_search(self):
+        from src.cli.main import cmd_math_problem_list
+        out = self._run(cmd_math_problem_list, search="Goldbach")
+        self.assertIn("Goldbach Conjecture", out)
+        out2 = self._run(cmd_math_problem_list, search="Nonexistent")
+        self.assertIn("No math problems", out2)
+
+    def test_math_problem_show(self):
+        from src.cli.main import cmd_math_problem_show
+        out = self._run(cmd_math_problem_show, problem_id=self.pid, address="0xALICE")
+        self.assertIn("Goldbach Conjecture", out)
+        self.assertIn("Number Theory", out)
+        self.assertIn("Unlocked", out)
+
+    def test_math_problem_show_not_found(self):
+        from src.cli.main import cmd_math_problem_show
+        with self.assertRaises(SystemExit):
+            self._run(cmd_math_problem_show, problem_id=999)
+
+    def test_math_problem_show_json(self):
+        from src.cli.main import cmd_math_problem_show
+        out = self._run(cmd_math_problem_show, problem_id=self.pid, json=True)
+        data = json.loads(out)
+        self.assertEqual(data["problem"]["title"], "Goldbach Conjecture")
+        self.assertGreater(len(data["method_zones"]), 0)
+
+    def test_math_zone(self):
+        from src.cli.main import cmd_math_zone
+        out = self._run(cmd_math_zone, problem_id=self.pid,
+                        method_collection_id=self.cid, address="0xALICE")
+        self.assertIn("Goldbach Conjecture", out)
+        self.assertIn("Number Theory", out)
+        self.assertIn("Unlocked", out)
+        self.assertIn("0xALICE", out)
+
+    def test_math_zone_locked(self):
+        from src.cli.main import cmd_math_zone
+        out = self._run(cmd_math_zone, problem_id=self.pid,
+                        method_collection_id=self.cid)
+        self.assertIn("Locked", out)
+
+    def test_math_zone_json(self):
+        from src.cli.main import cmd_math_zone
+        out = self._run(cmd_math_zone, problem_id=self.pid,
+                        method_collection_id=self.cid, json=True)
+        data = json.loads(out)
+        self.assertEqual(data["problem"]["id"], self.pid)
+        self.assertGreater(len(data["solutions"]), 0)
+
+    def test_math_solution_show(self):
+        from src.cli.main import cmd_math_solution_show
+        out = self._run(cmd_math_solution_show, solution_id=self.sid)
+        self.assertIn("Goldbach Conjecture", out)
+        self.assertIn("Max Correct", out)
+        self.assertIn("✓", out)
+
+    def test_math_solution_show_json(self):
+        from src.cli.main import cmd_math_solution_show
+        out = self._run(cmd_math_solution_show, solution_id=self.sid, json=True)
+        data = json.loads(out)
+        self.assertEqual(len(data["steps"]), 3)
+        self.assertEqual(data["max_correct_step"], 2)
+
+    def test_math_solution_show_not_found(self):
+        from src.cli.main import cmd_math_solution_show
+        with self.assertRaises(SystemExit):
+            self._run(cmd_math_solution_show, solution_id=999)
+
+    def test_math_tree_show(self):
+        from src.cli.main import cmd_math_tree_show
+        out = self._run(cmd_math_tree_show, problem_id=self.pid,
+                        method_collection_id=self.cid)
+        self.assertIn("Stats", out)
+        self.assertIn("Goldbach Conjecture", out)
+
+    def test_math_tree_show_no_root(self):
+        from src.cli.main import cmd_math_tree_show
+        # The root is auto-created in setUp; test by trying a non-existent zone
+        with self.assertRaises(SystemExit):
+            self._run(cmd_math_tree_show, problem_id=999,
+                      method_collection_id=999)
+
+    def test_math_tree_show_json(self):
+        from src.cli.main import cmd_math_tree_show
+        out = self._run(cmd_math_tree_show, problem_id=self.pid,
+                        method_collection_id=self.cid, json=True)
+        data = json.loads(out)
+        self.assertIn("stats", data)
+        self.assertIn("tree", data)
+
+    def test_math_tree_node(self):
+        from src.cli.main import cmd_math_tree_node
+        out = self._run(cmd_math_tree_node, node_id=self.root["id"])
+        self.assertIn("Goldbach Conjecture", out)
+        self.assertIn("Root", out)
+
+    def test_math_tree_node_json(self):
+        from src.cli.main import cmd_math_tree_node
+        out = self._run(cmd_math_tree_node, node_id=self.root["id"], json=True)
+        data = json.loads(out)
+        self.assertEqual(data["node"]["id"], self.root["id"])
+
+    def test_math_tree_node_not_found(self):
+        from src.cli.main import cmd_math_tree_node
+        with self.assertRaises(SystemExit):
+            self._run(cmd_math_tree_node, node_id=999)
+
+    # -- Action commands --
+
+    def test_math_problem_create(self):
+        from src.cli.main import cmd_math_problem_create
+        out = self._run(cmd_math_problem_create, title="P vs NP",
+                        description="Is P = NP?", category="logic",
+                        creator="bob")
+        self.assertIn("Math problem created", out)
+        self.assertIn("P vs NP", out)
+        # Verify in DB
+        # PID=1 created by setUp, so new problem is PID=2
+        p = self.db.get_math_problem(2)
+        self.assertEqual(p["title"], "P vs NP")
+
+    def test_math_problem_create_empty_title(self):
+        from src.cli.main import cmd_math_problem_create
+        with self.assertRaises(SystemExit):
+            self._run(cmd_math_problem_create, title="   ")
+
+    def test_math_unlock(self):
+        from src.cli.main import cmd_math_unlock
+        # Create another method collection for the same problem
+        cid2 = self.db.create_collection(
+            "method", "Analysis Tools", "desc", "mathematics", "bob",
+            [{"name": "Real Analysis", "domain": "mathematics", "level": 2, "description": "d"}])
+        out = self._run(cmd_math_unlock, problem_id=self.pid,
+                        method_collection_id=cid2, combo_id="combo_xyz",
+                        address="0xNEWUSER")
+        self.assertIn("Access granted", out)
+        self.assertTrue(self.db.check_math_access(self.pid, cid2, "0xNEWUSER"))
+
+    def test_math_unlock_not_found(self):
+        from src.cli.main import cmd_math_unlock
+        with self.assertRaises(SystemExit):
+            self._run(cmd_math_unlock, problem_id=999,
+                      method_collection_id=1, combo_id="c1")
+
+    def test_math_tree_backpropagate(self):
+        from src.cli.main import cmd_math_tree_backpropagate
+        # Create a child node first
+        nid = self.db.create_tree_node(self.pid, self.cid, "0xT", "Test step")
+        self.db.create_tree_edge(self.root["id"], nid, "test")
+        out = self._run(cmd_math_tree_backpropagate, node_id=nid,
+                        type="terminal_success")
+        self.assertIn("Backpropagated", out)
+        # Verify node type changed
+        node = self.db.get_tree_node(nid)
+        self.assertEqual(node["node_type"], "terminal_success")
+        # Root Q should be updated
+        root = self.db.get_tree_node(self.root["id"])
+        self.assertGreater(root["visit_count"], 0)
+
+    def test_math_tree_backpropagate_not_found(self):
+        from src.cli.main import cmd_math_tree_backpropagate
+        with self.assertRaises(SystemExit):
+            self._run(cmd_math_tree_backpropagate, node_id=999, type="terminal_success")
+
+    def test_math_tree_prune(self):
+        from src.cli.main import cmd_math_tree_prune
+        nid = self.db.create_tree_node(self.pid, self.cid, "0xT", "Dead end")
+        self.db.create_tree_edge(self.root["id"], nid, "bad")
+        out = self._run(cmd_math_tree_prune, node_id=nid)
+        self.assertIn("Pruned", out)
+        node = self.db.get_tree_node(nid)
+        self.assertEqual(node["node_type"], "pruned")
+
+    def test_math_tree_prune_not_found(self):
+        from src.cli.main import cmd_math_tree_prune
+        with self.assertRaises(SystemExit):
+            self._run(cmd_math_tree_prune, node_id=999)
+
+    def test_math_pull(self):
+        from src.cli.main import cmd_math_pull
+        out_path = tempfile.mktemp(suffix=".json")
+        out = self._run(cmd_math_pull, problem_id=self.pid,
+                        method_collection_id=self.cid, output=out_path)
+        self.assertIn("Pulled", out)
+        self.assertTrue(os.path.exists(out_path))
+        data = json.loads(Path(out_path).read_text())
+        self.assertEqual(data["problem"]["title"], "Goldbach Conjecture")
+        self.assertGreater(len(data["solutions"]), 0)
+        self.assertIn("steps", data["solutions"][0])
+        os.unlink(out_path)
+
+    def test_math_pull_no_solutions(self):
+        from src.cli.main import cmd_math_pull
+        out_path = tempfile.mktemp(suffix=".json")
+        # This problem has no solutions
+        pid2 = self.db.create_math_problem("New Problem", "...")
+        out = self._run(cmd_math_pull, problem_id=pid2,
+                        method_collection_id=self.cid, output=out_path,
+                        best_only=True)
+        self.assertIn("Pulled 0", out)
+        os.unlink(out_path)
+
+    def test_math_search(self):
+        from src.cli.main import cmd_math_search
+        out = self._run(cmd_math_search, query="Goldbach")
+        self.assertIn("Goldbach Conjecture", out)
+        self.assertIn("Problems (1)", out)
+
+    def test_math_search_all_scopes(self):
+        from src.cli.main import cmd_math_search
+        out = self._run(cmd_math_search, query="even", scope="all")
+        self.assertIn("Math Search Results", out)
+
+    def test_math_search_json(self):
+        from src.cli.main import cmd_math_search
+        out = self._run(cmd_math_search, query="theorem", json=True)
+        data = json.loads(out)
+        self.assertIn("solutions", data)
+
+    def test_math_search_empty(self):
+        from src.cli.main import cmd_math_search
+        out = self._run(cmd_math_search, query="zzz_nonexistent_zzz")
+        self.assertIn("0 matches", out)
+
+    def test_math_search_no_query(self):
+        from src.cli.main import cmd_math_search
+        with self.assertRaises(SystemExit):
+            self._run(cmd_math_search, query="")
+
+    # -- JSON output consistency --
+
+    def test_all_view_commands_json(self):
+        """Verify all view commands produce valid JSON."""
+        from src.cli.main import (
+            cmd_math_collection_list, cmd_math_problem_list,
+            cmd_math_problem_show, cmd_math_zone,
+            cmd_math_solution_show, cmd_math_tree_show, cmd_math_tree_node,
+        )
+        for cmd, kwargs in [
+            (cmd_math_collection_list, {}),
+            (cmd_math_problem_list, {}),
+            (cmd_math_problem_show, {"problem_id": self.pid}),
+            (cmd_math_zone, {"problem_id": self.pid,
+                             "method_collection_id": self.cid}),
+            (cmd_math_solution_show, {"solution_id": self.sid}),
+            (cmd_math_tree_show, {"problem_id": self.pid,
+                                  "method_collection_id": self.cid}),
+            (cmd_math_tree_node, {"node_id": self.root["id"]}),
+        ]:
+            out = self._run(cmd, json=True, **kwargs)
+            data = json.loads(out)  # will raise if invalid JSON
+            self.assertIsNotNone(data)
+
+
 if __name__ == "__main__":
     unittest.main()

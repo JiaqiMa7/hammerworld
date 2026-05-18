@@ -147,5 +147,82 @@ class TestFallbackScores(unittest.TestCase):
         self.assertEqual(len(result.analysis.scores), 8)
 
 
+class TestPromptEnrichment(unittest.TestCase):
+    """Verify that _build_prompt injects TRIZ context from triz_standardized."""
+
+    def setUp(self):
+        self.pipeline = EvaluationPipeline(MockAIProvider())
+
+    def _make_problem(self, triz_extra: dict = None) -> Problem:
+        base = {
+            "contradiction": {"improving": "speed", "worsening": "weight"},
+            "ifr": "Ideal solution",
+            "triz_params": [1, 15],
+            "functional_model": {"actors": [], "useful_functions": [], "harmful_functions": []},
+        }
+        if triz_extra:
+            base.update(triz_extra)
+        return Problem(
+            id="p1", title="Test", domain=Domain.ENERGY,
+            description="A test problem", triz_standardized=base,
+        )
+
+    def test_basic_triz_context(self):
+        p = self._make_problem()
+        m = Method(id="m1", name="M1", domain="eng", level=MethodLevel(1), description="d")
+        prompt = self.pipeline._build_prompt(m, p)
+        self.assertIn("TRIZ Contradiction", prompt)
+        self.assertIn("Ideal Final Result", prompt)
+
+    def test_su_field_in_prompt(self):
+        p = self._make_problem({
+            "su_field": {
+                "s1": "car", "s2": "engine", "field": "mechanical",
+                "interaction_type": "harmful", "is_complete": True,
+            }
+        })
+        m = Method(id="m1", name="M1", domain="eng", level=MethodLevel(1), description="d")
+        prompt = self.pipeline._build_prompt(m, p)
+        self.assertIn("Su-Field", prompt)
+        self.assertIn("S1=car", prompt)
+        self.assertIn("Type=harmful", prompt)
+
+    def test_cause_effect_in_prompt(self):
+        p = self._make_problem({
+            "cause_effect": {
+                "root_causes": ["overheating", "friction"],
+                "final_effects": ["breakdown", "delay"],
+            }
+        })
+        m = Method(id="m1", name="M1", domain="eng", level=MethodLevel(1), description="d")
+        prompt = self.pipeline._build_prompt(m, p)
+        self.assertIn("Root Causes", prompt)
+        self.assertIn("overheating", prompt)
+
+    def test_resources_in_prompt(self):
+        p = self._make_problem({
+            "resources": {
+                "substances": ["water", "metal"], "fields": ["thermal"],
+                "space": [], "time": [], "information": [], "function": [],
+            }
+        })
+        m = Method(id="m1", name="M1", domain="eng", level=MethodLevel(1), description="d")
+        prompt = self.pipeline._build_prompt(m, p)
+        self.assertIn("Available Resources", prompt)
+        self.assertIn("water", prompt)
+
+    def test_all_enriched(self):
+        p = self._make_problem({
+            "su_field": {"s1": "x", "s2": "y", "field": "z", "interaction_type": "u", "is_complete": True},
+            "cause_effect": {"root_causes": ["a"], "final_effects": ["b"]},
+            "resources": {"substances": ["c"], "fields": ["d"], "space": [], "time": [], "information": [], "function": []},
+        })
+        m = Method(id="m1", name="M1", domain="eng", level=MethodLevel(1), description="d")
+        prompt = self.pipeline._build_prompt(m, p)
+        self.assertIn("Su-Field", prompt)
+        self.assertIn("Root Causes", prompt)
+        self.assertIn("Available Resources", prompt)
+
+
 if __name__ == "__main__":
     unittest.main()

@@ -174,6 +174,17 @@ _T = {
     "entry.optional_comment": {"en": "Optional comment",   "zh": "评论（可选）"},
     "entry.submit_rating":   {"en": "Submit Rating",       "zh": "提交评价"},
     "entry.your_address":    {"en": "Your address (0x...)", "zh": "你的地址 (0x...)"},
+    "entry.triz_analysis":   {"en": "TRIZ Analysis",        "zh": "TRIZ 分析"},
+    "entry.triz_su_field":   {"en": "Su-Field Model",       "zh": "物场模型"},
+    "entry.triz_cause_effect": {"en": "Cause-Effect Chain", "zh": "因果链"},
+    "entry.triz_resources":  {"en": "Resource Pool",        "zh": "资源池"},
+    "entry.triz_9windows":   {"en": "9-Windows",            "zh": "九屏幕法"},
+    "entry.triz_trimming":   {"en": "Trimming Candidates",  "zh": "裁剪候选"},
+    "entry.triz_stc":        {"en": "STC Operator",         "zh": "尺寸-时间-成本算子"},
+    "entry.triz_slp":        {"en": "Smart Little People",  "zh": "聪明小人法"},
+    "entry.triz_ariz":       {"en": "ARIZ-85C",             "zh": "ARIZ-85C 算法"},
+    "entry.triz_std_solutions": {"en": "Standard Solutions","zh": "标准解"},
+    "entry.no_triz":         {"en": "No TRIZ data available for this entry.", "zh": "该条目暂无 TRIZ 分析数据。"},
     # Tokens
     "tokens.title":          {"en": "Tokens",              "zh": "代币"},
     "tokens.address_label":  {"en": "Address",             "zh": "地址"},
@@ -424,6 +435,61 @@ _T = {
     "settings.saved":        {"en": "Settings saved. Changes take effect immediately.", "zh": "设置已保存，修改立即生效。"},
     "settings.description":  {"en": "Configure your HammerWorld environment. Leave a field empty to use the default value.", "zh": "配置你的 HammerWorld 环境。留空则使用默认值。"},
     "settings.config_file":  {"en": "Config file",                "zh": "配置文件"},
+    # TRIZ Agent page
+    "triz.title":            {"en": "TRIZ Agent",                "zh": "TRIZ 分析"},
+    "triz.input_placeholder": {"en": "Describe a problem or method to analyze... (e.g. \"A fast car that is too heavy\")", "zh": "描述要分析的问题或方法...（例如：\"一辆太快但太重汽车\"）"},
+    "triz.domain_label":     {"en": "Domain",                    "zh": "领域"},
+    "triz.analyze_btn":      {"en": "Analyze",                   "zh": "分析"},
+    "triz.analyzing":        {"en": "Analyzing...",              "zh": "分析中..."},
+    "triz.no_history":       {"en": "No analysis history yet.",  "zh": "暂无分析记录。"},
+    "triz.history":          {"en": "History",                   "zh": "历史记录"},
+    "triz.quick_actions":    {"en": "Actions",                   "zh": "快捷操作"},
+    "triz.tab_contradiction": {"en": "Contradiction",            "zh": "矛盾"},
+    "triz.tab_sufield":      {"en": "Su-Field",                  "zh": "物场"},
+    "triz.tab_cause_effect": {"en": "Cause-Effect",              "zh": "因果链"},
+    "triz.tab_resources":    {"en": "Resources",                 "zh": "资源"},
+    "triz.tab_9windows":     {"en": "9-Windows",                 "zh": "九屏幕"},
+    "triz.tab_std_solutions": {"en": "Std Solutions",            "zh": "标准解"},
+    "triz.tab_ariz":         {"en": "ARIZ-85C",                  "zh": "ARIZ-85C"},
+    "triz.action_matrix":    {"en": "Create Problem Matrix",     "zh": "创建问题矩阵"},
+    "triz.action_bounty":    {"en": "Set as Bounty",             "zh": "设为悬赏"},
+    "triz.action_export":    {"en": "Export Method JSON",        "zh": "导出方法 JSON"},
+    "triz.action_submit":    {"en": "Submit as Problem",         "zh": "提交到问题库"},
+    "triz.action_related":   {"en": "View Related Entries",      "zh": "查看相关条目"},
+    "triz.bounty_amount":    {"en": "Prize (IDEA)",              "zh": "赏金 (IDEA)"},
+    "triz.bounty_hint":      {"en": "Minimum 10 IDEA",           "zh": "最少 10 IDEA"},
+    "triz.confirm_bounty":   {"en": "Confirm Bounty",            "zh": "确认悬赏"},
+    "triz.analysis_result":  {"en": "Analysis Result",           "zh": "分析结果"},
+    "triz.no_result_yet":    {"en": "Run an analysis to see results here.", "zh": "运行分析以查看结果。"},
+    "triz.ifr":              {"en": "Ideal Final Result",        "zh": "理想最终结果"},
+    "triz.principles":       {"en": "Recommended Principles",    "zh": "推荐发明原则"},
+    "triz.contradiction":    {"en": "Technical Contradiction",   "zh": "技术矛盾"},
+    # Bounties page
+    "bounties.title":        {"en": "Bounties",                  "zh": "悬赏"},
+    "bounties.open":         {"en": "Open",                      "zh": "开放中"},
+    "bounties.claimed":      {"en": "Claimed",                   "zh": "已解决"},
+    "bounties.all":          {"en": "All",                       "zh": "全部"},
+    "bounties.no_bounties":  {"en": "No bounties yet.",          "zh": "暂无悬赏。"},
+    "bounties.prize":        {"en": "Prize",                     "zh": "赏金"},
+    "bounties.creator":      {"en": "Creator",                   "zh": "创建者"},
+    "bounties.created":      {"en": "Created",                   "zh": "创建时间"},
+    "bounties.claimant":     {"en": "Claimant",                  "zh": "解决者"},
+    "bounties.expired":      {"en": "Expired",                   "zh": "已过期"},
+    "bounties.not_logged_in": {"en": "Login to create bounties.", "zh": "登录后可创建悬赏。"},
+    "bounties.claim_btn":    {"en": "Claim & Release",           "zh": "确认并发放赏金"},
+    "bounties.claim_confirm":{"en": "Release {prize} IDEA to {addr}?", "zh": "确认向 {addr} 发放 {prize} IDEA？"},
+    # Dashboard mining
+    "dash.mine_title":       {"en": "One-Click Mining",          "zh": "一键挖掘"},
+    "dash.mine_desc":        {"en": "Select method & problem collections and launch mining.", "zh": "选择方法合集和问题合集，一键启动挖掘。"},
+    "dash.mine_method_col":  {"en": "Method Collection",         "zh": "方法合集"},
+    "dash.mine_problem_col": {"en": "Problem Collection",        "zh": "问题合集"},
+    "dash.mine_batch":       {"en": "Batch Size",                "zh": "批量大小"},
+    "dash.mine_model":       {"en": "Model",                     "zh": "模型"},
+    "dash.mine_start":       {"en": "Start Mining",              "zh": "开始挖掘"},
+    "dash.mine_running":     {"en": "Mining in progress...",     "zh": "挖掘进行中..."},
+    "dash.mine_done":        {"en": "Mining complete!",          "zh": "挖掘完成！"},
+    "dash.mine_no_collections": {"en": "No collections available. Create one in the Collections page.", "zh": "暂无合集。请前往合集页创建。"},
+    "dash.mine_result_link": {"en": "View Results",              "zh": "查看结果"},
 }
 
 
@@ -626,6 +692,107 @@ details.feature-details > summary:hover { border-left-color: #1d4ed8; color: #1f
 .chat-container { flex: 1; }
 .chat-messages { min-height: 200px; }
 .chat-input button:disabled { opacity: 0.6; cursor: not-allowed; }
+
+/* TRIZ analysis display */
+.triz-section {
+    background: #fff; border: 1px solid #e5e7eb; border-radius: 8px;
+    padding: 12px 16px; margin-bottom: 12px;
+    box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+.triz-section h4 { font-size: 14px; color: #6d28d9; margin-bottom: 8px; }
+.triz-table { width: auto; border-collapse: collapse; }
+.triz-table td { padding: 3px 12px 3px 0; font-size: 13px; }
+.triz-table td:first-child { font-weight: 600; color: #555; width: 60px; }
+.nine-windows-table { width: 100%; border-collapse: collapse; font-size: 12px; }
+.nine-windows-table td {
+    border: 1px solid #dde1e6; padding: 6px 8px; text-align: center;
+    min-width: 80px; vertical-align: top;
+}
+.nine-windows-table tr:last-child td { font-weight: 600; color: #888; font-size: 11px; }
+.nine-windows-table .nw-label { font-weight: 600; color: #555; width: 50px; font-size: 11px; }
+
+/* --- Dashboard Mining Panel --- */
+.mine-panel {
+    background: #fff; border: 1px solid #e5e7eb; border-radius: 8px;
+    padding: 16px; margin-bottom: 24px; box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+.mine-panel h2 { margin-top: 0; font-size: 18px; color: #1a1a2e; }
+.mine-form { display: flex; flex-wrap: wrap; gap: 12px; align-items: flex-end; }
+.mine-field { display: flex; flex-direction: column; gap: 4px; }
+.mine-field label { font-size: 12px; font-weight: 600; color: #555; }
+.mine-field select, .mine-field input { padding: 6px 10px; border: 1px solid #dde1e6; border-radius: 5px; font-size: 13px; min-width: 160px; }
+.mine-result { margin-top: 12px; padding: 12px; background: #f0fdf4; border: 1px solid #bbf7d0; border-radius: 6px; }
+.mine-result .ok { color: #166534; }
+.mine-result .err { color: #991b1b; }
+.mine-progress { margin-top: 12px; padding: 12px; background: #f8fafb; border: 1px solid #e5e7eb; border-radius: 6px; color: #555; }
+
+/* --- Bounties Page --- */
+.bounty-filters { display: flex; gap: 8px; margin-bottom: 16px; }
+.bounty-filters a {
+    padding: 4px 14px; border-radius: 6px; font-size: 13px;
+    background: #e8ecf0; border: 1px solid #dde1e6; color: #555;
+    transition: background 0.15s, color 0.15s;
+}
+.bounty-filters a:hover, .bounty-filters a.active { background: #2563eb; color: #fff; text-decoration: none; }
+.bounty-card {
+    background: #fff; border: 1px solid #e5e7eb; border-radius: 8px;
+    padding: 16px; margin-bottom: 12px; box-shadow: 0 1px 3px rgba(0,0,0,0.04);
+}
+.bounty-card h3 { font-size: 15px; color: #2563eb; margin-bottom: 6px; }
+.bounty-card .meta { display: flex; gap: 16px; font-size: 12px; color: #888; margin-bottom: 8px; }
+.bounty-card .meta span { display: inline-flex; align-items: center; gap: 4px; }
+.bounty-card .desc { font-size: 13px; color: #555; margin-bottom: 8px; }
+.bounty-card .status-badge {
+    display: inline-block; padding: 2px 10px; border-radius: 4px;
+    font-size: 11px; font-weight: 600;
+}
+.bounty-card .status-badge.open { background: #dcfce7; color: #166534; }
+.bounty-card .status-badge.claimed { background: #e8f0fe; color: #2563eb; }
+.bounty-card .status-badge.expired { background: #f3f4f6; color: #6b7280; }
+.bounty-card .prize { font-size: 18px; font-weight: bold; color: #f59e0b; }
+
+/* --- TRIZ Agent page --- */
+.triz-layout { display: grid; grid-template-columns: 1fr 240px; gap: 20px; align-items: start; }
+@media (max-width: 768px) { .triz-layout { grid-template-columns: 1fr; } }
+.triz-input-area { margin-bottom: 16px; }
+.triz-input-area textarea {
+    width: 100%; padding: 12px; border: 1px solid #dde1e6; border-radius: 8px;
+    font-size: 14px; font-family: inherit; resize: vertical; min-height: 80px;
+}
+.triz-input-area textarea:focus { outline: none; border-color: #6d28d9; box-shadow: 0 0 0 3px rgba(109,40,217,0.1); }
+.triz-controls { display: flex; gap: 8px; margin-top: 8px; flex-wrap: wrap; align-items: center; }
+.triz-controls select { padding: 6px 10px; border: 1px solid #dde1e6; border-radius: 5px; font-size: 13px; }
+.triz-controls button { padding: 6px 18px; border-radius: 6px; font-size: 13px; font-weight: 600; }
+.triz-controls button.primary { background: #6d28d9; border-color: #6d28d9; }
+.triz-controls button.primary:hover { background: #5b21b6; }
+.triz-sidebar {
+    background: #fff; border: 1px solid #e5e7eb; border-radius: 10px;
+    padding: 16px; position: sticky; top: 16px;
+}
+.triz-sidebar h4 { font-size: 12px; text-transform: uppercase; letter-spacing: .05em; color: #888; margin: 0 0 10px; border-bottom: 1px solid #eef0f4; padding-bottom: 8px; }
+.triz-sidebar .history-item {
+    padding: 8px; border-radius: 6px; font-size: 12px; color: #555;
+    cursor: pointer; margin-bottom: 4px; background: #f8fafb; transition: background 0.15s;
+}
+.triz-sidebar .history-item:hover { background: #e8f0fe; }
+.triz-sidebar .history-item .date { font-size: 11px; color: #999; }
+.triz-sidebar .action-card {
+    padding: 10px; border-radius: 6px; font-size: 12px; color: #555;
+    cursor: pointer; margin-bottom: 6px; background: #f8fafb; border: 1px solid #e5e7eb;
+    transition: all 0.15s; text-align: center;
+}
+.triz-sidebar .action-card:hover { background: #eef2ff; border-color: #6d28d9; color: #6d28d9; }
+.triz-tabs { display: flex; gap: 4px; margin-bottom: 12px; flex-wrap: wrap; }
+.triz-tab {
+    padding: 5px 14px; border-radius: 6px; font-size: 13px; background: #e8ecf0;
+    border: 1px solid transparent; color: #555; cursor: pointer; transition: all 0.15s;
+}
+.triz-tab.active { background: #6d28d9; color: #fff; border-color: #6d28d9; }
+.triz-tab:hover:not(.active) { background: #ddd; }
+.triz-tab-content { display: none; }
+.triz-tab-content.active { display: block; }
+.triz-bounty-form { margin-top: 8px; padding: 12px; background: #f8fafb; border-radius: 8px; border: 1px solid #e5e7eb; }
+.triz-bounty-form input { width: 120px; }
 """
 
 
@@ -663,6 +830,8 @@ def _base_page(title: str, content: str, active_nav: str = "", lang: str = "en",
         ("/web/search", _t("nav.search", lang), "search"),
         ("/web/random", _t("nav.random_draw", lang), "random"),
         ("/web/agent", _t("agent.title", lang), "agent"),
+        ("/web/triz", _t("triz.title", lang), "triz"),
+        ("/web/bounties", _t("bounties.title", lang), "bounties"),
         ("/web/my-entries", _t("nav.my_entries", lang), "my-entries"),
         ("/web/peers", _t("nav.peers", lang), "peers"),
         ("/web/tokens", _t("nav.tokens", lang), "tokens"),
@@ -770,12 +939,108 @@ def render_dashboard(db: LeaderboardDB, pm: PeerManager, lang: str = "en", viewe
         for d in Domain
     )
 
+    # --- Mining Panel ---
+    method_colls = db.get_collections("method", sort_by="newest")
+    problem_colls = db.get_collections("problem", sort_by="newest")
+
+    method_opts = '<option value="">-- Select --</option>' + "".join(
+        f'<option value="{_esc(c["name"])}">{_esc(c["name"])}</option>'
+        for c in method_colls
+    )
+    problem_opts = '<option value="">-- Select --</option>' + "".join(
+        f'<option value="{_esc(c["name"])}">{_esc(c["name"])}</option>'
+        for c in problem_colls
+    )
+
+    mine_panel = f"""
+    <div class="mine-panel">
+        <h2>{_t("dash.mine_title", lang)}</h2>
+        <p style="font-size:13px;color:#777;margin-bottom:12px;">{_t("dash.mine_desc", lang)}</p>
+        <div class="mine-form">
+            <div class="mine-field">
+                <label>{_t("dash.mine_method_col", lang)}</label>
+                <select id="mine-method-col">{method_opts}</select>
+            </div>
+            <div class="mine-field">
+                <label>{_t("dash.mine_problem_col", lang)}</label>
+                <select id="mine-problem-col">{problem_opts}</select>
+            </div>
+            <div class="mine-field">
+                <label>{_t("dash.mine_batch", lang)}</label>
+                <input type="number" id="mine-batch" value="5" min="1" max="50">
+            </div>
+            <div class="mine-field">
+                <label>{_t("dash.mine_model", lang)}</label>
+                <input type="text" id="mine-model" value="" placeholder="default">
+            </div>
+            <button onclick="startMining()" id="mine-btn">{_t("dash.mine_start", lang)}</button>
+        </div>
+        <div id="mine-result" style="display:none;"></div>
+    </div>
+    <script>
+    function startMining() {{
+        var btn = document.getElementById('mine-btn');
+        var result = document.getElementById('mine-result');
+        var methodCol = document.getElementById('mine-method-col').value;
+        var problemCol = document.getElementById('mine-problem-col').value;
+        var batch = document.getElementById('mine-batch').value || 5;
+        var model = document.getElementById('mine-model').value;
+
+        if (!methodCol || !problemCol) {{ alert('Please select both collections'); return; }}
+
+        btn.disabled = true;
+        btn.textContent = '{_t("dash.mine_running", lang)}';
+        result.style.display = 'block';
+        result.innerHTML = '<div class="mine-progress">{_t("dash.mine_running", lang)}</div>';
+
+        fetch('/web/dashboard/mine', {{
+            method: 'POST',
+            headers: {{'Content-Type': 'application/json'}},
+            body: JSON.stringify({{
+                method_collection: methodCol,
+                problem_collection: problemCol,
+                batch_size: parseInt(batch),
+                model: model
+            }})
+        }})
+        .then(function(r) {{ return r.json(); }})
+        .then(function(d) {{
+            if (d.ok) {{
+                result.innerHTML = '<div class="mine-result"><div class="ok">'
+                    + d.message + '</div>'
+                    + (d.leaderboard_link ? '<br><a href="' + d.leaderboard_link + '?lang={lang}">'
+                    + '{_t("dash.mine_result_link", lang)}</a>' : '')
+                    + '</div>';
+            }} else {{
+                result.innerHTML = '<div class="mine-result"><div class="err">' + d.error + '</div></div>';
+            }}
+            btn.disabled = false;
+            btn.textContent = '{_t("dash.mine_start", lang)}';
+        }})
+        .catch(function(e) {{
+            result.innerHTML = '<div class="mine-result"><div class="err">' + e + '</div></div>';
+            btn.disabled = false;
+            btn.textContent = '{_t("dash.mine_start", lang)}';
+        }});
+    }}
+    </script>
+    """
+
+    if not method_colls or not problem_colls:
+        mine_panel = f"""
+        <div class="mine-panel">
+            <h2>{_t("dash.mine_title", lang)}</h2>
+            <p style="font-size:13px;color:#999;">{_t("dash.mine_no_collections", lang)}</p>
+        </div>"""
+
     content = f"""
     <div class="stats">
         <div class="stat-card"><div class="num">{total}</div><div class="label">{_t("dash.entries", lang)}</div></div>
         <div class="stat-card"><div class="num">{peers}</div><div class="label">{_t("dash.peers", lang)}</div></div>
         <div class="stat-card"><div class="num">{uptime_str}</div><div class="label">{_t("dash.uptime", lang)}</div></div>
     </div>
+
+    {mine_panel}
 
     <h2>{_t("dash.by_dimension", lang)}</h2>
     <div class="quick-links">{dim_links}</div>
@@ -1051,6 +1316,98 @@ def render_peers(pm: PeerManager, lang: str = "en", viewer_addr: str = "") -> st
     return _base_page(_t("peers.title", lang), content, "peers", lang=lang, viewer_addr=viewer_addr)
 
 
+def _render_triz_analysis(triz_data_str: str, lang: str = "en") -> str:
+    """Render TRIZ analysis results as HTML sections."""
+    if not triz_data_str or triz_data_str == "null":
+        return f'<p style="color:#999;">{_t("entry.no_triz", lang)}</p>'
+    try:
+        data = json.loads(triz_data_str)
+    except (json.JSONDecodeError, TypeError):
+        return ""
+
+    parts = []
+    sf = data.get("su_field", data.get("standardized_problem", {}).get("su_field", {}))
+    if sf and isinstance(sf, dict):
+        parts.append(f'''
+        <div class="triz-section">
+            <h4>{_t("entry.triz_su_field", lang)}</h4>
+            <table class="triz-table">
+                <tr><td>S1</td><td>{sf.get("s1","?")}</td></tr>
+                <tr><td>S2</td><td>{sf.get("s2","?")}</td></tr>
+                <tr><td>Field</td><td>{sf.get("field","?")}</td></tr>
+                <tr><td>Type</td><td>{sf.get("interaction_type","?")}</td></tr>
+                <tr><td>Complete</td><td>{sf.get("is_complete","?")}</td></tr>
+            </table>
+        </div>''')
+
+    ce = data.get("cause_effect", data.get("standardized_problem", {}).get("cause_effect", {}))
+    if ce and isinstance(ce, dict):
+        rc = ce.get("root_causes", []); fe = ce.get("final_effects", [])
+        if rc or fe:
+            parts.append(f'<div class="triz-section"><h4>{_t("entry.triz_cause_effect", lang)}</h4>')
+            if rc:
+                parts.append(f'<p><b>Root Causes:</b> {", ".join(str(c) for c in rc[:6])}</p>')
+            if fe:
+                parts.append(f'<p><b>Final Effects:</b> {", ".join(str(f) for f in fe[:6])}</p>')
+            parts.append("</div>")
+
+    res = data.get("resources", data.get("standardized_problem", {}).get("resources", {}))
+    if res and isinstance(res, dict):
+        subst = res.get("substances", []); fields = res.get("fields", [])
+        if subst or fields:
+            parts.append(f'<div class="triz-section"><h4>{_t("entry.triz_resources", lang)}</h4>')
+            if subst:
+                parts.append(f'<p><b>Substances:</b> {", ".join(subst[:6])}</p>')
+            if fields:
+                parts.append(f'<p><b>Fields:</b> {", ".join(fields[:6])}</p>')
+            parts.append("</div>")
+
+    nw = data.get("nine_windows", {})
+    if nw and isinstance(nw, dict):
+        parts.append(f'''
+        <div class="triz-section">
+            <h4>{_t("entry.triz_9windows", lang)}</h4>
+            <table class="nine-windows-table">
+                <tr><td class="nw-label">Super</td>
+                    <td>{nw.get("supersystem_past","")}</td>
+                    <td>{nw.get("supersystem_present","")}</td>
+                    <td>{nw.get("supersystem_future","")}</td></tr>
+                <tr><td class="nw-label">System</td>
+                    <td>{nw.get("system_past","")}</td>
+                    <td>{nw.get("system_present","")}</td>
+                    <td>{nw.get("system_future","")}</td></tr>
+                <tr><td class="nw-label">Sub</td>
+                    <td>{nw.get("subsystem_past","")}</td>
+                    <td>{nw.get("subsystem_present","")}</td>
+                    <td>{nw.get("subsystem_future","")}</td></tr>
+                <tr><td></td><td>Past</td><td>Present</td><td>Future</td></tr>
+            </table>
+        </div>''')
+
+    ss = data.get("standard_solutions", {})
+    if ss and isinstance(ss, dict):
+        matched = ss.get("matched", []); rc = ss.get("recommended_class", "")
+        if matched or rc:
+            parts.append(f'<div class="triz-section"><h4>{_t("entry.triz_std_solutions", lang)}</h4>')
+            if rc:
+                parts.append(f'<p><b>Class:</b> {rc}</p>')
+            for m in matched[:5]:
+                parts.append(f'<p><b>{m.get("name","")}</b>: {m.get("description","")[:120]}</p>')
+            parts.append("</div>")
+
+    ariz = data.get("ariz", {})
+    if ariz and isinstance(ariz, dict):
+        mini = ariz.get("mini_problem", ""); ifr = ariz.get("ifr", "")
+        parts.append(f'<div class="triz-section"><h4>{_t("entry.triz_ariz", lang)}</h4>')
+        if mini:
+            parts.append(f'<p><b>Mini-Problem:</b> {mini[:120]}</p>')
+        if ifr:
+            parts.append(f'<p><b>IFR:</b> {ifr[:120]}</p>')
+        parts.append("</div>")
+
+    return "\n".join(parts) if parts else ""
+
+
 def render_entry(db: LeaderboardDB, combo_id: str,
                  viewer_addr: str = "", token_gate=None, lang: str = "en") -> str:
     # combo_id may be a run_id or an old-style combo_group_id
@@ -1166,6 +1523,8 @@ def render_entry(db: LeaderboardDB, combo_id: str,
 
     <h2>{_t("entry.scores", lang)}</h2>
     <table>{score_rows}</table>
+
+    {_render_triz_analysis(entry.triz_data, lang)}
 
     <h2>{_t("entry.ratings", lang)}</h2>
     <div class="card">
@@ -1659,6 +2018,287 @@ _MATH_CATEGORIES = [
 ]
 
 
+# -- Math Research Zone helpers (extracted for <50 line functions) -----------------
+
+def _math_problem_header(problem: dict) -> str:
+    """Render the problem info card header."""
+    title = _esc(problem["title"])
+    desc = _esc((problem.get("description") or "")[:300])
+    cat = (problem.get("category") or "other").replace("_", " ").title()
+    creator = _esc((problem.get("creator") or "unknown")[:16])
+    return f"""
+    <div class="card">
+        <h3>{title}</h3>
+        <p style="color:#777;font-size:13px;margin-bottom:4px;">
+            <span style="background:#e8f0fe;color:#2563eb;padding:1px 8px;border-radius:3px;font-size:11px;">{cat}</span>
+            &nbsp; by {creator}
+        </p>
+        <p style="font-size:14px;color:#555;margin-top:8px;">{desc}</p>
+    </div>"""
+
+
+def _math_zone_table_rows(db: LeaderboardDB, collections: list,
+                          pid: int, user_addr: str) -> tuple[list[str], str]:
+    """Build method zone table rows. Returns (rows_html, address_check_form)."""
+    rows = []
+    for c in collections:
+        mid = c["id"]
+        mname = _esc(c["name"])
+        mitems = len(json.loads(c.get("methods_json") or "[]"))
+        accessed = db.check_math_access(pid, mid, user_addr) if user_addr else False
+
+        with db._connect() as conn:
+            row = conn.execute(
+                "SELECT COUNT(*), MAX(max_correct_step) FROM math_solutions "
+                "WHERE problem_id = ? AND method_collection_id = ?",
+                (pid, mid),
+            ).fetchone()
+        sol_count = row[0] if row else 0
+        top_step = row[1] or 0
+
+        url = f'/web/math/{pid}/{mid}' if accessed else f'/web/math/{pid}/{mid}/unlock'
+        if not accessed and user_addr:
+            url += f'?user_address={_esc(user_addr)}'
+        label = ('<span style="color:#22c55e;">&#x2713; Unlocked</span>'
+                 if accessed
+                 else f'<a href="{url}" style="color:#ef4444;">Locked &mdash; Unlock</a>')
+
+        rows.append(f"""
+        <tr>
+            <td><a href="{url}"><b>{mname}</b></a><br><span style="font-size:11px;color:#999;">{mitems} tools</span></td>
+            <td>{label}</td>
+            <td><b>{top_step}</b> steps</td>
+            <td>{sol_count} solution(s)</td>
+        </tr>""")
+
+    form = f"""
+    <form method="get" action="/web/math/{pid}" style="margin-bottom:12px;">
+        <input type="text" name="user_address" value="{_esc(user_addr)}" placeholder="Your address (e.g. 0xALICE)" style="flex:1;min-width:260px;">
+        <button type="submit">Check Access</button>
+    </form>"""
+    return rows, form
+
+
+def _math_solution_rows(solutions: list, pid: int, mid: int,
+                        user_addr: str, lang: str) -> list[str]:
+    """Build solution table rows for a method zone."""
+    rows = []
+    for i, s in enumerate(solutions):
+        sid = s["id"]
+        try:
+            steps = json.loads(s["steps_json"])
+        except Exception:
+            steps = []
+        step_count = len(steps)
+        max_step = s["max_correct_step"]
+        user = _esc((s.get("user_address") or "unknown")[:16])
+        parent = s.get("parent_solution_id")
+        fork_info = (f' <span style="font-size:11px;color:#999;">(forked from #{parent})</span>'
+                     if parent else "")
+        rows.append(f"""
+        <tr>
+            <td>{i + 1}</td>
+            <td><a href="/web/math/{pid}/{mid}/{sid}">{user}</a>{fork_info}</td>
+            <td>{_score_bar(max_step, max(10, max_step + 5))}</td>
+            <td>{step_count} steps</td>
+            <td><a href="/web/math/{pid}/{mid}/{sid}?fork=1&user_address={_esc(user_addr)}" style="color:#2563eb;">Fork</a></td>
+        </tr>""")
+    return rows
+
+
+def _math_step_rows(steps: list[dict]) -> list[str]:
+    """Build step table rows for a solution detail page."""
+    step_rows = []
+    for s in sorted(steps, key=lambda x: x.get("step_num", 0)):
+        sn = s.get("step_num", "?")
+        verified = s.get("verified", False)
+        content_text = _esc(s.get("content", ""))
+        badge = '<span style="color:#22c55e;">&#x2713;</span>' if verified else '<span style="color:#ef4444;">&#x2717;</span>'
+        step_rows.append(f"""
+        <tr>
+            <td>{sn}</td>
+            <td style="max-width:600px;">{content_text}</td>
+            <td>{badge}</td>
+        </tr>""")
+    return step_rows
+
+
+def _math_fork_form(sid: int, pid: int, mid: int, steps: list[dict],
+                    user_address: str) -> str:
+    """Render the fork confirmation form."""
+    return f"""
+    <div class="card" style="margin-top:16px;">
+        <h3>Fork Solution #{sid}</h3>
+        <form method="post" action="/web/math/{pid}/{mid}/{sid}/fork">
+            <input type="hidden" name="user_address" value="{_esc(user_address)}">
+            <p style="color:#777;font-size:13px;">This will create a copy of all {len(steps)} steps as your own solution.</p>
+            <button type="submit" style="margin-top:8px;">Confirm Fork</button>
+        </form>
+    </div>"""
+
+
+def _math_submit_form(pid: int, mid: int, sid: int, steps: list[dict],
+                      user_address: str) -> str:
+    """Render the submit-improvement form."""
+    return f"""
+    <div class="card" style="margin-top:16px;">
+        <h3>Submit Improvement</h3>
+        <form method="post" action="/web/math/{pid}/{mid}/{sid}/submit">
+            <input type="hidden" name="user_address" value="{_esc(user_address)}">
+            <textarea name="steps_json" rows="8" style="width:100%;font-family:monospace;font-size:12px;">{_esc(json.dumps(steps, indent=2, ensure_ascii=False))}</textarea>
+            <p style="font-size:11px;color:#999;margin-top:4px;">Edit the JSON above and submit. max_correct_step will be recalculated.</p>
+            <button type="submit" style="margin-top:8px;">Submit Update</button>
+        </form>
+    </div>"""
+
+
+def _math_unlock_content(pid: int, mid: int, problem: dict, coll: dict,
+                         user_addr: str) -> str:
+    """Render the unlock page main content."""
+    pname = _esc(problem["title"])
+    cname = _esc(coll["name"])
+    return f"""
+    <div class="card">
+        <h3>Unlock: {cname} &rarr; {pname}</h3>
+        <p style="color:#777;margin:12px 0;">
+            To view solutions in this zone, you must first run a <b>math-mine</b> operation.
+            This combines methods from the collection with the problem and generates an AI seed analysis.
+        </p>
+
+        <h3 style="margin-top:16px;">Step 1: Run CLI command</h3>
+        <pre style="background:#f0f3f7;padding:12px;border-radius:6px;font-size:13px;overflow-x:auto;">python3 -m src.cli.main math-mine \\
+  --problem-id {pid} \\
+  --methods-collection "{cname}" \\
+  --address {"0xYOUR_ADDRESS" if not user_addr else _esc(user_addr)} \\
+  --batch 3</pre>
+
+        <h3 style="margin-top:16px;">Step 2: Manual unlock (if needed)</h3>
+        <form method="post" action="/web/math/{pid}/{mid}/unlock">
+            <input type="text" name="user_address" value="{_esc(user_addr)}" placeholder="Your address" required style="width:100%;margin-bottom:8px;">
+            <input type="text" name="combo_id" placeholder="Combo ID from math-mine output" required style="width:100%;margin-bottom:8px;">
+            <button type="submit">Unlock</button>
+        </form>
+    </div>
+
+    <p style="margin-top:16px;"><a href="/web/math/{pid}">&larr; Back to Problem</a></p>"""
+
+
+def _math_node_breadcrumb(db: LeaderboardDB, path_to_root: list[int],
+                          pid: int, mid: int, lang: str) -> str:
+    """Build breadcrumb from root to current node."""
+    parts = []
+    for pnid in reversed(path_to_root):
+        pn = db.get_tree_node(pnid)
+        if pn:
+            parts.append(
+                f'<a href="/web/math/{pid}/{mid}/tree/node/{pnid}?lang={lang}">'
+                f'{_esc((pn["content"] or "Root")[:40])}</a>')
+    return " → ".join(parts)
+
+
+def _math_node_children_table(children: list[dict], uct_scores: list[dict],
+                              pid: int, mid: int, lang: str) -> str:
+    """Build children table for a tree node detail page."""
+    if not children:
+        return '<p style="color:#999;margin-top:16px;">No children yet. Expand the tree!</p>'
+    rows = ""
+    for c in children:
+        uct_str = ""
+        for u in uct_scores:
+            if u["child_id"] == c["child_id"]:
+                if u.get("uct_score") == float('inf'):
+                    uct_str = "∞"
+                else:
+                    uct_str = f'{u.get("uct_score", 0):.3f}'
+                break
+        rows += f"""<tr>
+            <td><a href="/web/math/{pid}/{mid}/tree/node/{c['child_id']}?lang={lang}">{_esc(c['child_content'][:60])}</a></td>
+            <td>{_esc(c['action_label'])}</td>
+            <td>{c['child_q_value']:.3f}</td>
+            <td>{c['child_visit_count']}</td>
+            <td>{uct_str}</td>
+            <td>{c['child_node_type']}</td>
+        </tr>"""
+    return f'<h2 style="margin-top:24px;">Children ({len(children)})</h2>\n<table><thead><tr><th>State</th><th>Action</th><th>Q</th><th>N</th><th>UCT</th><th>Type</th></tr></thead><tbody>{rows}</tbody></table>'
+
+
+def _math_node_add_form(nid: int, pid: int, mid: int, err_html: str) -> str:
+    """Render the add-child form for a tree node."""
+    return f"""<div class="card" style="margin-top:24px;">
+    <h3>Add Child Node</h3>
+    {err_html}
+    <form method="post" action="/web/math/{pid}/{mid}/tree/node/{nid}/add_child">
+        <table style="width:100%;">
+            <tr><td style="color:#777;width:120px;padding:4px;">Content *</td>
+                <td><input type="text" name="content" required style="width:100%;" placeholder="Mathematical state description"></td></tr>
+            <tr><td style="color:#777;padding:4px;">Action Label</td>
+                <td><input type="text" name="action_label" style="width:100%;" placeholder="Method/theorem applied (e.g. 因式分解)"></td></tr>
+            <tr><td style="color:#777;padding:4px;">Action Detail</td>
+                <td><input type="text" name="action_description" style="width:100%;" placeholder="Optional description"></td></tr>
+            <tr><td style="color:#777;padding:4px;">Type</td>
+                <td><select name="node_type">
+                    <option value="normal">Normal</option>
+                    <option value="terminal_success">Terminal Success</option>
+                    <option value="terminal_failure">Terminal Failure</option>
+                </select></td></tr>
+            <tr><td style="color:#777;padding:4px;">Reward</td>
+                <td><input type="number" name="reward" value="1.0" min="0" max="1" step="0.1" style="width:100px;"></td></tr>
+            <tr><td style="color:#777;padding:4px;">Your Address</td>
+                <td><input type="text" name="user_address" value="0xEXPLORER" style="width:200px;"></td></tr>
+            <tr><td></td><td><button type="submit">Add Child</button></td></tr>
+        </table>
+    </form>
+</div>"""
+
+
+def _math_node_terminal_forms(nid: int, pid: int, mid: int,
+                              node_type: str) -> str:
+    """Render backpropagate and prune forms for non-terminal nodes."""
+    if node_type in ("terminal_success", "terminal_failure", "pruned"):
+        return ""
+    return f"""
+    <div class="card" style="margin-top:16px;">
+        <h3>Mark Terminal & Backpropagate</h3>
+        <form method="post" action="/web/math/{pid}/{mid}/tree/node/{nid}/backpropagate" style="display:flex;gap:8px;align-items:center;">
+            <select name="terminal_type">
+                <option value="terminal_success">Success (Proof Found)</option>
+                <option value="terminal_failure">Failure (Dead End)</option>
+            </select>
+            <input type="number" name="reward" value="1.0" min="0" max="1" step="0.1" style="width:80px;">
+            <button type="submit">Backprop</button>
+        </form>
+    </div>
+    <div class="card" style="margin-top:8px;">
+        <h3>Prune Node</h3>
+        <form method="post" action="/web/math/{pid}/{mid}/tree/node/{nid}/prune">
+            <p style="color:#777;font-size:13px;margin-bottom:8px;">Mark as pruned (complexity explosion, contradiction, etc.) — backpropagates neutral reward.</p>
+            <button type="submit" style="background:#9ca3af;border-color:#9ca3af;">Prune</button>
+        </form>
+    </div>"""
+
+
+def _tree_node_html(node: dict, node_id: int, lang: str) -> str:
+    """Render a single tree node HTML block."""
+    node_type = node["node_type"]
+    type_css = {"terminal_success": "terminal-success",
+                "terminal_failure": "terminal-failure",
+                "pruned": "pruned"}.get(node_type, "")
+    type_badge = {"terminal_success": '<span class="node-type-badge success">TERMINAL: Proved</span>',
+                  "terminal_failure": '<span class="node-type-badge failure">TERMINAL: Dead End</span>',
+                  "pruned": '<span class="node-type-badge pruned">PRUNED</span>'}.get(node_type, "")
+    return f"""<div class="tree-node {type_css}">
+    <div class="tree-node-header">
+        {type_badge}
+        <strong>Q: {node['q_value']:.3f}</strong>
+        <span style="color:#999;font-size:12px;">N={node['visit_count']}</span>
+        <span style="color:#999;font-size:11px;margin-left:4px;">#{node_id}</span>
+        <a href="/web/math/{node['problem_id']}/{node['method_collection_id']}/tree/node/{node_id}?lang={lang}" style="font-size:11px;margin-left:8px;">Details</a>
+    </div>
+    <div class="tree-node-content">{_esc(node['content'][:200])}{'...' if len(node['content']) > 200 else ''}</div>
+    <div style="font-size:11px;color:#999;">by {_esc(node['user_address'][:16]) or 'anonymous'}</div>
+</div>"""
+
+
 def render_math_home(db: LeaderboardDB, lang: str = "en", viewer_addr: str = "") -> str:
     """Math Zone home page — list all math problems."""
     problems = db.get_math_problems()
@@ -1724,83 +2364,40 @@ def render_math_new(form: dict | None = None, errors: list[str] | None = None, s
     return _base_page("New Math Problem", content, "math", lang=lang, viewer_addr=viewer_addr)
 
 
-def render_math_problem(db: LeaderboardDB, pid: int, path: str, lang: str = "en") -> str:
+def render_math_problem(db: LeaderboardDB, pid: int, path: str, lang: str = "en",
+                         viewer_addr: str = "") -> str:
     """Problem area page — sub-divisions by method collection."""
     problem = db.get_math_problem(pid)
     if not problem:
-        return _base_page("Not Found", '<div class="empty">Math problem not found.</div>', lang=lang)
-
-    title = _esc(problem["title"])
-    desc = _esc(problem.get("description") or "")
-    cat = (problem.get("category") or "other").replace("_", " ").title()
-    creator = _esc((problem.get("creator") or "unknown")[:16])
+        return _base_page("Not Found", '<div class="empty">Math problem not found.</div>', lang=lang, viewer_addr=viewer_addr)
 
     params = _parse_query(path)
     user_addr = params.get("user_address", "")
 
-    # Get math method collections (category=mathematics)
+    header_card = _math_problem_header(problem)
     method_colls = db.get_collections("method", sort_by="stars", category="mathematics")
-
-    rows = []
-    for c in method_colls:
-        mid = c["id"]
-        mname = _esc(c["name"])
-        mitems = len(json.loads(c.get("methods_json") or "[]"))
-        accessed = db.check_math_access(pid, mid, user_addr) if user_addr else False
-
-        # Count solutions
-        with db._connect() as conn:
-            row = conn.execute(
-                "SELECT COUNT(*), MAX(max_correct_step) FROM math_solutions "
-                "WHERE problem_id = ? AND method_collection_id = ?",
-                (pid, mid),
-            ).fetchone()
-        sol_count = row[0] if row else 0
-        top_step = row[1] or 0
-
-        access_label = '<span style="color:#22c55e;">&#x2713; Unlocked</span>' if accessed else '<a href="/web/math/{pid}/{mid}/unlock" style="color:#ef4444;">Locked — Unlock</a>'
-        zone_link = f'/web/math/{pid}/{mid}' if accessed else f'/web/math/{pid}/{mid}/unlock'
-
-        rows.append(f"""
-        <tr>
-            <td><a href="{zone_link}"><b>{mname}</b></a><br><span style="font-size:11px;color:#999;">{mitems} tools</span></td>
-            <td>{access_label}</td>
-            <td><b>{top_step}</b> steps</td>
-            <td>{sol_count} solution(s)</td>
-        </tr>""")
+    rows, addr_form = _math_zone_table_rows(db, method_colls, pid, user_addr)
 
     content = f"""
-    <div class="card">
-        <h3>{title}</h3>
-        <p style="color:#777;font-size:13px;margin-bottom:4px;">
-            <span style="background:#e8f0fe;color:#2563eb;padding:1px 8px;border-radius:3px;font-size:11px;">{cat}</span>
-            &nbsp; by {creator}
-        </p>
-        <p style="font-size:14px;color:#555;margin-top:8px;">{desc}</p>
-    </div>
-
-    <form method="get" action="/web/math/{pid}" style="margin-bottom:12px;">
-        <input type="text" name="user_address" value="{_esc(user_addr)}" placeholder="Your address (e.g. 0xALICE)" style="flex:1;min-width:260px;">
-        <button type="submit">Check Access</button>
-    </form>
-
+    {header_card}
+    {addr_form}
     <h2>Method Zones</h2>
     <table>
     <thead><tr><th>Method Collection</th><th>Access</th><th>Top Step</th><th>Solutions</th></tr></thead>
     <tbody>{"".join(rows) if rows else '<tr><td colspan="4" class="empty">No math method collections yet. <a href="/web/collections/new">Create one</a> with category "mathematics".</td></tr>'}</tbody>
     </table>
-
     <p style="margin-top:16px;"><a href="/web/math">&larr; Back to Math Zone</a></p>
     """
-    return _base_page(title, content, "math", lang=lang)
+    return _base_page(_esc(problem["title"]), content, "math", lang=lang, viewer_addr=viewer_addr)
 
 
-def render_math_method_zone(db: LeaderboardDB, pid: int, mid: int, path: str, lang: str = "en") -> str:
+def render_math_method_zone(db: LeaderboardDB, pid: int, mid: int, path: str,
+                             lang: str = "en", viewer_addr: str = "") -> str:
     """All solutions for a (problem, method), ranked by max_correct_step."""
     problem = db.get_math_problem(pid)
     coll = db.get_collection("method", mid)
     if not problem or not coll:
-        return _base_page("Not Found", '<div class="empty">Problem or method collection not found.</div>', lang=lang)
+        return _base_page("Not Found", '<div class="empty">Problem or method collection not found.</div>', lang=lang, viewer_addr=viewer_addr)
 
     params = _parse_query(path)
     user_addr = params.get("user_address", "")
@@ -1816,36 +2413,15 @@ def render_math_method_zone(db: LeaderboardDB, pid: int, mid: int, path: str, la
             <p style="margin-top:8px;"><a href="/web/math/{pid}/{mid}/tree?lang={lang}">Tree View</a></p>
             <p style="margin-top:16px;"><a href="/web/math/{pid}">&larr; Back to Problem</a></p>
         </div>
-        """, "math")
+        """, "math", viewer_addr=viewer_addr)
 
     solutions = db.get_math_solutions(pid, mid)
-
-    sol_rows = []
-    for i, s in enumerate(solutions):
-        sid = s["id"]
-        try:
-            steps = json.loads(s["steps_json"])
-        except Exception:
-            steps = []
-        step_count = len(steps)
-        max_step = s["max_correct_step"]
-        user = _esc((s.get("user_address") or "unknown")[:16])
-        parent = s.get("parent_solution_id")
-        fork_info = f' <span style="font-size:11px;color:#999;">(forked from #{parent})</span>' if parent else ""
-        sol_rows.append(f"""
-        <tr>
-            <td>{i + 1}</td>
-            <td><a href="/web/math/{pid}/{mid}/{sid}">{user}</a>{fork_info}</td>
-            <td>{_score_bar(max_step, max(10, max_step + 5))}</td>
-            <td>{step_count} steps</td>
-            <td><a href="/web/math/{pid}/{mid}/{sid}?fork=1&user_address={_esc(user_addr)}" style="color:#2563eb;">Fork</a></td>
-        </tr>""")
+    sol_rows = _math_solution_rows(solutions, pid, mid, user_addr, lang)
 
     content = f"""
     <div class="card">
         <h3>{_esc(problem['title'])} &mdash; {_esc(coll['name'])}</h3>
         <p style="color:#777;font-size:13px;">
-            {json.loads(coll.get("methods_json") or "[]") if False else ''}
             Access: <span style="color:#22c55e;">&#x2713; Unlocked</span>
         </p>
     </div>
@@ -1861,79 +2437,28 @@ def render_math_method_zone(db: LeaderboardDB, pid: int, mid: int, path: str, la
         &nbsp;|&nbsp; <a href="/web/math/{pid}/{mid}/tree?lang={lang}">Tree View</a>
     </p>
     """
-    return _base_page(f"{problem['title']} — {coll['name']}", content, "math", lang=lang)
+    return _base_page(f"{problem['title']} — {coll['name']}", content, "math", lang=lang, viewer_addr=viewer_addr)
 
 
-def render_math_solution(db: LeaderboardDB, pid: int, mid: int, sid: int, path: str, lang: str = "en") -> str:
-    """Single solution detail — full steps, fork button, submit improvement."""
-    solution = db.get_math_solution(sid)
-    if not solution:
-        return _base_page("Not Found", '<div class="empty">Solution not found.</div>', lang=lang)
-
-    problem = db.get_math_problem(pid)
-    coll = db.get_collection("method", mid)
-
-    try:
-        steps = json.loads(solution["steps_json"])
-    except Exception:
-        steps = []
-
-    max_step = solution["max_correct_step"]
-    user = _esc((solution.get("user_address") or "unknown")[:16])
-    parent = solution.get("parent_solution_id")
-    created = solution.get("created_at", 0)
-    updated = solution.get("updated_at", 0)
-
-    step_rows = []
-    for s in sorted(steps, key=lambda x: x.get("step_num", 0)):
-        sn = s.get("step_num", "?")
-        verified = s.get("verified", False)
-        content_text = _esc(s.get("content", ""))
-        v_badge = '<span style="color:#22c55e;">&#x2713;</span>' if verified else '<span style="color:#ef4444;">&#x2717;</span>'
-        step_rows.append(f"""
-        <tr>
-            <td>{sn}</td>
-            <td style="max-width:600px;">{content_text}</td>
-            <td>{v_badge}</td>
-        </tr>""")
-
-    params = _parse_query(path)
-    fork = params.get("fork")
-
-    fork_form = ""
-    if fork:
-        fork_form = f"""
-        <div class="card" style="margin-top:16px;">
-            <h3>Fork Solution #{sid}</h3>
-            <form method="post" action="/web/math/{pid}/{mid}/{sid}/fork">
-                <input type="hidden" name="user_address" value="{_esc(params.get('user_address', 'anonymous'))}">
-                <p style="color:#777;font-size:13px;">This will create a copy of all {len(steps)} steps as your own solution.</p>
-                <button type="submit" style="margin-top:8px;">Confirm Fork</button>
-            </form>
-        </div>"""
-
-    submit_form = f"""
-    <div class="card" style="margin-top:16px;">
-        <h3>Submit Improvement</h3>
-        <form method="post" action="/web/math/{pid}/{mid}/{sid}/submit">
-            <input type="hidden" name="user_address" value="{_esc(params.get('user_address', 'anonymous'))}">
-            <textarea name="steps_json" rows="8" style="width:100%;font-family:monospace;font-size:12px;">{_esc(json.dumps(steps, indent=2, ensure_ascii=False))}</textarea>
-            <p style="font-size:11px;color:#999;margin-top:4px;">Edit the JSON above and submit. max_correct_step will be recalculated.</p>
-            <button type="submit" style="margin-top:8px;">Submit Update</button>
-        </form>
-    </div>"""
-
-    parent_info = f'<p style="color:#777;font-size:13px;">Forked from <a href="/web/math/{pid}/{mid}/{parent}">Solution #{parent}</a></p>' if parent else ""
-
-    content = f"""
+def _math_solution_content(solution: dict, problem: dict | None, coll: dict | None,
+                           sid: int, pid: int, mid: int, lang: str,
+                           user: str, max_step: int, steps: list, step_rows: list,
+                           fork_form: str, submit_form: str, parent_info: str,
+                           p_user: str) -> str:
+    """Build the main content body for a solution detail page."""
+    ptitle = _esc(problem['title']) if problem else '?'
+    cname = _esc(coll['name']) if coll else '?'
+    step_tbody = ("".join(step_rows) if step_rows
+                  else '<tr><td colspan="3" class="empty">No steps.</td></tr>')
+    return f"""
     <div style="background:#fefce8;border:1px solid #facc15;border-radius:6px;padding:8px 12px;margin-bottom:16px;font-size:13px;color:#92400e;">
         This flat solution view is deprecated. See the <a href="/web/math/{pid}/{mid}/tree?lang={lang}">Tree View</a> for the new MCTS exploration interface.
     </div>
     <div class="card">
         <h3>Solution #{sid}</h3>
         <p style="color:#777;font-size:13px;">
-            Problem: <b>{_esc(problem['title']) if problem else '?'}</b> &nbsp;
-            Method: <b>{_esc(coll['name']) if coll else '?'}</b>
+            Problem: <b>{ptitle}</b> &nbsp;
+            Method: <b>{cname}</b>
         </p>
         <p style="color:#777;font-size:13px;">
             By: <b>{user}</b> &nbsp;
@@ -1946,29 +2471,63 @@ def render_math_solution(db: LeaderboardDB, pid: int, mid: int, sid: int, path: 
     <h2>Steps</h2>
     <table>
     <thead><tr><th>#</th><th>Content</th><th>Verified</th></tr></thead>
-    <tbody>{"".join(step_rows) if step_rows else '<tr><td colspan="3" class="empty">No steps.</td></tr>'}</tbody>
+    <tbody>{step_tbody}</tbody>
     </table>
 
     <div class="quick-links" style="margin-top:16px;">
-        <a href="/web/math/{pid}/{mid}/{sid}?fork=1&user_address={_esc(params.get('user_address', ''))}">Fork Solution</a>
+        <a href="/web/math/{pid}/{mid}/{sid}?fork=1&user_address={_esc(p_user)}">Fork Solution</a>
     </div>
     {fork_form}
     {submit_form}
 
-    <p style="margin-top:16px;"><a href="/web/math/{pid}/{mid}">&larr; Back to Method Zone</a></p>
-    """
-    return _base_page(f"Solution #{sid}", content, "math", lang=lang)
+    <p style="margin-top:16px;"><a href="/web/math/{pid}/{mid}">&larr; Back to Method Zone</a></p>"""
 
 
-def render_math_unlock(db: LeaderboardDB, pid: int, mid: int, path: str, lang: str = "en") -> str:
+def render_math_solution(db: LeaderboardDB, pid: int, mid: int, sid: int, path: str,
+                          lang: str = "en", viewer_addr: str = "") -> str:
+    """Single solution detail — full steps, fork button, submit improvement."""
+    solution = db.get_math_solution(sid)
+    if not solution:
+        return _base_page("Not Found", '<div class="empty">Solution not found.</div>', lang=lang, viewer_addr=viewer_addr)
+
+    problem = db.get_math_problem(pid)
+    coll = db.get_collection("method", mid)
+
+    try:
+        steps = json.loads(solution["steps_json"])
+    except Exception:
+        steps = []
+
+    max_step = solution["max_correct_step"]
+    user = _esc((solution.get("user_address") or "unknown")[:16])
+    parent = solution.get("parent_solution_id")
+    step_rows = _math_step_rows(steps)
+
+    params = _parse_query(path)
+    p_user = params.get("user_address", "anonymous")
+    fork = params.get("fork")
+
+    fork_form = _math_fork_form(sid, pid, mid, steps, p_user) if fork else ""
+    submit_form = _math_submit_form(pid, mid, sid, steps, p_user)
+    parent_info = (f'<p style="color:#777;font-size:13px;">Forked from <a href="/web/math/{pid}/{mid}/{parent}">Solution #{parent}</a></p>'
+                   if parent else "")
+
+    content = _math_solution_content(solution, problem, coll, sid, pid, mid, lang,
+                                     user, max_step, steps, step_rows,
+                                     fork_form, submit_form, parent_info, p_user)
+    return _base_page(f"Solution #{sid}", content, "math", lang=lang, viewer_addr=viewer_addr)
+
+
+def render_math_unlock(db: LeaderboardDB, pid: int, mid: int, path: str,
+                        lang: str = "en", viewer_addr: str = "") -> str:
     """Gate unlock page — shows CLI command or manual unlock."""
     problem = db.get_math_problem(pid)
     coll = db.get_collection("method", mid)
     if not problem or not coll:
-        return _base_page("Not Found", '<div class="empty">Problem or method collection not found.</div>', lang=lang)
+        return _base_page("Not Found", '<div class="empty">Problem or method collection not found.</div>', lang=lang, viewer_addr=viewer_addr)
 
     params = _parse_query(path)
-    user_addr = params.get("user_address", "")
+    user_addr = params.get("user_address", "") or viewer_addr
 
     accessed = db.check_math_access(pid, mid, user_addr) if user_addr else False
 
@@ -1979,37 +2538,11 @@ def render_math_unlock(db: LeaderboardDB, pid: int, mid: int, path: str, lang: s
             <p style="color:#777;margin:12px 0;">You have access to this zone.</p>
             <a href="/web/math/{pid}/{mid}?user_address={_esc(user_addr)}">Go to Method Zone</a>
         </div>
-        """, "math")
+        """, "math", viewer_addr=viewer_addr)
 
-    pname = _esc(problem["title"])
     cname = _esc(coll["name"])
-
-    content = f"""
-    <div class="card">
-        <h3>Unlock: {cname} &rarr; {pname}</h3>
-        <p style="color:#777;margin:12px 0;">
-            To view solutions in this zone, you must first run a <b>math-mine</b> operation.
-            This combines methods from the collection with the problem and generates an AI seed analysis.
-        </p>
-
-        <h3 style="margin-top:16px;">Step 1: Run CLI command</h3>
-        <pre style="background:#f0f3f7;padding:12px;border-radius:6px;font-size:13px;overflow-x:auto;">python3 -m src.cli.main math-mine \\
-  --problem-id {pid} \\
-  --methods-collection "{cname}" \\
-  --address {"0xYOUR_ADDRESS" if not user_addr else _esc(user_addr)} \\
-  --batch 3</pre>
-
-        <h3 style="margin-top:16px;">Step 2: Manual unlock (if needed)</h3>
-        <form method="post" action="/web/math/{pid}/{mid}/unlock">
-            <input type="text" name="user_address" value="{_esc(user_addr)}" placeholder="Your address" required style="width:100%;margin-bottom:8px;">
-            <input type="text" name="combo_id" placeholder="Combo ID from math-mine output" required style="width:100%;margin-bottom:8px;">
-            <button type="submit">Unlock</button>
-        </form>
-    </div>
-
-    <p style="margin-top:16px;"><a href="/web/math/{pid}">&larr; Back to Problem</a></p>
-    """
-    return _base_page(f"Unlock: {cname}", content, "math", lang=lang)
+    content = _math_unlock_content(pid, mid, problem, coll, user_addr)
+    return _base_page(f"Unlock: {cname}", content, "math", lang=lang, viewer_addr=viewer_addr)
 
 
 # ------------------------------------------------------------------
@@ -2045,40 +2578,16 @@ def _render_tree_recursive(db: LeaderboardDB, node_id: int, depth: int = 0,
     if not node or depth > max_depth:
         return ""
 
-    node_type = node["node_type"]
-    type_css = {"terminal_success": "terminal-success",
-                "terminal_failure": "terminal-failure",
-                "pruned": "pruned"}.get(node_type, "")
-
-    type_badge = {
-        "terminal_success": '<span class="node-type-badge success">TERMINAL: Proved</span>',
-        "terminal_failure": '<span class="node-type-badge failure">TERMINAL: Dead End</span>',
-        "pruned": '<span class="node-type-badge pruned">PRUNED</span>',
-    }.get(node_type, "")
-
     collapsed = depth >= 3
     checkbox_id = f"tc_{node_id}"
-
     children = db.get_children(node_id)
     has_children = len(children) > 0
 
-    # Node HTML
-    node_html = f"""<div class="tree-node {type_css}">
-    <div class="tree-node-header">
-        {type_badge}
-        <strong>Q: {node['q_value']:.3f}</strong>
-        <span style="color:#999;font-size:12px;">N={node['visit_count']}</span>
-        <span style="color:#999;font-size:11px;margin-left:4px;">#{node_id}</span>
-        <a href="/web/math/{node['problem_id']}/{node['method_collection_id']}/tree/node/{node_id}?lang={lang}" style="font-size:11px;margin-left:8px;">Details</a>
-    </div>
-    <div class="tree-node-content">{_esc(node['content'][:200])}{'...' if len(node['content']) > 200 else ''}</div>
-    <div style="font-size:11px;color:#999;">by {_esc(node['user_address'][:16]) or 'anonymous'}</div>
-</div>"""
+    node_html = _tree_node_html(node, node_id, lang)
 
     if not has_children:
         return node_html
 
-    # Children with edge labels
     children_html = ""
     for c in children:
         uct_str = ""
@@ -2086,7 +2595,6 @@ def _render_tree_recursive(db: LeaderboardDB, node_id: int, depth: int = 0,
             uct_str = f' UCT:{c["uct_score"]:.3f}'
         elif c.get("uct_score") == float('inf'):
             uct_str = ' UCT:∞'
-
         edge_tag = f'<span class="edge-label">→ {_esc(c["action_label"])}{uct_str}</span>'
         child_tree = _render_tree_recursive(db, c["child_id"], depth + 1, max_depth, lang)
         children_html += f'<div class="tree-child-wrapper">{edge_tag}{child_tree}</div>'
@@ -2102,19 +2610,19 @@ def _render_tree_recursive(db: LeaderboardDB, node_id: int, depth: int = 0,
 
 
 def render_math_tree(db: LeaderboardDB, pid: int, mid: int, path: str,
-                     lang: str = "en") -> str:
+                     lang: str = "en", viewer_addr: str = "") -> str:
     """Render the MCTS tree visualization page for a (problem, method) zone."""
     problem = db.get_math_problem(pid)
     if not problem:
-        return _base_page("Not Found", "<p>Problem not found.</p>", "math", lang=lang)
+        return _base_page("Not Found", "<p>Problem not found.</p>", "math", lang=lang, viewer_addr=viewer_addr)
 
     coll = db.get_collection("method", mid)
     if not coll:
-        return _base_page("Not Found", "<p>Method collection not found.</p>", "math", lang=lang)
+        return _base_page("Not Found", "<p>Method collection not found.</p>", "math", lang=lang, viewer_addr=viewer_addr)
 
     root = db.get_root_node(pid, mid)
     if not root:
-        return _base_page("Empty Tree", "<p>No tree root. Run math-mine first.</p>", "math", lang=lang)
+        return _base_page("Empty Tree", "<p>No tree root. Run math-mine first.</p>", "math", lang=lang, viewer_addr=viewer_addr)
 
     stats_html = _render_tree_stats(db, pid, mid)
     tree_html = _render_tree_recursive(db, root["id"], lang=lang)
@@ -2139,128 +2647,22 @@ def render_math_tree(db: LeaderboardDB, pid: int, mid: int, path: str,
     </div>
     """
     title = f"{_esc(problem['title'])} — Tree"
-    return _base_page(title, content, "math", lang=lang)
+    return _base_page(title, content, "math", lang=lang, viewer_addr=viewer_addr)
 
 
-def render_math_tree_node(db: LeaderboardDB, pid: int, mid: int, nid: int,
-                          path: str, lang: str = "en",
-                          errors: list[str] | None = None) -> str:
-    """Render the detail page for a single tree node."""
-    problem = db.get_math_problem(pid)
-    if not problem:
-        return _base_page("Not Found", "<p>Problem not found.</p>", "math", lang=lang)
-
-    coll = db.get_collection("method", mid)
-    node = db.get_tree_node(nid)
-    if not node:
-        return _base_page("Not Found", "<p>Node not found.</p>", "math", lang=lang)
-
-    children = db.get_children(nid)
-    uct_scores = db.get_uct_scores(nid)
-    path_to_root = db._get_path_to_root(nid)
-    parent = db._get_parent_node(nid)
-
-    # Path breadcrumb
-    breadcrumb_parts = []
-    for pnid in reversed(path_to_root):
-        pn = db.get_tree_node(pnid)
-        if pn:
-            breadcrumb_parts.append(
-                f'<a href="/web/math/{pid}/{mid}/tree/node/{pnid}?lang={lang}">'
-                f'{_esc((pn["content"] or "Root")[:40])}</a>'
-            )
-    breadcrumb = " → ".join(breadcrumb_parts)
-
-    # Node type badge
-    type_css = {"terminal_success": "terminal-success",
-                "terminal_failure": "terminal-failure",
-                "pruned": "pruned"}.get(node["node_type"], "")
-    type_badge_html = {
-        "terminal_success": '<span class="node-type-badge success">TERMINAL: Proved</span>',
-        "terminal_failure": '<span class="node-type-badge failure">TERMINAL: Dead End</span>',
-        "pruned": '<span class="node-type-badge pruned">PRUNED</span>',
-        "normal": '<span class="node-type-badge normal">Normal</span>',
-    }.get(node["node_type"], "")
-
-    # Error display
-    err_html = ""
-    if errors:
-        err_html = "".join(
-            f'<p style="color:#ef4444;margin:4px 0;">{_esc(e)}</p>'
-            for e in errors
-        )
-
-    # Children table with UCT scores
-    children_rows = ""
-    for c in children:
-        uct_str = ""
-        for u in uct_scores:
-            if u["child_id"] == c["child_id"]:
-                if u.get("uct_score") == float('inf'):
-                    uct_str = "∞"
-                else:
-                    uct_str = f'{u.get("uct_score", 0):.3f}'
-                break
-        children_rows += f"""<tr>
-            <td><a href="/web/math/{pid}/{mid}/tree/node/{c['child_id']}?lang={lang}">{_esc(c['child_content'][:60])}</a></td>
-            <td>{_esc(c['action_label'])}</td>
-            <td>{c['child_q_value']:.3f}</td>
-            <td>{c['child_visit_count']}</td>
-            <td>{uct_str}</td>
-            <td>{c['child_node_type']}</td>
-        </tr>"""
-
-    # Add child form
-    add_form = f"""<div class="card" style="margin-top:24px;">
-    <h3>Add Child Node</h3>
-    {err_html}
-    <form method="post" action="/web/math/{pid}/{mid}/tree/node/{nid}/add_child">
-        <table style="width:100%;">
-            <tr><td style="color:#777;width:120px;padding:4px;">Content *</td>
-                <td><input type="text" name="content" required style="width:100%;" placeholder="Mathematical state description"></td></tr>
-            <tr><td style="color:#777;padding:4px;">Action Label</td>
-                <td><input type="text" name="action_label" style="width:100%;" placeholder="Method/theorem applied (e.g. 因式分解)"></td></tr>
-            <tr><td style="color:#777;padding:4px;">Action Detail</td>
-                <td><input type="text" name="action_description" style="width:100%;" placeholder="Optional description"></td></tr>
-            <tr><td style="color:#777;padding:4px;">Type</td>
-                <td><select name="node_type">
-                    <option value="normal">Normal</option>
-                    <option value="terminal_success">Terminal Success</option>
-                    <option value="terminal_failure">Terminal Failure</option>
-                </select></td></tr>
-            <tr><td style="color:#777;padding:4px;">Reward</td>
-                <td><input type="number" name="reward" value="1.0" min="0" max="1" step="0.1" style="width:100px;"></td></tr>
-            <tr><td style="color:#777;padding:4px;">Your Address</td>
-                <td><input type="text" name="user_address" value="0xEXPLORER" style="width:200px;"></td></tr>
-            <tr><td></td><td><button type="submit">Add Child</button></td></tr>
-        </table>
-    </form>
-</div>"""
-
-    # Terminal actions
-    terminal_form = ""
-    if node["node_type"] not in ("terminal_success", "terminal_failure", "pruned"):
-        terminal_form = f"""
-        <div class="card" style="margin-top:16px;">
-            <h3>Mark Terminal & Backpropagate</h3>
-            <form method="post" action="/web/math/{pid}/{mid}/tree/node/{nid}/backpropagate" style="display:flex;gap:8px;align-items:center;">
-                <select name="terminal_type">
-                    <option value="terminal_success">Success (Proof Found)</option>
-                    <option value="terminal_failure">Failure (Dead End)</option>
-                </select>
-                <input type="number" name="reward" value="1.0" min="0" max="1" step="0.1" style="width:80px;">
-                <button type="submit">Backprop</button>
-            </form>
-        </div>
-        <div class="card" style="margin-top:8px;">
-            <h3>Prune Node</h3>
-            <form method="post" action="/web/math/{pid}/{mid}/tree/node/{nid}/prune">
-                <p style="color:#777;font-size:13px;margin-bottom:8px;">Mark as pruned (complexity explosion, contradiction, etc.) — backpropagates neutral reward.</p>
-                <button type="submit" style="background:#9ca3af;border-color:#9ca3af;">Prune</button>
-            </form>
-        </div>"""
-
-    content = f"""
+def _math_node_detail_content(node: dict, parent_node: dict | None, nid: int,
+                               pid: int, mid: int, lang: str, breadcrumb: str,
+                               type_css: str, type_badge_html: str,
+                               children: list, children_table: str,
+                               terminal_form: str, add_form: str) -> str:
+    """Build the main content body for a tree node detail page."""
+    author_stat = (f'<div class="stat-card"><div class="num">{node["user_address"][:12]}</div><div class="dim-label">Author</div></div>'
+                   if node['user_address'] else "")
+    created = (time.strftime('%Y-%m-%d %H:%M', time.localtime(node['created_at']))
+               if node['created_at'] else 'N/A')
+    parent_link = (f' | Parent: <a href="/web/math/{pid}/{mid}/tree/node/{parent_node["id"]}?lang={lang}">#{parent_node["id"]}</a>'
+                   if parent_node else ' | Root Node')
+    return f"""
     <div class="quick-links">
         <a href="/web/math/{pid}?lang={lang}">Problem</a>
         <a href="/web/math/{pid}/{mid}?lang={lang}">Method Zone</a>
@@ -2278,21 +2680,60 @@ def render_math_tree_node(db: LeaderboardDB, pid: int, mid: int, nid: int,
             <div class="stat-card"><div class="num">{node['visit_count']}</div><div class="dim-label">Visits (N)</div></div>
             <div class="stat-card"><div class="num">{node['reward']:.2f}</div><div class="dim-label">Reward</div></div>
             <div class="stat-card"><div class="num">{len(children)}</div><div class="dim-label">Children</div></div>
-            {f'<div class="stat-card"><div class="num">{node["user_address"][:12]}</div><div class="dim-label">Author</div></div>' if node['user_address'] else ''}
+            {author_stat}
         </div>
         <p style="color:#777;font-size:12px;margin-top:8px;">
-            Created: {time.strftime('%Y-%m-%d %H:%M', time.localtime(node['created_at'])) if node['created_at'] else 'N/A'}
-            {f' | Parent: <a href="/web/math/{pid}/{mid}/tree/node/{parent["id"]}?lang={lang}">#{parent["id"]}</a>' if parent else ' | Root Node'}
+            Created: {created}
+            {parent_link}
         </p>
     </div>
 
-    {'<h2 style="margin-top:24px;">Children (' + str(len(children)) + ')</h2>' if children else '<p style="color:#999;margin-top:16px;">No children yet. Expand the tree!</p>'}
-    {'<table><tr><th>State</th><th>Action</th><th>Q</th><th>N</th><th>UCT</th><th>Type</th></tr>' + children_rows + '</table>' if children else ''}
+    {children_table}
     {terminal_form}
-    {add_form}
-    """
+    {add_form}"""
+
+
+def render_math_tree_node(db: LeaderboardDB, pid: int, mid: int, nid: int,
+                          path: str, lang: str = "en",
+                          errors: list[str] | None = None,
+                          viewer_addr: str = "") -> str:
+    """Render the detail page for a single tree node."""
+    problem = db.get_math_problem(pid)
+    if not problem:
+        return _base_page("Not Found", "<p>Problem not found.</p>", "math", lang=lang, viewer_addr=viewer_addr)
+
+    node = db.get_tree_node(nid)
+    if not node:
+        return _base_page("Not Found", "<p>Node not found.</p>", "math", lang=lang, viewer_addr=viewer_addr)
+
+    children = db.get_children(nid)
+    uct_scores = db.get_uct_scores(nid)
+    path_to_root = db._get_path_to_root(nid)
+    parent = db._get_parent_node(nid)
+    parent_node = parent if parent else None
+
+    err_html = ("".join(f'<p style="color:#ef4444;margin:4px 0;">{_esc(e)}</p>' for e in errors)
+                if errors else "")
+    breadcrumb = _math_node_breadcrumb(db, path_to_root, pid, mid, lang)
+
+    node_type = node["node_type"]
+    type_css = {"terminal_success": "terminal-success",
+                "terminal_failure": "terminal-failure",
+                "pruned": "pruned"}.get(node_type, "")
+    type_badge_html = {"terminal_success": '<span class="node-type-badge success">TERMINAL: Proved</span>',
+                       "terminal_failure": '<span class="node-type-badge failure">TERMINAL: Dead End</span>',
+                       "pruned": '<span class="node-type-badge pruned">PRUNED</span>',
+                       "normal": '<span class="node-type-badge normal">Normal</span>'}.get(node_type, "")
+
+    children_table = _math_node_children_table(children, uct_scores, pid, mid, lang)
+    add_form = _math_node_add_form(nid, pid, mid, err_html)
+    terminal_form = _math_node_terminal_forms(nid, pid, mid, node_type)
+
+    content = _math_node_detail_content(node, parent_node, nid, pid, mid, lang,
+                                        breadcrumb, type_css, type_badge_html,
+                                        children, children_table, terminal_form, add_form)
     title = f"Node #{nid} — {_esc(problem['title'])}"
-    return _base_page(title, content, "math", lang=lang)
+    return _base_page(title, content, "math", lang=lang, viewer_addr=viewer_addr)
 
 
 # ------------------------------------------------------------------
@@ -3153,4 +3594,432 @@ def render_agent_chat(
     </script>
     """
     return _base_page(_t("agent.title", lang), content, "agent", lang=lang,
+                      viewer_addr=viewer_addr)
+
+
+def render_triz_agent(db: LeaderboardDB, lang: str = "en",
+                      viewer_addr: str = "", analysis_result: str = "",
+                      analysis_json: str = "") -> str:
+    """Render the dedicated TRIZ Agent page."""
+    # Domain options
+    domain_opts = "".join(
+        f'<option value="{d.value}">{d.value.title()}</option>'
+        for d in Domain
+    )
+
+    # History sidebar
+    history_items = _render_triz_history(db, viewer_addr, lang)
+
+    # Actions sidebar
+    show_actions = "style='display:none'" if not analysis_result else ""
+
+    content = f"""
+    <div class="triz-layout">
+        <div class="triz-main">
+            <div class="triz-input-area">
+                <textarea id="triz-input" placeholder="{_t('triz.input_placeholder', lang)}" rows="4">{_esc(analysis_json)}</textarea>
+                <div class="triz-controls">
+                    <select id="triz-domain">{domain_opts}</select>
+                    <button class="primary" onclick="runTrizAnalysis()" id="triz-btn">{_t('triz.analyze_btn', lang)}</button>
+                </div>
+            </div>
+            <div id="triz-result">
+                {analysis_result if analysis_result else '<div class="empty" style="margin-top:40px;">' + _t('triz.no_result_yet', lang) + '</div>'}
+            </div>
+        </div>
+        <div class="triz-sidebar">
+            <h4>{_t('triz.history', lang)}</h4>
+            <div id="triz-history">{history_items}</div>
+            <hr style="margin:12px 0;border:none;border-top:1px solid #eef0f4;">
+            <h4>{_t('triz.quick_actions', lang)}</h4>
+            <div id="triz-actions" {show_actions}>
+                <div class="action-card" onclick="createMatrix()">{_t('triz.action_matrix', lang)}</div>
+                <div class="action-card" onclick="showBountyForm()">{_t('triz.action_bounty', lang)}</div>
+                <div class="action-card" onclick="exportMethod()">{_t('triz.action_export', lang)}</div>
+                <div class="action-card" onclick="submitProblem()">{_t('triz.action_submit', lang)}</div>
+                <div class="action-card" onclick="viewRelated()">{_t('triz.action_related', lang)}</div>
+            </div>
+            <div id="triz-bounty-form" class="triz-bounty-form" style="display:none;">
+                <label style="font-size:12px;font-weight:600;">{_t('triz.bounty_amount', lang)}</label>
+                <div style="display:flex;gap:6px;margin-top:4px;">
+                    <input type="number" id="bounty-amount" value="50" min="10" style="width:100px;">
+                    <button onclick="createBounty()" style="font-size:12px;">{_t('triz.confirm_bounty', lang)}</button>
+                </div>
+                <div style="font-size:11px;color:#999;margin-top:4px;">{_t('triz.bounty_hint', lang)}</div>
+            </div>
+        </div>
+    </div>
+
+    <script>
+    var _lastAnalysis = null;
+
+    function runTrizAnalysis() {{
+        var input = document.getElementById('triz-input');
+        var domain = document.getElementById('triz-domain');
+        var btn = document.getElementById('triz-btn');
+        var result = document.getElementById('triz-result');
+        var desc = input.value.trim();
+        if (!desc) {{ alert('Please enter a description'); return; }}
+
+        btn.disabled = true;
+        btn.textContent = '{_t("triz.analyzing", lang)}';
+        result.innerHTML = '<div class="mine-progress">{_t("triz.analyzing", lang)}</div>';
+
+        fetch('/web/triz/analyze', {{
+            method: 'POST',
+            headers: {{'Content-Type': 'application/json'}},
+            body: JSON.stringify({{description: desc, domain: domain.value}})
+        }})
+        .then(function(r) {{ return r.json(); }})
+        .then(function(d) {{
+            btn.disabled = false;
+            btn.textContent = '{_t("triz.analyze_btn", lang)}';
+            if (d.ok) {{
+                _lastAnalysis = d;
+                result.innerHTML = d.html;
+                document.getElementById('triz-actions').style.display = '';
+                // Refresh history
+                var hist = document.getElementById('triz-history');
+                if (d.history_html) hist.innerHTML = d.history_html;
+            }} else {{
+                result.innerHTML = '<div class="empty" style="color:#991b1b;">' + (d.error || 'Analysis failed') + '</div>';
+            }}
+        }})
+        .catch(function(e) {{
+            btn.disabled = false;
+            btn.textContent = '{_t("triz.analyze_btn", lang)}';
+            result.innerHTML = '<div class="empty" style="color:#991b1b;">' + e + '</div>';
+        }});
+    }}
+
+    function showTab(tabId) {{
+        document.querySelectorAll('.triz-tab-content').forEach(function(el) {{ el.classList.remove('active'); }});
+        document.querySelectorAll('.triz-tab').forEach(function(el) {{ el.classList.remove('active'); }});
+        document.getElementById(tabId).classList.add('active');
+        document.querySelector('[data-tab="' + tabId + '"]').classList.add('active');
+    }}
+
+    function createMatrix() {{
+        if (!_lastAnalysis) return;
+        fetch('/web/triz/create-matrix', {{
+            method: 'POST',
+            headers: {{'Content-Type': 'application/json'}},
+            body: JSON.stringify({{
+                analysis_id: _lastAnalysis.analysis_id || 0,
+                problem_description: document.getElementById('triz-input').value.trim(),
+                triz_data: JSON.stringify(_lastAnalysis)
+            }})
+        }})
+        .then(function(r) {{ return r.json(); }})
+        .then(function(d) {{
+            if (d.ok) window.location.href = d.redirect;
+            else alert(d.error || 'Failed');
+        }})
+        .catch(function(e) {{ alert(e); }});
+    }}
+
+    function showBountyForm() {{
+        var f = document.getElementById('triz-bounty-form');
+        f.style.display = f.style.display === 'none' ? 'block' : 'none';
+    }}
+
+    function createBounty() {{
+        if (!_lastAnalysis) return;
+        var amount = document.getElementById('bounty-amount').value;
+        fetch('/web/triz/bounty', {{
+            method: 'POST',
+            headers: {{'Content-Type': 'application/json'}},
+            body: JSON.stringify({{
+                problem_description: document.getElementById('triz-input').value.trim(),
+                prize_pool: parseInt(amount) || 50,
+                triz_data: JSON.stringify(_lastAnalysis)
+            }})
+        }})
+        .then(function(r) {{ return r.json(); }})
+        .then(function(d) {{
+            if (d.ok) window.location.href = '/web/bounties?lang={lang}';
+            else alert(d.error || 'Failed');
+        }})
+        .catch(function(e) {{ alert(e); }});
+    }}
+
+    function exportMethod() {{
+        if (!_lastAnalysis) return;
+        fetch('/web/triz/export-method', {{
+            method: 'POST',
+            headers: {{'Content-Type': 'application/json'}},
+            body: JSON.stringify({{
+                description: document.getElementById('triz-input').value.trim(),
+                analysis: _lastAnalysis
+            }})
+        }})
+        .then(function(r) {{ return r.json(); }})
+        .then(function(d) {{
+            if (d.ok && d.download_url) window.location.href = d.download_url;
+            else alert(d.error || 'Failed');
+        }})
+        .catch(function(e) {{ alert(e); }});
+    }}
+
+    function submitProblem() {{
+        if (!_lastAnalysis) return;
+        fetch('/web/triz/submit-problem', {{
+            method: 'POST',
+            headers: {{'Content-Type': 'application/json'}},
+            body: JSON.stringify({{
+                description: document.getElementById('triz-input').value.trim(),
+                analysis: _lastAnalysis
+            }})
+        }})
+        .then(function(r) {{ return r.json(); }})
+        .then(function(d) {{
+            if (d.ok) alert('Submitted! Submission ID: ' + d.submission_id);
+            else alert(d.error || 'Failed');
+        }})
+        .catch(function(e) {{ alert(e); }});
+    }}
+
+    function viewRelated() {{
+        if (!_lastAnalysis) return;
+        fetch('/web/triz/related', {{
+            method: 'POST',
+            headers: {{'Content-Type': 'application/json'}},
+            body: JSON.stringify({{
+                description: document.getElementById('triz-input').value.trim(),
+                analysis: _lastAnalysis
+            }})
+        }})
+        .then(function(r) {{ return r.json(); }})
+        .then(function(d) {{
+            if (d.ok) {{
+                document.getElementById('triz-result').innerHTML += d.html;
+            }}
+        }})
+        .catch(function(e) {{}});
+    }}
+    </script>
+    """
+    return _base_page(_t("triz.title", lang), content, "triz", lang=lang,
+                      viewer_addr=viewer_addr)
+
+
+def _render_triz_history(db: LeaderboardDB, viewer_addr: str, lang: str) -> str:
+    """Render TRIZ analysis history sidebar items."""
+    items = []
+    now = time.time()
+    # Read from triz_analyses table if available
+    try:
+        results = db.get_triz_analyses(viewer_addr, limit=10)
+        for r in results:
+            ts = r.get("created_at", now)
+            date_str = f"{int((now - ts) / 3600)}h ago" if ts else ""
+            desc = (r.get("description", "") or "")[:40]
+            items.append(
+                f'<div class="history-item" onclick="loadAnalysis({r["id"]})">'
+                f'<div>{_esc(desc)}</div>'
+                f'<div class="date">{date_str}</div>'
+                f'</div>'
+            )
+    except AttributeError:
+        pass
+    if not items:
+        return f'<div style="font-size:12px;color:#999;">{_t("triz.no_history", lang)}</div>'
+    return "".join(items)
+
+
+def render_triz_analysis_result_html(analysis: dict, lang: str) -> str:
+    """Convert a TRIZ analysis dict into the multi-tab HTML displayed in the result area."""
+    tabs = [
+        ("contradiction", _t("triz.tab_contradiction", lang)),
+        ("sufield", _t("triz.tab_sufield", lang)),
+        ("cause_effect", _t("triz.tab_cause_effect", lang)),
+        ("resources", _t("triz.tab_resources", lang)),
+        ("nine_windows", _t("triz.tab_9windows", lang)),
+        ("std_solutions", _t("triz.tab_std_solutions", lang)),
+        ("ariz", _t("triz.tab_ariz", lang)),
+    ]
+    tab_headers = "".join(
+        f'<span class="triz-tab {"active" if i == 0 else ""}" '
+        f'data-tab="triz-panel-{tid}" onclick="showTab(\'triz-panel-{tid}\')">{label}</span>'
+        for i, (tid, label) in enumerate(tabs)
+    )
+
+    # Build tab content
+    a = analysis.get("analysis", analysis)
+
+    # Contradiction tab
+    contradiction = ""
+    if isinstance(a.get("standardized_problem"), dict):
+        sp = a["standardized_problem"]
+        ctx = sp.get("triz_standardized") or {}
+        c = ctx.get("contradiction", {})
+        if c:
+            contradiction += f'<p><strong>{_t("triz.contradiction", lang)}:</strong> {_esc(c.get("improving", "?"))} vs {_esc(c.get("worsening", "?"))}</p>'
+        ifr = ctx.get("ifr", "")
+        if ifr:
+            contradiction += f'<p><strong>{_t("triz.ifr", lang)}:</strong> {_esc(ifr)}</p>'
+        principles = ctx.get("triz_params", [])
+        if principles:
+            contradiction += f'<p><strong>{_t("triz.principles", lang)}:</strong> {", ".join(f"#{p}" for p in principles)}</p>'
+
+    # Su-Field tab
+    suf = a.get("su_field", {})
+    if isinstance(suf, dict):
+        suf = {k: v for k, v in suf.items() if not k.startswith("_")}
+    sufield_tab = '<table class="triz-table">'
+    for k, v in suf.items():
+        if k == "transformation_suggestions" and isinstance(v, list):
+            sufield_tab += f"<tr><td>Suggestions</td><td>{'; '.join(str(x) for x in v)}</td></tr>"
+        else:
+            sufield_tab += f"<tr><td>{k}</td><td>{_esc(str(v))}</td></tr>"
+    sufield_tab += "</table>"
+
+    # Cause-Effect tab
+    ce = a.get("cause_effect", {})
+    ce_tab = ""
+    if isinstance(ce, dict):
+        for k, v in ce.items():
+            ce_tab += f"<p><strong>{k}:</strong> {_esc(str(v)[:200])}</p>"
+
+    # Resources tab
+    res = a.get("resources", {})
+    res_tab = ""
+    if isinstance(res, dict):
+        for k, v in res.items():
+            if isinstance(v, list):
+                res_tab += f"<p><strong>{k}:</strong> {', '.join(str(x) for x in v)}</p>"
+
+    # 9-Windows tab
+    nw = a.get("nine_windows", {})
+    nw_tab = ""
+    if isinstance(nw, dict):
+        nw_tab += '<table class="nine-windows-table">'
+        for row_label in ["supersystem", "system", "subsystem"]:
+            nw_tab += f"<tr><td class='nw-label'>{row_label}</td>"
+            for period in ["past", "present", "future"]:
+                val = nw.get(f"{row_label}_{period}") or nw.get(f"{period}_{row_label}") or nw.get(period, {}).get(row_label, "")
+                nw_tab += f"<td>{_esc(str(val)[:80])}</td>"
+            nw_tab += "</tr>"
+        nw_tab += f'<tr><td></td><td>Past</td><td>Present</td><td>Future</td></tr></table>'
+
+    # Standard Solutions tab
+    std = a.get("standard_solutions", {})
+    std_tab = ""
+    if isinstance(std, dict):
+        matched = std.get("matched", [])
+        if matched:
+            cls = std.get("recommended_class", "")
+            std_tab += f"<p><strong>Recommended Class:</strong> {cls}</p>"
+            for s in matched[:10]:
+                name = s.get("name", "")
+                desc = s.get("description", "")[:100]
+                std_tab += f"<p>• <strong>{_esc(name)}</strong>: {_esc(desc)}</p>"
+        else:
+            std_tab = '<p style="color:#999;">No standard solutions matched.</p>'
+
+    # ARIZ tab
+    ariz = a.get("ariz", {})
+    ariz_tab = ""
+    if isinstance(ariz, dict):
+        steps = ariz.get("steps_completed", 0)
+        phases = ariz.get("phases_completed", [])
+        ariz_tab += f"<p><strong>Steps:</strong> {steps}</p>"
+        if phases:
+            ariz_tab += f"<p><strong>Phases:</strong> {', '.join(str(p) for p in phases)}</p>"
+
+    tab_contents = {
+        "contradiction": contradiction or '<p style="color:#999;">No contradiction data.</p>',
+        "sufield": sufield_tab or '<p style="color:#999;">No Su-Field data.</p>',
+        "cause_effect": ce_tab or '<p style="color:#999;">No cause-effect data.</p>',
+        "resources": res_tab or '<p style="color:#999;">No resource data.</p>',
+        "nine_windows": nw_tab or '<p style="color:#999;">No 9-Windows data.</p>',
+        "std_solutions": std_tab or '<p style="color:#999;">No standard solutions data.</p>',
+        "ariz": ariz_tab or '<p style="color:#999;">No ARIZ data.</p>',
+    }
+
+    panels = "".join(
+        f'<div id="triz-panel-{tid}" class="triz-tab-content {"active" if i == 0 else ""}">'
+        f'<div class="triz-section">{content}</div></div>'
+        for i, (tid, _) in enumerate(tabs)
+        for content in [tab_contents[tid]]
+    )
+
+    return f"""
+    <h3 style="margin-bottom:8px;">{_t('triz.analysis_result', lang)}</h3>
+    <div class="triz-tabs">{tab_headers}</div>
+    {panels}
+    """
+
+
+def render_bounties(db: LeaderboardDB, lang: str = "en",
+                    viewer_addr: str = "", filter_status: str = "",
+                    token_gate=None) -> str:
+    """Render the bounties listing page."""
+    statuses = [
+        ("", _t("bounties.all", lang)),
+        ("open", _t("bounties.open", lang)),
+        ("claimed", _t("bounties.claimed", lang)),
+    ]
+    filter_links = "".join(
+        f'<a href="/web/bounties?lang={lang}{"&status=" + s if s else ""}" '
+        f'class="{"active" if s == filter_status else ""}">{label}</a>'
+        for s, label in statuses
+    )
+
+    status_filter = filter_status if filter_status else None
+    bounties = db.get_bounties(status=status_filter)
+
+    if not bounties:
+        cards = f'<div class="empty">{_t("bounties.no_bounties", lang)}</div>'
+    else:
+        cards = ""
+        for b in bounties:
+            status_cls = b["status"]
+            prize = b["prize_pool"]
+            desc = _esc(b["problem_description"][:120])
+            creator = _esc(b["creator_addr"][:12] + "...")
+            created = f'{int((time.time() - (b["created_at"] or time.time())) / 3600)}h ago'
+            status_label = {
+                "open": _t("bounties.open", lang),
+                "claimed": _t("bounties.claimed", lang),
+                "expired": _t("bounties.expired", lang),
+            }.get(b["status"], b["status"])
+
+            claim_btn = ""
+            if b["status"] == "open" and viewer_addr and b["creator_addr"] != viewer_addr:
+                # Only non-creators can claim
+                pass  # Claim flow is creator-initiated for now
+            elif b["status"] == "open" and viewer_addr and token_gate:
+                # Show claim release button for creator
+                if b["creator_addr"] == viewer_addr and b.get("claimant_addr"):
+                    claim_btn = f'''
+                        <form method="post" action="/web/bounties/claim" style="display:inline;"
+                              onsubmit="return confirm('{_t("bounties.claim_confirm", lang, prize=b["prize_pool"], addr=b["claimant_addr"][:12]+"...")}')">
+                            <input type="hidden" name="bounty_id" value="{b["id"]}">
+                            <input type="hidden" name="claimant_addr" value="{_esc(b["claimant_addr"])}">
+                            <button type="submit">{_t("bounties.claim_btn", lang)}</button>
+                        </form>'''
+
+            cards += f"""
+            <div class="bounty-card">
+                <div class="meta">
+                    <span class="status-badge {status_cls}">{status_label}</span>
+                    <span class="prize">{prize} IDEA</span>
+                    <span>{_t('bounties.creator', lang)}: {creator}</span>
+                    <span>{created}</span>
+                </div>
+                <div class="desc">{desc}</div>
+                {claim_btn}
+            </div>"""
+
+    not_logged = ""
+    if not viewer_addr:
+        not_logged = f'<p style="color:#999;font-size:13px;">{_t("bounties.not_logged_in", lang)}</p>'
+
+    content = f"""
+    <div class="bounty-filters">{filter_links}</div>
+    {not_logged}
+    {cards}
+    """
+    return _base_page(_t("bounties.title", lang), content, "bounties", lang=lang,
                       viewer_addr=viewer_addr)

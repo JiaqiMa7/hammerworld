@@ -160,6 +160,7 @@ class _HubHandler(BaseHTTPRequestHandler):
             render_buffer_leaderboard, render_token_dashboard,
             render_agent_chat, render_my_entries, render_settings,
             render_combo_group, _parse_query,
+            render_triz_agent, render_bounties, render_triz_analysis_result_html,
         )
         db = self.db
         pm = self.peer_manager
@@ -220,19 +221,22 @@ class _HubHandler(BaseHTTPRequestHandler):
             html = render_math_new(lang=lang, viewer_addr=viewer)
         elif _match_math_tree_node(path):
             pid, mid, nid = _parse_math_tree_node(path)
-            html = render_math_tree_node(db, pid, mid, nid, self.path, lang=lang)
+            html = render_math_tree_node(db, pid, mid, nid, self.path, lang=lang, viewer_addr=viewer)
         elif _match_math_tree(path):
             pid, mid = _parse_math_tree(path)
-            html = render_math_tree(db, pid, mid, self.path, lang=lang)
+            html = render_math_tree(db, pid, mid, self.path, lang=lang, viewer_addr=viewer)
         elif _match_math_solution(path):
             pid, mid, sid = _parse_math_solution(path)
-            html = render_math_solution(db, pid, mid, sid, self.path, lang=lang)
+            html = render_math_solution(db, pid, mid, sid, self.path, lang=lang, viewer_addr=viewer)
+        elif _match_math_unlock(path):
+            pid, mid = _parse_math_unlock(path)
+            html = render_math_unlock(db, pid, mid, self.path, lang=lang, viewer_addr=viewer)
         elif _match_math_method_zone(path):
             pid, mid = _parse_math_method_zone(path)
-            html = render_math_method_zone(db, pid, mid, self.path, lang=lang)
+            html = render_math_method_zone(db, pid, mid, self.path, lang=lang, viewer_addr=viewer)
         elif _match_math_problem(path):
             pid = _parse_math_problem_id(path)
-            html = render_math_problem(db, pid, self.path, lang=lang)
+            html = render_math_problem(db, pid, self.path, lang=lang, viewer_addr=viewer)
         # Blockchain Buffer Zone routes
         elif path == "/web/buffer" or path == "/web/buffer/":
             html = render_buffer_dashboard(db, lang=lang, viewer_addr=viewer)
@@ -266,6 +270,12 @@ class _HubHandler(BaseHTTPRequestHandler):
             html = render_agent_chat(db, self.path, viewer_addr=viewer,
                                      token_gate=tg, peer_manager=pm,
                                      lang=lang, conversation=conv)
+        elif path == "/web/triz":
+            html = render_triz_agent(db, lang=lang, viewer_addr=viewer)
+        elif path == "/web/bounties":
+            filter_status = params.get("status", "")
+            html = render_bounties(db, lang=lang, viewer_addr=viewer,
+                                   filter_status=filter_status, token_gate=tg)
         else:
             self._send_json({"error": "not found"}, 404)
             return
@@ -509,7 +519,7 @@ class _HubHandler(BaseHTTPRequestHandler):
         combo_id = data.get("combo_id", "").strip()
 
         if not user_address or not combo_id:
-            html = render_math_unlock(db, pid, mid, self.path, lang=self._lang)
+            html = render_math_unlock(db, pid, mid, self.path, lang=self._lang, viewer_addr=self._cookie_addr())
             self._send_html(html)
             return
 
@@ -928,6 +938,356 @@ class _HubHandler(BaseHTTPRequestHandler):
                                saved=True)
         self._send_html(html)
 
+    # ------------------------------------------------------------------
+    # TRIZ Agent POST handlers
+    # ------------------------------------------------------------------
+
+    def _handle_triz_analyze(self, body: bytes):
+        """Handle POST /web/triz/analyze — run full TRIZ analysis."""
+        try:
+            data = json.loads(body)
+        except json.JSONDecodeError:
+            self._send_json({"ok": False, "error": "Invalid JSON"})
+            return
+
+        description = data.get("description", "").strip()
+        domain = data.get("domain", "software").strip()
+
+        if not description:
+            self._send_json({"ok": False, "error": "Description is required"})
+            return
+
+        # Run TRIZ analysis
+        from src.triz.agent import TRIZAgent
+        from src.hub.web import render_triz_analysis_result_html
+
+        agent = TRIZAgent()
+        try:
+            report = agent.full_analysis(description)
+        except Exception as e:
+            self._send_json({"ok": False, "error": f"Analysis failed: {e}"})
+            return
+
+        html = render_triz_analysis_result_html(report, lang=self._lang)
+
+        # Build history HTML (simple, just for this session)
+        self._send_json({
+            "ok": True,
+            "html": html,
+            "analysis_id": 0,
+            "analysis": report,
+            "history_html": "",
+        })
+
+    def _handle_triz_create_matrix(self, body: bytes):
+        """Handle POST /web/triz/create-matrix — create collections from analysis."""
+        try:
+            data = json.loads(body)
+        except json.JSONDecodeError:
+            self._send_json({"ok": False, "error": "Invalid JSON"})
+            return
+
+        db = self.db
+        assert db is not None
+
+        problem_desc = data.get("problem_description", "").strip() or "TRIZ Problem"
+        viewer = self._cookie_addr() or "anonymous"
+
+        # Create a problem collection with one item
+        problem_item = {
+            "id": f"triz_{int(time.time())}",
+            "title": problem_desc[:100],
+            "domain": "software",
+            "description": problem_desc,
+        }
+        pid = db.create_collection(
+            "problem", f"TRIZ: {problem_desc[:30]}...",
+            f"Auto-created from TRIZ analysis",
+            "triz", viewer, [problem_item],
+        )
+
+        # Load all methods from default file and create method collection
+        from src.engine.loader import load_methods
+        methods = load_methods()
+        method_items = []
+        for m in methods:
+            method_items.append({
+                "id": m.id, "name": m.name, "domain": m.domain,
+                "level": m.level.value, "description": m.description,
+            })
+        mid = db.create_collection(
+            "method", f"Methods for: {problem_desc[:30]}...",
+            f"All methods for TRIZ problem",
+            "triz", viewer, method_items,
+        )
+
+        self._send_json({
+            "ok": True,
+            "redirect": f"/web/collections/problem/{pid}?lang={self._lang}",
+            "problem_collection_id": pid,
+            "method_collection_id": mid,
+        })
+
+    def _handle_triz_create_bounty(self, body: bytes):
+        """Handle POST /web/triz/bounty — create a bounty with payment."""
+        try:
+            data = json.loads(body)
+        except json.JSONDecodeError:
+            self._send_json({"ok": False, "error": "Invalid JSON"})
+            return
+
+        tg = self.token_gate
+        viewer = self._cookie_addr() or ""
+        if not viewer:
+            self._send_json({"ok": False, "error": "Not logged in"})
+            return
+        if not tg:
+            self._send_json({"ok": False, "error": "Token system not available"})
+            return
+
+        problem_desc = data.get("problem_description", "").strip() or "TRIZ Problem"
+        prize_pool = int(data.get("prize_pool", 50))
+        triz_data = data.get("triz_data", "")
+
+        result = tg.pay_for_bounty(viewer, problem_desc, prize_pool,
+                                    triz_data=triz_data)
+        self._send_json(result)
+
+    def _handle_triz_export_method(self, body: bytes):
+        """Handle POST /web/triz/export-method — export method JSON for download."""
+        try:
+            data = json.loads(body)
+        except json.JSONDecodeError:
+            self._send_json({"ok": False, "error": "Invalid JSON"})
+            return
+
+        description = data.get("description", "").strip() or "Untitled Method"
+        analysis = data.get("analysis", {})
+
+        # Build a method object matching the methods.json schema
+        method = {
+            "id": f"triz_{int(time.time())}",
+            "name": description[:50],
+            "domain": analysis.get("domain", "general"),
+            "level": 1,
+            "description": description,
+            "examples": [description],
+        }
+
+        # Generate a data URI for download
+        import base64
+        json_str = json.dumps(method, ensure_ascii=False, indent=2)
+        b64 = base64.b64encode(json_str.encode()).decode()
+        download_url = f"data:application/json;base64,{b64}"
+
+        self._send_json({
+            "ok": True,
+            "download_url": download_url,
+            "method": method,
+        })
+
+    def _handle_triz_submit_problem(self, body: bytes):
+        """Handle POST /web/triz/submit-problem — submit as pending problem."""
+        try:
+            data = json.loads(body)
+        except json.JSONDecodeError:
+            self._send_json({"ok": False, "error": "Invalid JSON"})
+            return
+
+        db = self.db
+        assert db is not None
+
+        description = data.get("description", "").strip()
+        analysis = data.get("analysis", {})
+        viewer = self._cookie_addr() or "anonymous"
+
+        # Extract TRIZ context if available
+        a = analysis.get("analysis", analysis)
+        sp = a.get("standardized_problem", {})
+        ctx = sp.get("triz_standardized", {})
+
+        problem_data = {
+            "id": f"triz_{int(time.time())}",
+            "title": description[:100],
+            "domain": a.get("domain", "software"),
+            "description": description,
+            "triz_standardized": ctx,
+        }
+
+        sub_id = db.submit("problem", problem_data, submitter=viewer)
+        self._send_json({"ok": True, "submission_id": sub_id})
+
+    def _handle_triz_related(self, body: bytes):
+        """Handle POST /web/triz/related — find related entries from analysis."""
+        try:
+            data = json.loads(body)
+        except json.JSONDecodeError:
+            self._send_json({"ok": False, "error": "Invalid JSON"})
+            return
+
+        db = self.db
+        assert db is not None
+
+        description = data.get("description", "").strip()
+        # Search via db.search()
+        results = db.search(description, limit=10)
+        from src.hub.web import _entry_table
+        html = f"""
+        <h3 style="margin-top:20px;">Related Entries</h3>
+        {_entry_table(results, lang=self._lang)}
+        """
+        self._send_json({"ok": True, "html": html})
+
+    # ------------------------------------------------------------------
+    # Dashboard Mining POST handler
+    # ------------------------------------------------------------------
+
+    def _handle_dashboard_mine(self, body: bytes):
+        """Handle POST /web/dashboard/mine — run mining with collection selections."""
+        try:
+            data = json.loads(body)
+        except json.JSONDecodeError:
+            self._send_json({"ok": False, "error": "Invalid JSON"})
+            return
+
+        db = self.db
+        assert db is not None
+
+        method_col_name = data.get("method_collection", "").strip()
+        problem_col_name = data.get("problem_collection", "").strip()
+        batch_size = int(data.get("batch_size", 5))
+        model = data.get("model", "").strip() or None
+
+        if not method_col_name or not problem_col_name:
+            self._send_json({"ok": False, "error": "Both collections required"})
+            return
+
+        # Load from collections
+        mc = db.find_collection_by_name("method", method_col_name)
+        pc = db.find_collection_by_name("problem", problem_col_name)
+        if not mc or not pc:
+            self._send_json({"ok": False, "error": "Collection not found"})
+            return
+
+        try:
+            method_dicts = json.loads(mc.get("methods_json", "[]"))
+            problem_dicts = json.loads(pc.get("problems_json", "[]"))
+        except (json.JSONDecodeError, TypeError):
+            self._send_json({"ok": False, "error": "Invalid collection data"})
+            return
+
+        if not method_dicts or not problem_dicts:
+            self._send_json({"ok": False, "error": "Empty collection"})
+            return
+
+        # Build Method/Problem objects
+        from src.engine.models import Method, Problem, Domain, MethodLevel
+        methods = []
+        for md in method_dicts:
+            try:
+                lvl = MethodLevel(int(md.get("level", 1)))
+            except (ValueError, TypeError):
+                lvl = MethodLevel(1)
+            methods.append(Method(
+                id=md.get("id", ""), name=md.get("name", ""),
+                domain=md.get("domain", "general"), level=lvl,
+                description=md.get("description", ""),
+                examples=md.get("examples", []),
+            ))
+
+        problems = []
+        for pd in problem_dicts:
+            try:
+                dom = Domain(pd.get("domain", "software"))
+            except (ValueError, TypeError):
+                dom = Domain.SOFTWARE
+            problems.append(Problem(
+                id=pd.get("id", ""), title=pd.get("title", pd.get("name", "")),
+                domain=dom, description=pd.get("description", ""),
+            ))
+
+        # Generate combinations
+        from src.engine.combiner import generate_combinations
+        combos = generate_combinations(methods, problems)
+        if not combos:
+            self._send_json({"ok": False, "error": "No combinations generated"})
+            return
+
+        # Limit to batch
+        if len(combos) > batch_size:
+            import random as rng
+            rng.shuffle(combos)
+            combos = combos[:batch_size]
+
+        # Evaluate
+        from src.engine.config import HammerConfig
+        config = HammerConfig.load()
+        from src.evaluation.scorer import EvaluationPipeline
+        from src.evaluation.providers import OpenAIProvider
+
+        provider = None
+        api_key = config.api_key or os.environ.get("HAMMERWORLD_API_KEY", "")
+        if api_key:
+            try:
+                provider = OpenAIProvider(api_key=api_key, api_base=config.api_base,
+                                          model=model or config.model or "gpt-4")
+            except Exception:
+                pass
+
+        pipeline = EvaluationPipeline(ai_provider=provider, threshold=8.0,
+                                      model_name=model or config.model or "unknown")
+        passed_list, failed_list = pipeline.evaluate_and_filter(combos)
+
+        viewer = self._cookie_addr() or "0xMINER"
+        saved_count = 0
+        for combo in passed_list:
+            try:
+                db.insert(combo, miner_addr=viewer)
+                saved_count += 1
+            except Exception:
+                pass
+
+        db.increment_import("method", mc["id"])
+        db.increment_import("problem", pc["id"])
+
+        total_combos = len(combos)
+        msg = f"Generated {total_combos} pairs, {len(passed_list)} passed threshold, {saved_count} saved to leaderboard."
+        self._send_json({
+            "ok": True,
+            "message": msg,
+            "total": total_combos,
+            "passed": len(passed_list),
+            "saved": saved_count,
+            "leaderboard_link": "/web/leaderboard",
+        })
+
+    # ------------------------------------------------------------------
+    # Bounty claim handler
+    # ------------------------------------------------------------------
+
+    def _handle_bounty_claim(self, body: bytes):
+        """Handle POST /web/bounties/claim — release bounty funds to claimant."""
+        from urllib.parse import parse_qs
+
+        tg = self.token_gate
+        viewer = self._cookie_addr() or ""
+
+        decoded = parse_qs(body.decode())
+        data = {k: v[0] if len(v) == 1 else v for k, v in decoded.items()}
+        bounty_id = int(data.get("bounty_id", 0))
+        claimant_addr = data.get("claimant_addr", "").strip()
+
+        if not viewer or not tg:
+            self.send_response(302)
+            self.send_header("Location", "/web/bounties")
+            self.end_headers()
+            return
+
+        tg.claim_bounty(bounty_id, claimant_addr)
+        self.send_response(302)
+        self.send_header("Location", "/web/bounties")
+        self.end_headers()
+
     def _handle_buffer_classify(self, sub_id: str, body: bytes):
         """Handle POST to classify a buffer submission."""
         from urllib.parse import parse_qs
@@ -1027,8 +1387,8 @@ class _HubHandler(BaseHTTPRequestHandler):
         elif _match_math_solution_submit(self.path):
             pid, mid, sid = _parse_math_solution_submit(self.path)
             self._handle_submit_math_solution(pid, mid, sid, body)
-        elif _match_math_unlock_post(self.path):
-            pid, mid = _parse_math_unlock_post(self.path)
+        elif _match_math_unlock(self.path):
+            pid, mid = _parse_math_unlock(self.path)
             self._handle_math_unlock(pid, mid, body)
         elif _match_buffer_classify(self.path):
             sub_id = _parse_buffer_classify(self.path)
@@ -1060,6 +1420,22 @@ class _HubHandler(BaseHTTPRequestHandler):
             self._handle_agent_mine_run(body)
         elif self.path == "/web/settings/save":
             self._handle_settings_save(body)
+        elif self.path == "/web/triz/analyze":
+            self._handle_triz_analyze(body)
+        elif self.path == "/web/triz/create-matrix":
+            self._handle_triz_create_matrix(body)
+        elif self.path == "/web/triz/bounty":
+            self._handle_triz_create_bounty(body)
+        elif self.path == "/web/triz/export-method":
+            self._handle_triz_export_method(body)
+        elif self.path == "/web/triz/submit-problem":
+            self._handle_triz_submit_problem(body)
+        elif self.path == "/web/triz/related":
+            self._handle_triz_related(body)
+        elif self.path == "/web/dashboard/mine":
+            self._handle_dashboard_mine(body)
+        elif self.path == "/web/bounties/claim":
+            self._handle_bounty_claim(body)
         else:
             self._send_json({"error": "not found"}, 404)
 
@@ -1142,8 +1518,8 @@ def _parse_math_solution(path: str) -> tuple[int, int, int]:
     return int(parts[0]), int(parts[1]), int(parts[2])
 
 
-def _match_math_unlock_post(path: str) -> bool:
-    """Check if path matches /web/math/{pid}/{mid}/unlock (POST)."""
+def _match_math_unlock(path: str) -> bool:
+    """Check if path matches /web/math/{pid}/{mid}/unlock."""
     if not path.startswith("/web/math/"):
         return False
     rest = path.split("/web/math/", 1)[1]
@@ -1151,8 +1527,8 @@ def _match_math_unlock_post(path: str) -> bool:
     return len(parts) == 3 and parts[0].isdigit() and parts[1].isdigit() and parts[2] == "unlock"
 
 
-def _parse_math_unlock_post(path: str) -> tuple[int, int]:
-    """Extract (pid, mid) from unlock POST path."""
+def _parse_math_unlock(path: str) -> tuple[int, int]:
+    """Extract (pid, mid) from unlock path."""
     rest = path.split("/web/math/", 1)[1]
     parts = rest.split("/")
     return int(parts[0]), int(parts[1])

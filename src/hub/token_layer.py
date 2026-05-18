@@ -130,6 +130,52 @@ class TokenGate:
         return {"ok": True, "message": "Rating recorded", "avg_rating": avg}
 
     # ------------------------------------------------------------------
+    # Bounties
+    # ------------------------------------------------------------------
+
+    BOUNTY_MIN_PRIZE = 10
+
+    def pay_for_bounty(self, creator_addr: str, problem_description: str,
+                       prize_pool: int, problem_id: str = "",
+                       triz_data: str = "") -> dict:
+        """Pay to create a bounty. Tokens are transferred to protocol escrow."""
+        if prize_pool < self.BOUNTY_MIN_PRIZE:
+            return {"ok": False, "error": f"Minimum prize is {self.BOUNTY_MIN_PRIZE} IDEA"}
+
+        self._ensure_balance(creator_addr, prize_pool)
+        ok = self.token.transfer(creator_addr, PROTOCOL_ADDR, prize_pool)
+        if not ok:
+            return {"ok": False, "error": "Transfer failed"}
+
+        bounty_id = self.db.create_bounty(
+            creator_addr=creator_addr,
+            problem_description=problem_description,
+            prize_pool=prize_pool,
+            problem_id=problem_id,
+            triz_data=triz_data,
+        )
+        return {"ok": True, "bounty_id": bounty_id, "message": "Bounty created"}
+
+    def claim_bounty(self, bounty_id: int, claimant_addr: str) -> dict:
+        """Claim a bounty (must be done by the bounty creator releasing funds to claimant)."""
+        bounty = self.db.get_bounty(bounty_id)
+        if not bounty:
+            return {"ok": False, "error": "Bounty not found"}
+        if bounty["status"] != "open":
+            return {"ok": False, "error": "Bounty is not open"}
+
+        ok = self.db.claim_bounty(bounty_id, claimant_addr)
+        if not ok:
+            return {"ok": False, "error": "Failed to claim bounty"}
+
+        # Release escrowed funds to claimant
+        protocol_bal = self.token.balance_of(PROTOCOL_ADDR)
+        if protocol_bal >= bounty["prize_pool"]:
+            self.token.transfer(PROTOCOL_ADDR, claimant_addr, bounty["prize_pool"])
+
+        return {"ok": True, "message": f"Bounty released to {claimant_addr}"}
+
+    # ------------------------------------------------------------------
     # Dashboard
     # ------------------------------------------------------------------
 

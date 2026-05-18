@@ -38,6 +38,7 @@ class LeaderboardEntry:
     miner_address: str = ""
     created_at: float = 0.0
     analysis_text: str = ""
+    triz_data: str = ""
 
     @property
     def combo_id(self) -> str:
@@ -112,7 +113,8 @@ class LeaderboardDB:
                     side_effects REAL DEFAULT 0,
                     miner_addr TEXT DEFAULT '',
                     created_at REAL DEFAULT 0,
-                    analysis_text TEXT DEFAULT ''
+                    analysis_text TEXT DEFAULT '',
+                    triz_data TEXT DEFAULT NULL
                 );
                 CREATE TABLE IF NOT EXISTS paid_views (
                     viewer_addr TEXT NOT NULL,
@@ -239,6 +241,22 @@ class LeaderboardDB:
                 CREATE INDEX IF NOT EXISTS idx_tree_edges_child
                     ON math_tree_edges(child_node_id);
 
+                CREATE TABLE IF NOT EXISTS bounties (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    creator_addr TEXT NOT NULL,
+                    problem_description TEXT NOT NULL,
+                    problem_id TEXT DEFAULT '',
+                    triz_data TEXT DEFAULT '',
+                    prize_pool INTEGER NOT NULL DEFAULT 0,
+                    status TEXT DEFAULT 'open',
+                    claimant_addr TEXT DEFAULT '',
+                    claimed_at REAL DEFAULT 0,
+                    created_at REAL DEFAULT 0,
+                    expires_at REAL DEFAULT 0
+                );
+                CREATE INDEX IF NOT EXISTS idx_bounties_status ON bounties(status);
+                CREATE INDEX IF NOT EXISTS idx_bounties_creator ON bounties(creator_addr);
+
                 CREATE TABLE IF NOT EXISTS _schema_version (
                     version INTEGER PRIMARY KEY
                 );
@@ -314,6 +332,11 @@ class LeaderboardDB:
             conn.execute("ALTER TABLE combinations ADD COLUMN analysis_text TEXT DEFAULT ''")
         except sqlite3.OperationalError:
             pass  # column already exists
+        # Migration: add triz_data for existing databases
+        try:
+            conn.execute("ALTER TABLE combinations ADD COLUMN triz_data TEXT DEFAULT NULL")
+        except sqlite3.OperationalError:
+            pass
         # Migration: token layer columns on paid_views
         for col, col_type in [("paid_amount", "INTEGER DEFAULT 0"),
                                ("analyzer_addr", "TEXT DEFAULT ''"),
@@ -774,6 +797,7 @@ class LeaderboardDB:
             miner_address=row["miner_addr"],
             created_at=row["created_at"],
             analysis_text=row["analysis_text"] if "analysis_text" in row.keys() else "",
+            triz_data=row["triz_data"] if "triz_data" in row.keys() else "",
         )
 
     # ------------------------------------------------------------------
@@ -963,6 +987,67 @@ class LeaderboardDB:
                 f"SELECT * FROM {table} WHERE name = ?", (name,)
             ).fetchone()
             return dict(row) if row else None
+
+    # ------------------------------------------------------------------
+    # Bounties
+    # ------------------------------------------------------------------
+
+    def create_bounty(self, creator_addr: str, problem_description: str,
+                      prize_pool: int, problem_id: str = "",
+                      triz_data: str = "") -> int:
+        """Create a new bounty. Returns the bounty id."""
+        now = time.time()
+        with self._connect() as conn:
+            cur = conn.execute(
+                "INSERT INTO bounties (creator_addr, problem_description, problem_id, "
+                "triz_data, prize_pool, status, created_at, expires_at) "
+                "VALUES (?, ?, ?, ?, ?, 'open', ?, ?)",
+                (creator_addr, problem_description, problem_id, triz_data,
+                 prize_pool, now, now + 7 * 86400),  # 7-day expiry
+            )
+            return cur.lastrowid
+
+    def get_bounties(self, status: str | None = None) -> list[dict]:
+        """List bounties, optionally filtered by status, newest first."""
+        with self._connect() as conn:
+            if status:
+                rows = conn.execute(
+                    "SELECT * FROM bounties WHERE status = ? ORDER BY created_at DESC",
+                    (status,),
+                ).fetchall()
+            else:
+                rows = conn.execute(
+                    "SELECT * FROM bounties ORDER BY created_at DESC"
+                ).fetchall()
+            return [dict(r) for r in rows]
+
+    def get_bounty(self, bounty_id: int) -> dict | None:
+        """Get a single bounty by id."""
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM bounties WHERE id = ?", (bounty_id,)
+            ).fetchone()
+            return dict(row) if row else None
+
+    def claim_bounty(self, bounty_id: int, claimant_addr: str) -> bool:
+        """Claim a bounty (set status to 'claimed'). Returns True if successful."""
+        now = time.time()
+        with self._connect() as conn:
+            cur = conn.execute(
+                "UPDATE bounties SET status = 'claimed', claimant_addr = ?, "
+                "claimed_at = ? WHERE id = ? AND status = 'open'",
+                (claimant_addr, now, bounty_id),
+            )
+            return cur.rowcount > 0
+
+    def get_bounties_by_creator(self, creator_addr: str) -> list[dict]:
+        """List bounties created by a specific address."""
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM bounties WHERE creator_addr = ? ORDER BY created_at DESC",
+                (creator_addr,),
+            ).fetchall()
+            return [dict(r) for r in rows]
 
     # ------------------------------------------------------------------
     # Math Research Zone

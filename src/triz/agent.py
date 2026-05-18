@@ -13,7 +13,17 @@ from src.triz.models import (
 )
 from src.triz.knowledge import ENGINEERING_PARAMETERS, INVENTIVE_PRINCIPLES
 from src.triz.contradiction_matrix import query_matrix
-from src.triz.prompts import PROBLEM_STANDARDIZATION_TEMPLATE, SYSTEM_PROMPT
+from src.triz.prompts import (
+    PROBLEM_STANDARDIZATION_TEMPLATE, SYSTEM_PROMPT,
+    SU_FIELD_PROMPT, RESOURCE_ANALYSIS_PROMPT, CAUSE_EFFECT_PROMPT,
+    NINE_WINDOWS_PROMPT, TRIMMING_PROMPT, FUNCTION_RANKING_PROMPT,
+    STC_OPERATOR_PROMPT, SMART_LITTLE_PEOPLE_PROMPT,
+)
+from src.triz import su_field, resource_analysis, cause_effect
+from src.triz import nine_windows, trimming, function_ranking
+from src.triz import stc_operator, smart_little_people
+from src.triz.ariz import run_full, run_simplified
+from src.triz.standard_solutions import STANDARD_SOLUTIONS, StandardSolution
 
 
 class AIProvider(Protocol):
@@ -51,33 +61,60 @@ class TRIZAgent:
     def standardize(self, problem_description: str, domain: str = "") -> Problem:
         """Standardize a raw problem description into a Problem with TRIZ analysis.
 
-        This is the main entry point for adding new problems to the matrix.
+        In AI mode, also runs Su-Field, cause-effect, and resource analysis
+        to enrich triz_standardized with deeper TRIZ context.
         """
         analysis = self._ai_analyze_from_text(problem_description, domain) if self.ai_provider \
                    else self._rule_based_from_text(problem_description, domain)
 
+        triz_std = {
+            "contradiction": {
+                "improving": analysis.technical_contradictions[0].improving_param.name
+                    if analysis.technical_contradictions else "",
+                "worsening": analysis.technical_contradictions[0].worsening_param.name
+                    if analysis.technical_contradictions else "",
+            },
+            "ifr": analysis.ifr,
+            "triz_params": analysis.recommended_principles,
+            "functional_model": {
+                "actors": analysis.functional_model.actors,
+                "useful_functions": analysis.functional_model.useful_functions,
+                "harmful_functions": analysis.functional_model.harmful_functions,
+            },
+        }
+
+        # AI mode: enrich with Su-Field, cause-effect, resource analysis
+        if self.ai_provider:
+            sf = self.su_field_analysis(problem_description)
+            triz_std["su_field"] = {
+                "s1": sf.s1, "s2": sf.s2, "field": sf.field,
+                "interaction_type": sf.interaction_type,
+                "is_complete": sf.is_complete,
+                "transformation_suggestions": sf.transformation_suggestions,
+            }
+            ce = self.cause_effect_analysis(problem_description)
+            triz_std["cause_effect"] = {
+                "root_causes": [str(l.cause) for l in ce.chain],
+                "final_effects": [str(l.effect) for l in ce.chain],
+            }
+            res = self.resource_analysis(problem_description)
+            triz_std["resources"] = {
+                "substances": list(res.substances),
+                "fields": list(res.fields),
+                "space": list(res.space),
+                "time": list(res.time),
+                "information": list(res.information),
+                "function": list(res.function),
+            }
+
         return Problem(
-            id="",  # Will be assigned by the loader
+            id="",
             title=problem_description[:80],
             domain=self._guess_domain(domain),
             description=problem_description,
             constraint_types=self._infer_constraints(analysis),
             maturity=ProblemMaturity.NO_SOLUTION,
-            triz_standardized={
-                "contradiction": {
-                    "improving": analysis.technical_contradictions[0].improving_param.name
-                        if analysis.technical_contradictions else "",
-                    "worsening": analysis.technical_contradictions[0].worsening_param.name
-                        if analysis.technical_contradictions else "",
-                },
-                "ifr": analysis.ifr,
-                "triz_params": analysis.recommended_principles,
-                "functional_model": {
-                    "actors": analysis.functional_model.actors,
-                    "useful_functions": analysis.functional_model.useful_functions,
-                    "harmful_functions": analysis.functional_model.harmful_functions,
-                },
-            },
+            triz_standardized=triz_std,
         )
 
     def get_principle_recommendations(self, improving_id: int, worsening_id: int) -> dict:
@@ -273,3 +310,132 @@ class TRIZAgent:
         if len(analysis.technical_contradictions) > 1:
             constraints.append(ConstraintType.COMPLEXITY)
         return constraints
+
+    # -- New TRIZ tool methods (delegate to specialized modules) --
+
+    def su_field_analysis(self, description: str) -> su_field.SuFieldModel:
+        """Model the problem as a Substance-Field system."""
+        return su_field.analyze(description, self.ai_provider)
+
+    def cause_effect_analysis(self, description: str) -> cause_effect.CauseEffectChain:
+        """Trace cause-effect relationships to find root causes."""
+        return cause_effect.analyze(description, self.ai_provider)
+
+    def resource_analysis(self, description: str) -> resource_analysis.ResourcePool:
+        """Identify available resources (substance, field, space, time, etc.)."""
+        return resource_analysis.analyze(description, self.ai_provider)
+
+    def nine_windows(self, description: str) -> nine_windows.NineWindowPanel:
+        """Apply 9-Windows system operator thinking."""
+        return nine_windows.analyze(description, self.ai_provider)
+
+    def trimming_analysis(self, description: str) -> trimming.TrimmingResult:
+        """Identify components that can be eliminated while preserving function."""
+        return trimming.analyze(description, self.ai_provider)
+
+    def function_ranking(self, description: str) -> function_ranking.FunctionRankingResult:
+        """Rank functions by usefulness, cost, and harm."""
+        return function_ranking.analyze(description, self.ai_provider)
+
+    def stc_operator(self, description: str) -> stc_operator.STCResult:
+        """Apply Size-Time-Cost extreme thinking."""
+        return stc_operator.analyze(description, self.ai_provider)
+
+    def smart_little_people(self, description: str) -> smart_little_people.SLPResult:
+        """Model the problem using Smart Little People."""
+        return smart_little_people.analyze(description, self.ai_provider)
+
+    def ariz_analyze(self, description: str, simplified: bool = False) -> dict:
+        """Run ARIZ-85C (full or simplified) and return structured results."""
+        from dataclasses import asdict
+        runner = run_simplified if simplified else run_full
+        result = runner(description, self.ai_provider)
+        return asdict(result)
+
+    def query_standard_solutions(
+        self, class_id: int | None = None
+    ) -> list[StandardSolution]:
+        """Query standard solutions by class (1-5). Returns all 76 if class_id is None."""
+        if class_id is None:
+            return list(STANDARD_SOLUTIONS.values())
+        return [s for s in STANDARD_SOLUTIONS.values() if s.class_name == str(class_id)]
+
+    def match_standard_solutions(
+        self, description: str,
+        su_field_result: su_field.SuFieldModel | None = None,
+    ) -> dict:
+        """Auto-match standard solutions based on Su-Field result or description keywords.
+
+        Returns {"matched": list[dict], "recommended_class": int} where each
+        matched solution is serialized via asdict() for JSON compatibility.
+        """
+        matched: list[StandardSolution] = []
+        recommended_class = 1
+
+        # Su-Field driven matching (highest priority)
+        if su_field_result and su_field_result.interaction_type:
+            it = su_field_result.interaction_type
+            if it == "harmful":
+                matched = [STANDARD_SOLUTIONS[i] for i in (2, 3) if i in STANDARD_SOLUTIONS]
+                recommended_class = 1
+            elif it == "insufficient":
+                matched = [STANDARD_SOLUTIONS[i] for i in (4, 5) if i in STANDARD_SOLUTIONS]
+                recommended_class = 1
+            elif it == "excessive":
+                m = STANDARD_SOLUTIONS.get(6)
+                matched = [m] if m else []
+                recommended_class = 1
+
+        # Keyword-based fallback
+        if not matched:
+            dl = description.lower()
+            if any(w in dl for w in ("measure", "detect", "sensor", "monitor", "inspect")):
+                recommended_class = 4
+            elif any(w in dl for w in ("complex", "many part", "simplif", "reduce")):
+                recommended_class = 5
+            elif any(w in dl for w in ("evolve", "upgrade", "enhance")):
+                recommended_class = 2
+            elif any(w in dl for w in ("supersystem", "integrate", "combine")):
+                recommended_class = 3
+            class_sols = [s for s in STANDARD_SOLUTIONS.values()
+                          if s.class_name == str(recommended_class)]
+            matched = class_sols[:3]
+
+        from dataclasses import asdict
+        return {
+            "matched": [asdict(s) for s in matched if s],
+            "recommended_class": recommended_class,
+        }
+
+    def full_analysis(self, description: str, domain: str = "") -> dict:
+        """Run all TRIZ tools and return an integrated analysis report."""
+        from dataclasses import asdict
+        problem = self.standardize(description, domain)
+        report = {"standardized_problem": problem.triz_standardized or {}}
+
+        sf = su_field.analyze(description, self.ai_provider)
+        report["su_field"] = sf
+        report["cause_effect"] = cause_effect.analyze(description, self.ai_provider)
+        report["resources"] = resource_analysis.analyze(description, self.ai_provider)
+        report["nine_windows"] = nine_windows.analyze(description, self.ai_provider)
+        report["trimming"] = trimming.analyze(description, self.ai_provider)
+        report["function_ranking"] = function_ranking.analyze(description, self.ai_provider)
+        report["stc"] = stc_operator.analyze(description, self.ai_provider)
+        report["slp"] = smart_little_people.analyze(description, self.ai_provider)
+        report["standard_solutions"] = self.match_standard_solutions(description, sf)
+        report["ariz"] = asdict(run_simplified(description, self.ai_provider))
+
+        # Cross-tool integration insights
+        insights = []
+        if hasattr(sf, 'interaction_type') and sf.interaction_type in ("harmful", "excessive"):
+            insights.append(
+                f"Su-Field {sf.interaction_type} interaction detected: "
+                "consider Class 1 standard solutions to eliminate/modulate the field"
+            )
+        if report.get("standard_solutions", {}).get("recommended_class"):
+            insights.append(
+                f"Recommended standard solutions Class "
+                f'{report["standard_solutions"]["recommended_class"]}'
+            )
+        report["_meta"] = {"tool_count": 11, "integration_insights": insights}
+        return report

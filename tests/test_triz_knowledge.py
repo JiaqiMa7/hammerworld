@@ -4,6 +4,7 @@ from __future__ import annotations
 import unittest
 
 from src.triz.knowledge import ENGINEERING_PARAMETERS, INVENTIVE_PRINCIPLES
+from src.triz.standard_solutions import STANDARD_SOLUTIONS
 
 
 class TestEngineeringParameters(unittest.TestCase):
@@ -55,6 +56,43 @@ class TestInventivePrinciples(unittest.TestCase):
             self.assertEqual(principle.id, pid)
             self.assertTrue(len(principle.name) > 0)
             self.assertTrue(len(principle.description) > 0)
+
+
+class TestStandardSolutions(unittest.TestCase):
+    def test_count(self):
+        self.assertEqual(len(STANDARD_SOLUTIONS), 76,
+                         "Must have exactly 76 standard solutions")
+
+    def test_ids_continuous(self):
+        for i in range(1, 77):
+            self.assertIn(i, STANDARD_SOLUTIONS,
+                          f"Missing standard solution {i}")
+
+    def test_each_has_name(self):
+        for sid, sol in STANDARD_SOLUTIONS.items():
+            self.assertTrue(len(sol.name) > 0,
+                            f"Solution {sid} has empty name")
+
+    def test_each_has_class(self):
+        for sid, sol in STANDARD_SOLUTIONS.items():
+            self.assertTrue(len(sol.class_name) > 0,
+                            f"Solution {sid} has empty class_name")
+
+    def test_each_has_description(self):
+        for sid, sol in STANDARD_SOLUTIONS.items():
+            self.assertTrue(len(sol.description) > 0,
+                            f"Solution {sid} has empty description")
+
+    def test_each_has_condition(self):
+        for sid, sol in STANDARD_SOLUTIONS.items():
+            self.assertTrue(len(sol.su_field_condition) > 0,
+                            f"Solution {sid} has empty su_field_condition")
+
+    def test_structure(self):
+        for sid, sol in STANDARD_SOLUTIONS.items():
+            self.assertEqual(sol.id, sid)
+            self.assertIn(sol.class_name, ["1", "2", "3", "4", "5"])
+            self.assertIsInstance(sol.name, str)
 
 
 if __name__ == "__main__":

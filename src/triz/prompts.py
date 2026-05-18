@@ -1,4 +1,5 @@
-"""Prompt templates for the TRIZ Agent."""
+"""Prompt templates for the TRIZ Agent and all sub-tools."""
+from __future__ import annotations
 
 SYSTEM_PROMPT = """You are a TRIZ (Theory of Inventive Problem Solving) expert agent.
 Your role is to analyze scientific and technical problems using the TRIZ methodology.
@@ -107,4 +108,111 @@ Provide your analysis as JSON:
 
 Be bold and creative. Even if the method seems mismatched to the problem, find the unexpected connection.
 A high weirdness score with a novel insight is more valuable than a safe, boring analysis.
+"""
+
+SU_FIELD_PROMPT = """Model the following problem as a Substance-Field (Su-Field) system:
+
+{description}
+
+Identify:
+1. Substance S1 (the object being acted upon)
+2. Substance S2 (the tool/object doing the acting)
+3. Field F (the energy/interaction between S1 and S2)
+4. Is the Su-Field complete?
+5. What type of interaction exists (useful, harmful, insufficient, excessive)?
+6. Suggest transformations to build a complete and effective Su-Field.
+"""
+
+RESOURCE_ANALYSIS_PROMPT = """Analyze the following problem and identify ALL available resources:
+
+{description}
+
+Categorize resources by type:
+1. Substance resources (materials, compounds, environmental substances)
+2. Field resources (energy types: mechanical, thermal, chemical, electric, magnetic, etc.)
+3. Space resources (empty spaces, cavities, surfaces, gradients)
+4. Time resources (pauses, waiting periods, cycles, pre/post-processing)
+5. Information resources (signals, data, status indicators, feedback)
+6. Function resources (existing useful flows, transport, storage)
+
+Include both system resources and environmental/supersystem resources.
+"""
+
+CAUSE_EFFECT_PROMPT = """Identify cause-effect relationships in the following problem:
+
+{description}
+
+Map out:
+1. The causal chain from root cause to final symptom
+2. Root causes (originating factors)
+3. Intermediate effects
+4. Final effects (the observable problems)
+5. Feedback loops if any
+
+Present as a clear chain: Cause → Effect → Effect → ...
+"""
+
+NINE_WINDOWS_PROMPT = """Apply the 9-Windows (System Operator) to the following problem:
+
+{description}
+
+Fill out a 3x3 matrix:
+- Rows: Supersystem / System / Subsystem
+- Columns: Past / Present / Future
+
+For each cell, describe:
+- What exists in that level and time frame
+- How it relates to the current problem
+- What resources or constraints are available
+"""
+
+TRIMMING_PROMPT = """Apply TRIZ Trimming analysis to the following system:
+
+{description}
+
+For each component identified:
+1. What function does it perform?
+2. Can the function be performed by another existing component?
+3. Can the function be performed by the supersystem?
+4. Can the function be performed by the object itself (self-service)?
+5. Recommend trimming strategy.
+"""
+
+FUNCTION_RANKING_PROMPT = """Rank the functions in the following system:
+
+{description}
+
+For each function, evaluate:
+1. Usefulness (0-10): How valuable is this function?
+2. Cost (0-10): How much resource does it consume?
+3. Harm (0-10): What negative side effects does it produce?
+4. Replaceability (0-10): How easily can it be replaced?
+
+Identify which functions should be trimmed, modified, or preserved.
+"""
+
+STC_OPERATOR_PROMPT = """Apply the STC (Size-Time-Cost) Operator to this problem:
+
+{description}
+
+Consider each extreme:
+1. SIZE+: What if the system were infinitely large?
+2. SIZE-: What if it were infinitesimally small?
+3. TIME+: What if the process took infinitely long?
+4. TIME-: What if it happened instantly?
+5. COST+: What if cost were infinite (unlimited resources)?
+6. COST-: What if the solution must cost nothing?
+
+For each extreme, describe what new insights emerge.
+"""
+
+SMART_LITTLE_PEOPLE_PROMPT = """Model the following problem using Smart Little People (SLP):
+
+{description}
+
+1. Identify the roles/actors in the problem
+2. Imagine each role as a group of "little people" with specific behaviors
+3. Describe the conflicts between groups of little people
+4. Imagine the ideal configuration where all little people cooperate
+5. What does this ideal configuration tell you about the real solution?
 """
