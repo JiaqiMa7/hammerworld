@@ -960,8 +960,16 @@ class _HubHandler(BaseHTTPRequestHandler):
         # Run TRIZ analysis
         from src.triz.agent import TRIZAgent
         from src.hub.web import render_triz_analysis_result_html
+        from src.engine.config import HammerConfig
+        from src.evaluation.providers import OpenAIProvider
 
+        cfg = HammerConfig.load()
         agent = TRIZAgent()
+        if cfg.api_key:
+            agent = TRIZAgent(ai_provider=OpenAIProvider(
+                api_key=cfg.api_key, api_base=cfg.api_base,
+                model=cfg.get_model("triz"),
+            ))
         try:
             report = agent.full_analysis(description)
         except Exception as e:
