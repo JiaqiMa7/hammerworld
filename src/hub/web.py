@@ -3663,7 +3663,7 @@ def render_triz_agent(db: LeaderboardDB, lang: str = "en",
 
     <script>
     var _lastAnalysis = null;
-    var _toolLabels = {
+    var _toolLabels = {{
         standardize: 'Standardize',
         su_field: 'Su-Field',
         cause_effect: 'Cause-Effect',
@@ -3676,15 +3676,15 @@ def render_triz_agent(db: LeaderboardDB, lang: str = "en",
         standard_solutions: 'Standard Solutions',
         ariz: 'ARIZ',
         insights: 'Integration',
-    };
+    }};
 
-    function runTrizAnalysis() {
+    function runTrizAnalysis() {{
         var input = document.getElementById('triz-input');
         var domain = document.getElementById('triz-domain');
         var btn = document.getElementById('triz-btn');
         var result = document.getElementById('triz-result');
         var desc = input.value.trim();
-        if (!desc) { alert('Please enter a description'); return; }
+        if (!desc) {{ alert('Please enter a description'); return; }}
 
         btn.disabled = true;
         btn.textContent = 'Analyzing...';
@@ -3693,12 +3693,12 @@ def render_triz_agent(db: LeaderboardDB, lang: str = "en",
         // Build progress UI
         var toolNames = ['standardize','su_field','cause_effect','resources','nine_windows',
                          'trimming','function_ranking','stc','slp','standard_solutions','ariz','insights'];
-        var progressRows = toolNames.map(function(n) {
+        var progressRows = toolNames.map(function(n) {{
             return '<div class="triz-pstep" data-tool="' + n + '">' +
                    '<span class="triz-picon">⏳</span>' +
                    '<span class="triz-pname">' + (_toolLabels[n] || n) + '</span>' +
                    '<span class="triz-ptime"></span></div>';
-        }).join('');
+        }}).join('');
         result.innerHTML = '<div class="triz-progress" id="triz-progress">' +
             '<div class="triz-pbar"><div class="triz-pfill" id="triz-pfill" style="width:0%"></div></div>' +
             '<div class="triz-pcount" id="triz-pcount">0/12</div>' +
@@ -3707,60 +3707,60 @@ def render_triz_agent(db: LeaderboardDB, lang: str = "en",
 
         var startTime = Date.now();
 
-        fetch('/web/triz/analyze', {
+        fetch('/web/triz/analyze', {{
             method: 'POST',
-            headers: {'Content-Type': 'application/json'},
-            body: JSON.stringify({description: desc, domain: domain.value})
-        })
-        .then(function(r) {
-            if (!r.ok) return r.json().then(function(d) { throw new Error(d.error || 'HTTP ' + r.status); });
+            headers: {{'Content-Type': 'application/json'}},
+            body: JSON.stringify({{description: desc, domain: domain.value}})
+        }})
+        .then(function(r) {{
+            if (!r.ok) return r.json().then(function(d) {{ throw new Error(d.error || 'HTTP ' + r.status); }});
             var reader = r.body.getReader();
             var decoder = new TextDecoder();
             var buffer = '';
 
-            function readChunk() {
-                reader.read().then(function(result) {
-                    if (result.done) {
+            function readChunk() {{
+                reader.read().then(function(result) {{
+                    if (result.done) {{
                         btn.disabled = false;
                         btn.textContent = 'Analyze';
                         return;
-                    }
-                    buffer += decoder.decode(result.value, {stream: true});
+                    }}
+                    buffer += decoder.decode(result.value, {{stream: true}});
                     var lines = buffer.split('\n');
                     buffer = lines.pop() || '';
-                    for (var i = 0; i < lines.length; i++) {
+                    for (var i = 0; i < lines.length; i++) {{
                         var line = lines[i];
-                        if (line.indexOf('data: ') === 0) {
-                            try {
+                        if (line.indexOf('data: ') === 0) {{
+                            try {{
                                 var data = JSON.parse(line.slice(6));
                                 handleEvent(data);
-                            } catch(e) { /* skip malformed */ }
-                        }
-                    }
+                            }} catch(e) {{ /* skip malformed */ }}
+                        }}
+                    }}
                     readChunk();
-                }).catch(function(e) {
+                }}).catch(function(e) {{
                     btn.disabled = false;
                     btn.textContent = 'Analyze';
                     result.innerHTML = '<div class="empty" style="color:#991b1b;">Stream error: ' + e + '</div>';
-                });
-            }
+                }});
+            }}
             readChunk();
-        })
-        .catch(function(e) {
+        }})
+        .catch(function(e) {{
             btn.disabled = false;
             btn.textContent = 'Analyze';
             result.innerHTML = '<div class="empty" style="color:#991b1b;">' + e + '</div>';
-        });
+        }});
 
-        function handleEvent(data) {
-            if (data.error) {
+        function handleEvent(data) {{
+            if (data.error) {{
                 btn.disabled = false;
                 btn.textContent = 'Analyze';
                 result.innerHTML = '<div class="empty" style="color:#991b1b;">' + data.error + '</div>';
                 return;
-            }
+            }}
 
-            if (data.done) {
+            if (data.done) {{
                 _lastAnalysis = data;
                 result.innerHTML = data.html;
                 document.getElementById('triz-actions').style.display = '';
@@ -3769,9 +3769,9 @@ def render_triz_agent(db: LeaderboardDB, lang: str = "en",
                 btn.disabled = false;
                 btn.textContent = 'Analyze';
                 return;
-            }
+            }}
 
-            if (data.step) {
+            if (data.step) {{
                 var elapsed = ((Date.now() - startTime) / 1000).toFixed(1);
                 document.getElementById('triz-pcurrent').textContent =
                     'Running: ' + (_toolLabels[data.step] || data.step) + ' (' + data.current + '/' + data.total + ')';
@@ -3785,29 +3785,28 @@ def render_triz_agent(db: LeaderboardDB, lang: str = "en",
 
                 // Update row
                 var row = document.querySelector('.triz-pstep[data-tool="' + data.step + '"]');
-                if (row) {
+                if (row) {{
                     var icon = row.querySelector('.triz-picon');
                     var time = row.querySelector('.triz-ptime');
                     if (icon) icon.textContent = '✓';
                     if (time) time.textContent = elapsed + 's';
                     row.classList.add('done');
-                }
+                }}
 
                 // Mark in-progress rows
                 var allRows = document.querySelectorAll('.triz-pstep');
                 var found = false;
-                var remainingTotal = data.total;
-                for (var j = 0; j < allRows.length; j++) {
+                for (var j = 0; j < allRows.length; j++) {{
                     var r = allRows[j];
-                    if (!r.classList.contains('done')) {
+                    if (!r.classList.contains('done')) {{
                         var rIcon = r.querySelector('.triz-picon');
                         if (rIcon) rIcon.textContent = found ? '⏳' : '⟳';
                         found = true;
-                    }
-                }
-            }
-        }
-    }
+                    }}
+                }}
+            }}
+        }}
+    }}
 
     function showTab(tabId) {{
         document.querySelectorAll('.triz-tab-content').forEach(function(el) {{ el.classList.remove('active'); }});
