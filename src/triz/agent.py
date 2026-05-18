@@ -87,7 +87,7 @@ class TRIZAgent:
         if self.ai_provider:
             sf = self.su_field_analysis(problem_description)
             triz_std["su_field"] = {
-                "s1": sf.s1, "s2": sf.s2, "field": sf.field,
+                "s1": sf.substance1, "s2": sf.substance2, "field": sf.field,
                 "interaction_type": sf.interaction_type,
                 "is_complete": sf.is_complete,
                 "transformation_suggestions": sf.transformation_suggestions,
