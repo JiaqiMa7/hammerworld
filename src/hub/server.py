@@ -989,11 +989,14 @@ class _HubHandler(BaseHTTPRequestHandler):
         try:
             report = agent.full_analysis(description)
         except Exception as e:
+            import traceback
+            tb = traceback.format_exc()
             self._send_json({"ok": False, "error": (
-                f"Analysis failed: {e}. "
+                f"Analysis failed: {e}\n"
                 f"Config: {config_path} {'[found]' if config_exists else '[not found]'}, "
                 f"API key: {'[set]' if has_api_key else '[not set]'}, "
-                f"Mode: {'AI' if has_api_key else 'rule-based'}"
+                f"Mode: {'AI' if has_api_key else 'rule-based'}\n"
+                f"Traceback:\n{tb}"
             )})
             return
 

@@ -409,21 +409,44 @@ class TRIZAgent:
 
     def full_analysis(self, description: str, domain: str = "") -> dict:
         """Run all TRIZ tools and return an integrated analysis report."""
+        import traceback
         from dataclasses import asdict
-        problem = self.standardize(description, domain)
+        try:
+            problem = self.standardize(description, domain)
+        except Exception as e:
+            return {"_meta": {"_error": f"standardize() failed: {type(e).__name__}: {e}", "_traceback": traceback.format_exc()}}
         report = {"standardized_problem": problem.triz_standardized or {}}
 
-        sf = su_field.analyze(description, self.ai_provider)
-        report["su_field"] = sf
-        report["cause_effect"] = cause_effect.analyze(description, self.ai_provider)
-        report["resources"] = resource_analysis.analyze(description, self.ai_provider)
-        report["nine_windows"] = nine_windows.analyze(description, self.ai_provider)
-        report["trimming"] = trimming.analyze(description, self.ai_provider)
-        report["function_ranking"] = function_ranking.analyze(description, self.ai_provider)
-        report["stc"] = stc_operator.analyze(description, self.ai_provider)
-        report["slp"] = smart_little_people.analyze(description, self.ai_provider)
-        report["standard_solutions"] = self.match_standard_solutions(description, sf)
-        report["ariz"] = asdict(run_simplified(description, self.ai_provider))
+        _tools = [
+            ("su_field", lambda: su_field.analyze(description, self.ai_provider)),
+            ("cause_effect", lambda: cause_effect.analyze(description, self.ai_provider)),
+            ("resources", lambda: resource_analysis.analyze(description, self.ai_provider)),
+            ("nine_windows", lambda: nine_windows.analyze(description, self.ai_provider)),
+            ("trimming", lambda: trimming.analyze(description, self.ai_provider)),
+            ("function_ranking", lambda: function_ranking.analyze(description, self.ai_provider)),
+            ("stc", lambda: stc_operator.analyze(description, self.ai_provider)),
+            ("slp", lambda: smart_little_people.analyze(description, self.ai_provider)),
+        ]
+        sf = None
+        for name, fn in _tools:
+            try:
+                result = fn()
+                if name == "su_field":
+                    sf = result
+                report[name] = result
+            except Exception as e:
+                tb = traceback.format_exc()
+                report[name] = {"_error": f"{type(e).__name__}: {e}", "_traceback": tb}
+
+        try:
+            report["standard_solutions"] = self.match_standard_solutions(description, sf)
+        except Exception as e:
+            report["standard_solutions"] = {"_error": f"{type(e).__name__}: {e}", "_traceback": traceback.format_exc()}
+
+        try:
+            report["ariz"] = asdict(run_simplified(description, self.ai_provider))
+        except Exception as e:
+            report["ariz"] = {"_error": f"{type(e).__name__}: {e}", "_traceback": traceback.format_exc()}
 
         # Cross-tool integration insights
         insights = []
