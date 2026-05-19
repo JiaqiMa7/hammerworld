@@ -52,16 +52,18 @@ def _math_zone_table_rows(db: LeaderboardDB, collections: list,
         sol_count = row[0] if row else 0
         top_step = row[1] or 0
 
-        url = f'/web/math/{pid}/{mid}' if accessed else f'/web/math/{pid}/{mid}/unlock'
-        if not accessed and user_addr:
-            url += f'?user_address={_esc(user_addr)}'
+        zone_url = f'/web/math/{pid}/{mid}'
+        unlock_url = f'/web/math/{pid}/{mid}/unlock'
+        if user_addr:
+            zone_url += f'?user_address={_esc(user_addr)}'
+            unlock_url += f'?user_address={_esc(user_addr)}'
         label = ('<span style="color:#22c55e;">&#x2713; Unlocked</span>'
                  if accessed
-                 else f'<a href="{url}" style="color:#ef4444;">Locked &mdash; Unlock</a>')
+                 else f'<a href="{unlock_url}" style="color:#ef4444;">Locked &mdash; Unlock</a>')
 
         rows.append(f"""
         <tr>
-            <td><a href="{url}"><b>{mname}</b></a><br><span style="font-size:11px;color:#999;">{mitems} tools</span></td>
+            <td><a href="{zone_url}"><b>{mname}</b></a><br><span style="font-size:11px;color:#999;">{mitems} tools</span></td>
             <td>{label}</td>
             <td><b>{top_step}</b> steps</td>
             <td>{sol_count} solution(s)</td>
@@ -610,7 +612,7 @@ def render_math_method_zone(db: LeaderboardDB, pid: int, mid: int, path: str,
             <pre style="background:#f0f3f7;padding:12px;border-radius:6px;font-size:13px;">python3 -m src.cli.main math-mine --problem-id {pid} --methods-collection "{_esc(coll['name'])}" --address {"0xYOUR_ADDRESS" if not user_addr else _esc(user_addr)} --batch 3</pre>
             <p style="margin-top:8px;"><a href="/web/math/{pid}/{mid}/unlock?user_address={_esc(user_addr)}">Manual Unlock</a></p>
             <p style="margin-top:8px;"><a href="/web/math/{pid}/{mid}/tree?lang={lang}">Tree View</a></p>
-            <p style="margin-top:16px;"><a href="/web/math/{pid}">&larr; Back to Problem</a></p>
+            <p style="margin-top:16px;"><a href="/web/math/{pid}{'?user_address=' + _esc(user_addr) if user_addr else ''}">&larr; Back to Problem</a></p>
         </div>
         """, "math", viewer_addr=viewer_addr)
 
@@ -639,7 +641,7 @@ def render_math_method_zone(db: LeaderboardDB, pid: int, mid: int, path: str,
     {pool_html}
 
     <p style="margin-top:16px;">
-        <a href="/web/math/{pid}">&larr; Back to Problem</a>
+        <a href="/web/math/{pid}{'?user_address=' + _esc(user_addr) if user_addr else ''}">&larr; Back to Problem</a>
         &nbsp;|&nbsp; <a href="/web/math/{pid}/{mid}/tree?lang={lang}">Tree View</a>
     </p>
     """
@@ -686,7 +688,7 @@ def _math_solution_content(solution: dict, problem: dict | None, coll: dict | No
     {fork_form}
     {submit_form}
 
-    <p style="margin-top:16px;"><a href="/web/math/{pid}/{mid}">&larr; Back to Method Zone</a>"""
+    <p style="margin-top:16px;"><a href="/web/math/{pid}/{mid}{'?user_address=' + _esc(p_user) if p_user else ''}">&larr; Back to Method Zone</a>"""
 
 
 def render_math_solution(db: LeaderboardDB, pid: int, mid: int, sid: int, path: str,

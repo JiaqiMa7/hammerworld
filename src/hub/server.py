@@ -239,7 +239,7 @@ class _HubHandler(BaseHTTPRequestHandler):
             segs = parts[0].split("/")
             if len(segs) == 2 and segs[0].isdigit() and segs[1].isdigit():
                 ssid, ssn = int(segs[0]), int(segs[1])
-                params = _parse_query(path)
+                params = _parse_query(self.path)
                 starrer = params.get("user_address", "anonymous")
                 db.toggle_step_star(ssid, ssn, starrer)
                 ref = params.get("ref", "/web/math")
