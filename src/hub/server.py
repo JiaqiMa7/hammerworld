@@ -153,7 +153,7 @@ class _HubHandler(BaseHTTPRequestHandler):
             render_collections, render_collection_new, render_collection_detail,
             render_math_home, render_math_new, render_math_problem,
             render_math_method_zone, render_math_solution, render_math_unlock,
-            render_math_tree, render_math_tree_node,
+            render_math_tree, render_math_tree_node, render_math_search,
             render_buffer_dashboard, render_buffer_pending,
             render_buffer_classify, render_buffer_submissions,
             render_buffer_submission_detail, render_buffer_tokens,
@@ -234,6 +234,22 @@ class _HubHandler(BaseHTTPRequestHandler):
         elif _match_math_method_zone(path):
             pid, mid = _parse_math_method_zone(path)
             html = render_math_method_zone(db, pid, mid, self.path, lang=lang, viewer_addr=viewer)
+        elif path.startswith("/web/math/star-step/"):
+            parts = path.split("/web/math/star-step/", 1)[1].split("?")
+            segs = parts[0].split("/")
+            if len(segs) == 2 and segs[0].isdigit() and segs[1].isdigit():
+                ssid, ssn = int(segs[0]), int(segs[1])
+                params = _parse_query(path)
+                starrer = params.get("user_address", "anonymous")
+                db.toggle_step_star(ssid, ssn, starrer)
+                ref = params.get("ref", "/web/math")
+                self.send_response(302)
+                self.send_header("Location", ref)
+                self.end_headers()
+                return
+            html = render_math_home(db, lang=lang, viewer_addr=viewer)
+        elif path.startswith("/web/math/search"):
+            html = render_math_search(db, self.path, lang=lang, viewer_addr=viewer)
         elif _match_math_problem(path):
             pid = _parse_math_problem_id(path)
             html = render_math_problem(db, pid, self.path, lang=lang, viewer_addr=viewer)

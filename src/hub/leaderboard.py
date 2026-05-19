@@ -205,7 +205,13 @@ class LeaderboardDB:
                     ON math_solutions(problem_id, method_collection_id, max_correct_step DESC);
                 CREATE INDEX IF NOT EXISTS idx_math_access_check
                     ON math_access_log(problem_id, method_collection_id, user_address);
-
+            """)
+        # Migration: add method_name column to math_solutions
+        try:
+            conn.execute("ALTER TABLE math_solutions ADD COLUMN method_name TEXT DEFAULT ''")
+        except sqlite3.OperationalError:
+            pass
+        conn.executescript("""
                 CREATE TABLE IF NOT EXISTS math_tree_nodes (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     problem_id INTEGER NOT NULL,
@@ -1125,7 +1131,8 @@ class LeaderboardDB:
                               user_address: str, steps: list[dict],
                               parent_id: int | None = None,
                               seed_combo_id: str = "",
-                              seed_analysis: str = "") -> int:
+                              seed_analysis: str = "",
+                              method_name: str = "") -> int:
         """Insert a new math solution. Returns id."""
         steps_json = json.dumps(steps, ensure_ascii=False)
         seed_analysis_json = seed_analysis
@@ -1135,10 +1142,11 @@ class LeaderboardDB:
             cur = conn.execute(
                 "INSERT INTO math_solutions (problem_id, method_collection_id, user_address, "
                 "parent_solution_id, steps_json, max_correct_step, seed_combo_id, "
-                "seed_analysis_json, created_at, updated_at) "
-                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "seed_analysis_json, created_at, updated_at, method_name) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (problem_id, method_collection_id, user_address, parent_id,
-                 steps_json, max_step, seed_combo_id, seed_analysis_json, now, now),
+                 steps_json, max_step, seed_combo_id, seed_analysis_json, now, now,
+                 method_name),
             )
             return cur.lastrowid
 
@@ -1267,14 +1275,20 @@ class LeaderboardDB:
             )
             return cur.lastrowid
 
-    def get_method_pool(self, problem_id: int) -> list[dict]:
-        """List all methods in a problem's method pool, newest first."""
+    def get_method_pool(self, problem_id: int,
+                        method_collection_id: int | None = None) -> list[dict]:
+        """List methods in a problem's method pool, newest first.
+
+        If method_collection_id is given, filter to that collection only.
+        """
         with self._connect() as conn:
-            rows = conn.execute(
-                "SELECT * FROM math_method_pool WHERE problem_id = ? "
-                "ORDER BY created_at DESC",
-                (problem_id,),
-            ).fetchall()
+            sql = "SELECT * FROM math_method_pool WHERE problem_id = ?"
+            params = [problem_id]
+            if method_collection_id is not None:
+                sql += " AND method_collection_id = ?"
+                params.append(method_collection_id)
+            sql += " ORDER BY created_at DESC"
+            rows = conn.execute(sql, params).fetchall()
             return [dict(r) for r in rows]
 
     def get_method_pool_entry(self, pool_id: int) -> dict | None:
@@ -1284,6 +1298,18 @@ class LeaderboardDB:
                 "SELECT * FROM math_method_pool WHERE id = ?", (pool_id,),
             ).fetchone()
             return dict(row) if row else None
+
+    def search_math_pool(self, query: str, limit: int = 20) -> list[dict]:
+        """Search method pool by method_name, miner_address, or analysis text."""
+        like = f"%{query}%"
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM math_method_pool WHERE method_name LIKE ? "
+                "OR miner_address LIKE ? OR analysis_json LIKE ? "
+                "ORDER BY stars DESC, best_score DESC LIMIT ?",
+                (like, like, like, limit),
+            ).fetchall()
+            return [dict(r) for r in rows]
 
     def toggle_method_pool_star(self, pool_id: int, starrer: str) -> int:
         """Toggle a star on a method pool entry. Returns the new star count."""

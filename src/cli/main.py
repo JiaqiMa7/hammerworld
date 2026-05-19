@@ -971,23 +971,33 @@ def cmd_math_submit(args):
         print(f"ERROR: Invalid JSON in --steps-json: {e}", file=sys.stderr)
         sys.exit(1)
 
+    # Resolve method_name: explicit arg > pool lookup > collection name
+    method_name = getattr(args, "method_name", None) or ""
+    if not method_name:
+        pool = db.get_method_pool(args.problem_id, args.method_collection_id)
+        if pool:
+            method_name = pool[0]["method_name"]
+        else:
+            method_name = coll["name"]
+
     sid = db.submit_math_solution(
         problem_id=args.problem_id,
         method_collection_id=args.method_collection_id,
         user_address=_get_user_address(args, "0xSOLVER"),
         steps=steps,
         parent_id=args.parent_id,
+        method_name=method_name,
     )
     print(f"Solution submitted. ID: {sid}")
     if args.parent_id:
         print(f"  Forked from solution #{args.parent_id}")
     print(f"  Problem: {problem['title']}")
-    print(f"  Method: {coll['name']}")
+    print(f"  Method: {method_name}")
     print(f"  Steps: {len(steps)}")
     print(f"  Max correct step: {db._calc_max_correct_step(steps)}")
 
     # Auto-add method to MCTS tree if it's in the pool
-    _auto_add_method_to_tree(db, args.problem_id, args.method_collection_id, coll["name"])
+    _auto_add_method_to_tree(db, args.problem_id, args.method_collection_id, method_name)
 
 
 def cmd_math_tree_add(args):
@@ -1273,10 +1283,15 @@ def cmd_math_zone(args):
     root = db.get_root_node(args.problem_id, args.method_collection_id)
 
     if getattr(args, "json", False):
+        sols_out = []
+        for s in solutions:
+            sd = dict(s)
+            sd["method_name"] = sd.get("method_name") or coll["name"]
+            sols_out.append(sd)
         print(json.dumps({
             "problem": dict(problem), "collection": dict(coll),
             "access": access,
-            "solutions": [dict(s) for s in solutions],
+            "solutions": sols_out,
             "tree_root_id": root["id"] if root else None,
         }, ensure_ascii=False, indent=2, default=str))
         return
@@ -1293,8 +1308,8 @@ def cmd_math_zone(args):
             steps = json.loads(s.get("steps_json", "[]") or "[]") if s.get("steps_json") else []
             parent = s.get("parent_solution_id")
             parent_info = f"  Forked from #{parent}" if parent else ""
-            addr = (s.get("user_address") or "?")[:16]
-            print(f"  #{s['id']}  {addr:<16}  Steps: {len(steps)}  Max: {s['max_correct_step']}{parent_info}")
+            mname = (s.get("method_name") or coll["name"])[:30]
+            print(f"  #{s['id']}  {mname:<30}  Steps: {len(steps)}  Max: {s['max_correct_step']}{parent_info}")
     tree_status = "Yes (root #{})".format(root["id"]) if root else "Not initialized"
     print(f"\n  Tree: {tree_status}")
 
@@ -1645,7 +1660,7 @@ def cmd_math_search(args):
     conn = sqlite3.connect(args.db)
     conn.row_factory = sqlite3.Row
 
-    results = {"problems": [], "solutions": [], "tree_nodes": []}
+    results = {"problems": [], "solutions": [], "tree_nodes": [], "pool": []}
 
     if scope in ("all", "problems"):
         sql = "SELECT * FROM math_problems WHERE title LIKE ? OR description LIKE ?"
@@ -1674,6 +1689,13 @@ def cmd_math_search(args):
         for row in conn.execute(sql, params):
             results["tree_nodes"].append(dict(row))
 
+    if scope in ("all", "pool"):
+        sql = ("SELECT * FROM math_method_pool WHERE method_name LIKE ? "
+               "OR miner_address LIKE ? OR analysis_json LIKE ?")
+        params = [like, like, like]
+        for row in conn.execute(sql, params):
+            results["pool"].append(dict(row))
+
     conn.close()
     for k in results:
         results[k] = results[k][:limit]
@@ -1685,8 +1707,8 @@ def cmd_math_search(args):
     total = sum(len(v) for v in results.values())
     print(f'Math Search Results for "{query}" (scope={scope}, {total} matches)')
     for key, label in [("problems", "Problems"), ("solutions", "Solutions"),
-                       ("tree_nodes", "Tree Nodes")]:
-        items = results[key]
+                       ("tree_nodes", "Tree Nodes"), ("pool", "Method Pool")]:
+        items = results.get(key, [])
         if not items:
             continue
         print(f"\n{label} ({len(items)}):")
@@ -1695,12 +1717,18 @@ def cmd_math_search(args):
                 cat = it.get("category", "").replace("_", " ").title()
                 print(f"  #{it['id']}  {it['title'][:50]}  [{cat}]  by {it.get('creator', '?')}")
             elif key == "solutions":
-                print(f"  #{it['id']}  Problem #{it['problem_id']} × Method #{it['method_collection_id']}  "
-                      f"by {(it.get('user_address') or '?')[:16]}  steps: {it.get('max_correct_step', 0)}")
+                mname = it.get("method_name", "") or f"Method #{it['method_collection_id']}"
+                print(f"  #{it['id']}  Problem #{it['problem_id']} × {mname[:24]}  "
+                      f"by {(it.get('user_address') or '?')[:16]}  max_step: {it.get('max_correct_step', 0)}")
             elif key == "nodes":
                 content = (it.get("content") or "")[:60]
                 ntype = it.get("node_type", "")
                 print(f"  #{it['id']}  \"{content}\"  Q={it.get('q_value', 0):.2f}  N={it.get('visit_count', 0)}  {ntype}")
+            elif key == "pool":
+                bscore = it.get("best_score", 0)
+                bdim = it.get("best_dimension", "")
+                miner = (it.get("miner_address") or "?")[:16]
+                print(f"  #{it['id']}  {it['method_name'][:40]:<40}  best={bscore:.1f} {bdim}  by {miner}")
 
 
 def cmd_math_pool_list(args):
@@ -2263,6 +2291,7 @@ def main():
     p_math_submit.add_argument("--steps-json", required=True, help="JSON array of solution steps")
     p_math_submit.add_argument("--parent-id", type=int, default=None, help="Solution ID to fork from")
     p_math_submit.add_argument("--address", default=None, help="Solver address (reads from config if not set)")
+    p_math_submit.add_argument("--method-name", default="", help="Specific method name (auto-detected from pool if omitted)")
     p_math_submit.add_argument("--db", default="data/leaderboard.db")
 
     p_math_tree_add = sub.add_parser("math-tree-add", help="Add a child node in the MCTS tree")
@@ -2368,7 +2397,7 @@ def main():
 
     p = sub.add_parser("math-search", help="Search math zone across problems/solutions/nodes")
     p.add_argument("--query", required=True, help="Search keyword")
-    p.add_argument("--scope", choices=["all", "problems", "solutions", "nodes"], default="all")
+    p.add_argument("--scope", choices=["all", "problems", "solutions", "nodes", "pool"], default="all")
     p.add_argument("--category", default=None, help="Filter problems by category")
     p.add_argument("--address", default=None, help="Filter solutions/nodes by address")
     p.add_argument("--limit", type=int, default=20, help="Max results per scope")

@@ -25,6 +25,7 @@ from .math import (
     render_math_unlock,
     render_math_tree,
     render_math_tree_node,
+    render_math_search,
 )
 from .submit import render_submit_home, render_submit_method, render_submit_problem, render_submissions
 from .buffer import (
@@ -65,6 +66,7 @@ __all__ = [
     "render_math_unlock",
     "render_math_tree",
     "render_math_tree_node",
+    "render_math_search",
     "render_submit_home",
     "render_submit_method",
     "render_submit_problem",

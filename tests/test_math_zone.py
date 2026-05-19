@@ -267,7 +267,7 @@ class TestMathWebPages(unittest.TestCase):
         db.submit_math_solution(pid, cid, "0xBOB", steps)
         html = render_math_method_zone(db, pid, cid, "/web/math/1/1?user_address=0xALICE")
         self.assertIn("Solutions", html)
-        self.assertIn("0xBOB", html)
+        self.assertIn("Complex Analysis Tools", html)
 
     def test_math_solution_detail(self):
         db, pid, cid = self._setup_test_data()
@@ -281,7 +281,7 @@ class TestMathWebPages(unittest.TestCase):
         html = render_math_solution(db, pid, cid, sid, f"/web/math/{pid}/{cid}/{sid}")
         self.assertIn("Solution #" + str(sid), html)
         self.assertIn("Define zeta function", html)
-        self.assertIn("0xEULER", html)
+        self.assertIn("Complex Analysis Tools", html)
         self.assertIn("Fork", html)
         self.assertIn("Submit Improvement", html)
 
@@ -824,7 +824,7 @@ class TestNewMathCLI(unittest.TestCase):
         self.assertIn("Goldbach Conjecture", out)
         self.assertIn("Number Theory", out)
         self.assertIn("Unlocked", out)
-        self.assertIn("0xALICE", out)
+        self.assertIn("Steps: 3", out)
 
     def test_math_zone_locked(self):
         from src.cli.main import cmd_math_zone
@@ -1267,7 +1267,7 @@ class TestAutoTreeOnSubmit(unittest.TestCase):
 
         # Verify tree node was auto-created
         children = self.db.get_children(self.root["id"])
-        method_nodes = [c for c in children if c.get("action_label") == "AT Tools"]
+        method_nodes = [c for c in children if c.get("action_label") == "ATMethod"]
         self.assertEqual(len(method_nodes), 1,
                          "Method should have been auto-added as tree child")
 
@@ -1281,7 +1281,7 @@ class TestAutoTreeOnSubmit(unittest.TestCase):
                   method_collection_id=self.cid, steps_json=steps, address="0xA2", parent_id=None)
 
         children = self.db.get_children(self.root["id"])
-        method_nodes = [c for c in children if c.get("action_label") == "AT Tools"]
+        method_nodes = [c for c in children if c.get("action_label") == "ATMethod"]
         self.assertEqual(len(method_nodes), 1,
                          "Should not duplicate tree node for same method")
 

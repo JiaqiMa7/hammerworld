@@ -76,7 +76,8 @@ def _math_zone_table_rows(db: LeaderboardDB, collections: list,
 
 
 def _math_solution_rows(solutions: list, pid: int, mid: int,
-                        user_addr: str, lang: str) -> list[str]:
+                        user_addr: str, lang: str,
+                        coll_name: str = "") -> list[str]:
     rows = []
     for i, s in enumerate(solutions):
         sid = s["id"]
@@ -86,14 +87,14 @@ def _math_solution_rows(solutions: list, pid: int, mid: int,
             steps = []
         step_count = len(steps)
         max_step = s["max_correct_step"]
-        user = _esc((s.get("user_address") or "unknown")[:16])
+        mname = _esc((s.get("method_name") or coll_name or "?")[:30])
         parent = s.get("parent_solution_id")
         fork_info = (f' <span style="font-size:11px;color:#999;">(forked from #{parent})</span>'
                      if parent else "")
         rows.append(f"""
         <tr>
             <td>{i + 1}</td>
-            <td><a href="/web/math/{pid}/{mid}/{sid}">{user}</a>{fork_info}</td>
+            <td><a href="/web/math/{pid}/{mid}/{sid}">{mname}</a>{fork_info}</td>
             <td>{_score_bar(max_step, max(10, max_step + 5))}</td>
             <td>{step_count} steps</td>
             <td><a href="/web/math/{pid}/{mid}/{sid}?fork=1&user_address={_esc(user_addr)}" style="color:#2563eb;">Fork</a></td>
@@ -101,17 +102,27 @@ def _math_solution_rows(solutions: list, pid: int, mid: int,
     return rows
 
 
-def _math_step_rows(steps: list[dict]) -> list[str]:
+def _math_step_rows(steps: list[dict], solution_id: int = 0,
+                     db: LeaderboardDB | None = None,
+                     p_user: str = "", pid: int = 0, mid: int = 0) -> list[str]:
     step_rows = []
     for s in sorted(steps, key=lambda x: x.get("step_num", 0)):
         sn = s.get("step_num", "?")
         verified = s.get("verified", False)
         content_text = _esc(s.get("content", ""))
         badge = '<span style="color:#22c55e;">&#x2713;</span>' if verified else '<span style="color:#ef4444;">&#x2717;</span>'
+        star_info = ""
+        if solution_id and db is not None:
+            sc = db.get_step_star_count(solution_id, sn)
+            star_display = f"★{sc}" if sc else "☆"
+            user_q = _esc(p_user) if p_user else "anonymous"
+            ref = _esc(f"/web/math/{pid}/{mid}/{solution_id}")
+            star_info = f' <a href="/web/math/star-step/{solution_id}/{sn}?user_address={user_q}&ref={ref}" style="font-size:11px;color:#f59e0b;text-decoration:none;">{star_display}</a>'
         step_rows.append(f"""
         <tr>
             <td>{sn}</td>
             <td style="max-width:600px;">{content_text}</td>
+            <td>{star_info}</td>
             <td>{badge}</td>
         </tr>""")
     return step_rows
@@ -385,6 +396,33 @@ def _render_method_pool(db: LeaderboardDB, pid: int, lang: str = "en") -> str:
   <a href="/web/math/{pid}/pool?lang={lang}">View pool details</a>
 </p>"""
 
+def _render_method_pool_section(db: LeaderboardDB, pid: int, mid: int, coll_name: str, lang: str = "en") -> str:
+    """Render method pool entries relevant to a specific (problem, method) zone."""
+    pool = db.get_method_pool(pid, method_collection_id=mid)
+    if not pool:
+        return ""
+    rows = []
+    for e in pool:
+        mname = _esc(e["method_name"][:60])
+        star = f"★{e.get('stars', 0)}" if e.get("stars", 0) > 0 else "☆"
+        bdim = _esc(e.get("best_dimension", ""))
+        bscore = e.get("best_score", 0)
+        miner = _esc((e.get("miner_address") or "?")[:16])
+        rows.append(f"""<tr>
+    <td>#{e['id']}</td>
+    <td><b>{mname}</b></td>
+    <td>{star}</td>
+    <td>{bscore:.1f} {bdim}</td>
+    <td style="font-size:12px;">{miner}</td>
+</tr>""")
+    return f"""
+<h3 style="margin-top:20px;">Pooled Methods ({len(pool)})</h3>
+<p style="color:#777;font-size:12px;">Mined methods in this zone. <a href="/web/math/{pid}">View full pool</a></p>
+<table>
+<thead><tr><th>#</th><th>Method</th><th>Stars</th><th>Best Score</th><th>Miner</th></tr></thead>
+<tbody>{"".join(rows)}</tbody>
+</table>"""
+
 
 # -- Rendered page functions --------------------------------------------------
 
@@ -414,12 +452,85 @@ def render_math_home(db: LeaderboardDB, lang: str = "en", viewer_addr: str = "")
         </div>""")
 
     content = f"""
-    <div class="quick-links" style="margin-bottom:16px;">
+    <div class="quick-links" style="margin-bottom:16px;display:flex;gap:8px;align-items:center;flex-wrap:wrap;">
         <a href="/web/math/new">+ New Problem</a>
+        <form action="/web/math/search" method="get" style="display:inline-flex;gap:4px;margin-left:auto;">
+            <input type="text" name="q" placeholder="Search problems, methods..."
+                   style="padding:4px 8px;border:1px solid #ccc;border-radius:4px;font-size:13px;">
+            <button type="submit" style="padding:4px 12px;">Search</button>
+        </form>
     </div>
     {"".join(cards) if cards else '<div class="empty">No math problem zones yet. <a href="/web/math/new">Apply to create the first one</a>.</div>'}
     """
     return _base_page("Math Research Zone", content, "math", lang=lang, viewer_addr=viewer_addr)
+
+
+def render_math_search(db: LeaderboardDB, path: str, lang: str = "en",
+                       viewer_addr: str = "") -> str:
+    """Render search results across problems and method pool."""
+    params = _parse_query(path)
+    query = params.get("q", "").strip()
+    if not query:
+        return render_math_home(db, lang=lang, viewer_addr=viewer_addr)
+
+    like = f"%{query}%"
+    results = []
+
+    # Search problems
+    with db._connect() as conn:
+        for row in conn.execute(
+            "SELECT id, title, description, category, creator FROM math_problems "
+            "WHERE title LIKE ? OR description LIKE ? LIMIT 10",
+            (like, like),
+        ):
+            r = dict(row)
+            r["_type"] = "problem"
+            results.append(r)
+
+    # Search method pool
+    for e in db.search_math_pool(query, limit=10):
+        e["_type"] = "pool"
+        results.append(e)
+
+    cards = []
+    for r in results:
+        if r["_type"] == "problem":
+            pid = r["id"]
+            title = _esc(r["title"])
+            desc = _esc((r.get("description") or "")[:180])
+            cat = (r.get("category") or "other").replace("_", " ").title()
+            cards.append(f"""<div class="card">
+    <h3><a href="/web/math/{pid}">{title}</a></h3>
+    <p style="color:#777;font-size:13px;">
+        <span style="background:#e8f0fe;color:#2563eb;padding:1px 8px;border-radius:3px;font-size:11px;">{cat}</span>
+        &nbsp; Problem
+    </p>
+    <p style="font-size:13px;color:#555;">{desc}</p>
+</div>""")
+        elif r["_type"] == "pool":
+            mname = _esc(r["method_name"][:60])
+            bscore = r.get("best_score", 0)
+            bdim = _esc(r.get("best_dimension", ""))
+            miner = _esc((r.get("miner_address") or "?")[:16])
+            star = f"★{r.get('stars', 0)}" if r.get("stars", 0) > 0 else "☆"
+            cards.append(f"""<div class="card">
+    <h3><a href="/web/math/{r['problem_id']}">{mname}</a></h3>
+    <p style="color:#777;font-size:13px;">
+        <span style="background:#fef3c7;color:#92400e;padding:1px 8px;border-radius:3px;font-size:11px;">Pool Method</span>
+        &nbsp; {star} &nbsp; best={bscore:.1f} {bdim} &nbsp; by {miner}
+    </p>
+    <p style="font-size:13px;color:#555;">Problem #{r['problem_id']} &middot; {_esc(r.get('method_name', '')[:80])}</p>
+</div>""")
+
+    content = f"""
+    <div class="quick-links" style="margin-bottom:16px;">
+        <a href="/web/math">&larr; Back to Math Zone</a>
+    </div>
+    <h2>Search: {_esc(query)}</h2>
+    <p style="color:#777;margin-bottom:16px;">{len(results)} result(s)</p>
+    {''.join(cards) if cards else '<div class="empty">No results found.</div>'}
+    """
+    return _base_page(f"Search: {query}", content, "math", lang=lang, viewer_addr=viewer_addr)
 
 
 def render_math_new(form: dict | None = None, errors: list[str] | None = None, success: str = "", lang: str = "en", viewer_addr: str = "") -> str:
@@ -504,7 +615,12 @@ def render_math_method_zone(db: LeaderboardDB, pid: int, mid: int, path: str,
         """, "math", viewer_addr=viewer_addr)
 
     solutions = db.get_math_solutions(pid, mid)
-    sol_rows = _math_solution_rows(solutions, pid, mid, user_addr, lang)
+    sol_rows = _math_solution_rows(solutions, pid, mid, user_addr, lang,
+                                   coll_name=coll['name'])
+
+    # Method pool section for this zone
+    pool_entries = db.get_method_pool(pid, method_collection_id=mid)
+    pool_html = _render_method_pool_section(db, pid, mid, coll['name'], lang) if pool_entries else ""
 
     content = f"""
     <div class="card">
@@ -516,9 +632,11 @@ def render_math_method_zone(db: LeaderboardDB, pid: int, mid: int, path: str,
 
     <h2>Solutions ({len(solutions)})</h2>
     <table>
-    <thead><tr><th>#</th><th>User</th><th>Max Correct Step</th><th>Steps</th><th>Action</th></tr></thead>
+    <thead><tr><th>#</th><th>Method</th><th>Max Correct Step</th><th>Steps</th><th>Action</th></tr></thead>
     <tbody>{"".join(sol_rows) if sol_rows else '<tr><td colspan="5" class="empty">No solutions yet. <a href="/web/math/{pid}/{mid}/unlock">Submit the first one</a>.</td></tr>'}</tbody>
     </table>
+
+    {pool_html}
 
     <p style="margin-top:16px;">
         <a href="/web/math/{pid}">&larr; Back to Problem</a>
@@ -535,8 +653,9 @@ def _math_solution_content(solution: dict, problem: dict | None, coll: dict | No
                            p_user: str) -> str:
     ptitle = _esc(problem['title']) if problem else '?'
     cname = _esc(coll['name']) if coll else '?'
+    mname = _esc((solution.get("method_name") or cname)[:40])
     step_tbody = ("".join(step_rows) if step_rows
-                  else '<tr><td colspan="3" class="empty">No steps.</td></tr>')
+                  else '<tr><td colspan="4" class="empty">No steps.</td></tr>')
     return f"""
     <div style="background:#fefce8;border:1px solid #facc15;border-radius:6px;padding:8px 12px;margin-bottom:16px;font-size:13px;color:#92400e;">
         This flat solution view is deprecated. See the <a href="/web/math/{pid}/{mid}/tree?lang={lang}">Tree View</a> for the new MCTS exploration interface.
@@ -545,7 +664,7 @@ def _math_solution_content(solution: dict, problem: dict | None, coll: dict | No
         <h3>Solution #{sid}</h3>
         <p style="color:#777;font-size:13px;">
             Problem: <b>{ptitle}</b> &nbsp;
-            Method: <b>{cname}</b>
+            Method: <b>{mname}</b> <span style="font-size:11px;color:#999;">(collection: {cname})</span>
         </p>
         <p style="color:#777;font-size:13px;">
             By: <b>{user}</b> &nbsp;
@@ -557,7 +676,7 @@ def _math_solution_content(solution: dict, problem: dict | None, coll: dict | No
 
     <h2>Steps</h2>
     <table>
-    <thead><tr><th>#</th><th>Content</th><th>Verified</th></tr></thead>
+    <thead><tr><th>#</th><th>Content</th><th>Stars</th><th>Verified</th></tr></thead>
     <tbody>{step_tbody}</tbody>
     </table>
 
@@ -587,10 +706,10 @@ def render_math_solution(db: LeaderboardDB, pid: int, mid: int, sid: int, path: 
     max_step = solution["max_correct_step"]
     user = _esc((solution.get("user_address") or "unknown")[:16])
     parent = solution.get("parent_solution_id")
-    step_rows = _math_step_rows(steps)
 
     params = _parse_query(path)
     p_user = params.get("user_address", "anonymous")
+    step_rows = _math_step_rows(steps, solution_id=sid, db=db, p_user=p_user, pid=pid, mid=mid)
     fork = params.get("fork")
 
     fork_form = _math_fork_form(sid, pid, mid, steps, p_user) if fork else ""
