@@ -571,13 +571,35 @@ def render_math_problem(db: LeaderboardDB, pid: int, path: str, lang: str = "en"
         return _base_page("Not Found", '<div class="empty">Math problem not found.</div>', lang=lang, viewer_addr=viewer_addr)
 
     params = _parse_query(path)
-    user_addr = params.get("user_address", "")
+    user_addr = params.get("user_address", "") or viewer_addr
 
     header_card = _math_problem_header(problem)
     method_colls = db.get_collections("method", sort_by="stars", category="mathematics")
     rows, addr_form = _math_zone_table_rows(db, method_colls, pid, user_addr)
 
     pool_html = _render_method_pool(db, pid, lang)
+
+    # Build unlock forms for locked zones
+    unlock_section = ""
+    for c in method_colls:
+        mid = c["id"]
+        if not (user_addr and db.check_math_access(pid, mid, user_addr)):
+            cname = _esc(c["name"])
+            unlock_section += f"""
+        <div class="card" style="margin-top:16px;">
+            <h3>Unlock: {cname}</h3>
+            <p style="color:#777;margin:8px 0;">Run math-mining to discover a method, then paste the generated Combo ID below to unlock.</p>
+            <pre style="background:#f0f3f7;padding:12px;border-radius:6px;font-size:13px;overflow-x:auto;">python3 -m src.cli.main math-mine \\
+  --problem-id {pid} \\
+  --methods-collection "{cname}" \\
+  --address {_esc(user_addr) if user_addr else '0xYOUR_ADDRESS'} \\
+  --batch 3</pre>
+            <form method="post" action="/web/math/{pid}/{mid}/unlock" style="margin-top:8px;display:flex;gap:8px;flex-wrap:wrap;align-items:end;">
+                <input type="hidden" name="user_address" value="{_esc(user_addr)}">
+                <input type="text" name="combo_id" placeholder="Paste Combo ID from math-mine output" required style="flex:1;min-width:260px;padding:6px 8px;border:1px solid #ccc;border-radius:4px;">
+                <button type="submit" style="padding:6px 16px;">Unlock</button>
+            </form>
+        </div>"""
 
     content = f"""
     {header_card}
@@ -587,6 +609,7 @@ def render_math_problem(db: LeaderboardDB, pid: int, path: str, lang: str = "en"
     <thead><tr><th>Method Collection</th><th>Access</th><th>Top Step</th><th>Solutions</th></tr></thead>
     <tbody>{"".join(rows) if rows else '<tr><td colspan="4" class="empty">No math method collections yet. <a href="/web/collections/new">Create one</a> with category "mathematics".</td></tr>'}</tbody>
     </table>
+    {unlock_section}
     {pool_html}
     <p style="margin-top:16px;"><a href="/web/math">&larr; Back to Math Zone</a></p>
     """
@@ -601,7 +624,7 @@ def render_math_method_zone(db: LeaderboardDB, pid: int, mid: int, path: str,
         return _base_page("Not Found", '<div class="empty">Problem or method collection not found.</div>', lang=lang, viewer_addr=viewer_addr)
 
     params = _parse_query(path)
-    user_addr = params.get("user_address", "")
+    user_addr = params.get("user_address", "") or viewer_addr
 
     accessed = db.check_math_access(pid, mid, user_addr) if user_addr else False
     if not accessed:
