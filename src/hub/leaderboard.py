@@ -241,6 +241,37 @@ class LeaderboardDB:
                 CREATE INDEX IF NOT EXISTS idx_tree_edges_child
                     ON math_tree_edges(child_node_id);
 
+                CREATE TABLE IF NOT EXISTS math_method_pool (
+                    id INTEGER PRIMARY KEY AUTOINCREMENT,
+                    problem_id INTEGER NOT NULL,
+                    method_collection_id INTEGER NOT NULL,
+                    method_name TEXT NOT NULL,
+                    method_data TEXT NOT NULL,
+                    analysis_json TEXT NOT NULL,
+                    best_score REAL NOT NULL DEFAULT 0,
+                    best_dimension TEXT DEFAULT '',
+                    miner_address TEXT DEFAULT '',
+                    stars INTEGER DEFAULT 0,
+                    created_at REAL DEFAULT 0
+                );
+                CREATE INDEX IF NOT EXISTS idx_method_pool_problem
+                    ON math_method_pool(problem_id);
+
+                CREATE TABLE IF NOT EXISTS math_method_pool_stars (
+                    method_pool_id INTEGER NOT NULL,
+                    starrer TEXT NOT NULL,
+                    starred_at REAL DEFAULT 0,
+                    PRIMARY KEY (method_pool_id, starrer)
+                );
+
+                CREATE TABLE IF NOT EXISTS math_step_stars (
+                    solution_id INTEGER NOT NULL,
+                    step_num INTEGER NOT NULL,
+                    starrer TEXT NOT NULL,
+                    starred_at REAL DEFAULT 0,
+                    PRIMARY KEY (solution_id, step_num, starrer)
+                );
+
                 CREATE TABLE IF NOT EXISTS bounties (
                     id INTEGER PRIMARY KEY AUTOINCREMENT,
                     creator_addr TEXT NOT NULL,
@@ -1209,6 +1240,114 @@ class LeaderboardDB:
                 (problem_id, user_address),
             ).fetchall()
             return [dict(r) for r in rows]
+
+    # ------------------------------------------------------------------
+    # Math Method Pool
+    # ------------------------------------------------------------------
+
+    def add_to_method_pool(
+        self, problem_id: int, method_collection_id: int,
+        method: dict, analysis_json: str,
+        best_score: float, best_dimension: str, miner_address: str,
+    ) -> int:
+        """Insert a successfully mined method into the problem's method pool.
+
+        Returns the new pool entry ID.
+        """
+        now = time.time()
+        with self._connect() as conn:
+            cur = conn.execute(
+                "INSERT INTO math_method_pool "
+                "(problem_id, method_collection_id, method_name, method_data, "
+                "analysis_json, best_score, best_dimension, miner_address, created_at) "
+                "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                (problem_id, method_collection_id, method.get("name", ""),
+                 json.dumps(method, ensure_ascii=False),
+                 analysis_json, best_score, best_dimension, miner_address, now),
+            )
+            return cur.lastrowid
+
+    def get_method_pool(self, problem_id: int) -> list[dict]:
+        """List all methods in a problem's method pool, newest first."""
+        with self._connect() as conn:
+            rows = conn.execute(
+                "SELECT * FROM math_method_pool WHERE problem_id = ? "
+                "ORDER BY created_at DESC",
+                (problem_id,),
+            ).fetchall()
+            return [dict(r) for r in rows]
+
+    def get_method_pool_entry(self, pool_id: int) -> dict | None:
+        """Get a single method pool entry with full analysis."""
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT * FROM math_method_pool WHERE id = ?", (pool_id,),
+            ).fetchone()
+            return dict(row) if row else None
+
+    def toggle_method_pool_star(self, pool_id: int, starrer: str) -> int:
+        """Toggle a star on a method pool entry. Returns the new star count."""
+        with self._connect() as conn:
+            existing = conn.execute(
+                "SELECT 1 FROM math_method_pool_stars "
+                "WHERE method_pool_id = ? AND starrer = ?",
+                (pool_id, starrer),
+            ).fetchone()
+            if existing:
+                conn.execute(
+                    "DELETE FROM math_method_pool_stars "
+                    "WHERE method_pool_id = ? AND starrer = ?",
+                    (pool_id, starrer),
+                )
+                delta = -1
+            else:
+                conn.execute(
+                    "INSERT INTO math_method_pool_stars "
+                    "(method_pool_id, starrer, starred_at) VALUES (?, ?, ?)",
+                    (pool_id, starrer, time.time()),
+                )
+                delta = 1
+            conn.execute(
+                "UPDATE math_method_pool SET stars = MAX(0, stars + ?) WHERE id = ?",
+                (delta, pool_id),
+            )
+            row = conn.execute(
+                "SELECT stars FROM math_method_pool WHERE id = ?", (pool_id,),
+            ).fetchone()
+            return row[0] if row else 0
+
+    def toggle_step_star(self, solution_id: int, step_num: int, starrer: str) -> int:
+        """Toggle a star on a specific step. Returns the new star count."""
+        with self._connect() as conn:
+            existing = conn.execute(
+                "SELECT 1 FROM math_step_stars "
+                "WHERE solution_id = ? AND step_num = ? AND starrer = ?",
+                (solution_id, step_num, starrer),
+            ).fetchone()
+            if existing:
+                conn.execute(
+                    "DELETE FROM math_step_stars "
+                    "WHERE solution_id = ? AND step_num = ? AND starrer = ?",
+                    (solution_id, step_num, starrer),
+                )
+                return 0
+            else:
+                conn.execute(
+                    "INSERT INTO math_step_stars "
+                    "(solution_id, step_num, starrer, starred_at) VALUES (?, ?, ?, ?)",
+                    (solution_id, step_num, starrer, time.time()),
+                )
+                return 1
+
+    def get_step_star_count(self, solution_id: int, step_num: int) -> int:
+        """Get the number of stars on a specific step."""
+        with self._connect() as conn:
+            row = conn.execute(
+                "SELECT COUNT(*) AS cnt FROM math_step_stars "
+                "WHERE solution_id = ? AND step_num = ?",
+                (solution_id, step_num),
+            ).fetchone()
+            return row[0] if row else 0
 
     # ------------------------------------------------------------------
     # MCTS Math Tree

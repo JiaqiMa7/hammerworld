@@ -74,9 +74,16 @@ python3 -m src.cli.main web --port 8766 --discovery-url http://localhost:8765 --
 # Math Zone：解鎖數學問題區域
 python3 -m src.cli.main math-mine --problem-id 1 --methods-collection "Complex Analysis" --batch 3
 
-# Math Zone：提交解法
+# Math Zone：列出方法池
+python3 -m src.cli.main math-pool-list 1
+
+# Math Zone：提交解法（自動擴展 MCTS 樹）
 python3 -m src.cli.main math-submit --problem-id 1 --method-collection-id 1 \
   --steps-json '[{"step_num":1,"content":"define the problem","verified":true}]'
+
+# Math Zone：標星方法或步驟
+python3 -m src.cli.main math-star-method 1 --address 0xALICE
+python3 -m src.cli.main math-star-step 1 3 --address 0xALICE
 
 # Buffer Zone：提交分析到區塊鏈緩衝區
 python3 -m src.cli.main buffer-submit --combo-id my_combo --method-name "Test" \
@@ -93,7 +100,7 @@ python3 -m src.cli.main buffer-tokens --address 0xBOB
 python3 -m unittest discover tests/ -v
 ```
 
-## 所有 CLI 命令（24 個）
+## 所有 CLI 命令（28 個）
 
 ### 核心命令 | Core
 | 命令 | Command | 說明 |
@@ -116,8 +123,12 @@ python3 -m unittest discover tests/ -v
 ### Math Research Zone
 | 命令 | Command | 說明 |
 |------|---------|------|
-| `math-mine` | | 數學問題挖掘解鎖 |
-| `math-submit` | | 提交數學解法 |
+| `math-mine` | | 數學問題挖掘解鎖（結果存入方法池） |
+| `math-submit` | | 提交數學解法（自動擴展 MCTS 樹） |
+| `math-pool-list` | | 列出問題方法池 |
+| `math-pool-show` | | 顯示方法池條目 + AI 分析 |
+| `math-star-method` | | 標星方法池條目 |
+| `math-star-step` | | 標星解法步驟 |
 
 ### Buffer Zone
 | 命令 | Command | 說明 |
@@ -177,7 +188,7 @@ python3 -m src.cli.main web --port 8765
 - **Discovery Server**：迅雷 Tracker 模式，Hub 自動宣告/發現節點，零手動配置
 - **6 層安全防護**：ed25519 簽名身份、IP 反欺騙、速率限制、隱私保護、LRU 淘汰、NAT 感知
 - **Matrix Marketplace**：方法/問題集合可創建、分享、標星、導入
-- **Math Research Zone**：數學問題專區，閘門解鎖機制，按解法步驟數排名，支持 Fork 協作
+- **Math Research Zone**：數學問題專區，閘門解鎖機制，按解法步驟數排名，支持 Fork 協作，方法池存儲成功挖礦結果，Star 機制評價方法和步驟，提交解法自動擴展 MCTS 樹
 - **Blockchain Buffer Zone**：AI 分析提交 → 社區分類員投票 → 共識達成 → 公佈至排行榜，模擬代幣質押/獎勵
 - **TRIZ 標準化**：用戶提交問題自動經 TRIZ Agent 轉換為結構化矛盾矩陣 + 發明原理推薦
 - **零強制依賴**：純 stdlib，AI 通過協議注入，身份簽名可選

@@ -404,24 +404,32 @@ python3 -m src.cli.main mine --problems-collection "Energy Challenges" --batch 5
 
 ## 14. Math Research Zone
 
-數學問題專屬研究區域，閘門解鎖機制，按解法步驟排名。
+數學問題專屬研究區域，閘門解鎖機制，按解法步驟排名。引入**方法池**（Method Pool）機制：成功挖礦結果存入問題專屬方法池，不再進入全局排行榜。
 
 **數據模型：**
 ```
-math_problems          — 數學問題區（title, category, creator）
-math_solutions         — 解法（steps_json, max_correct_step, parent_solution_id）
-math_access_log        — 訪問權限記錄
+math_problems              — 數學問題區（title, category, creator）
+math_solutions             — 解法（steps_json, max_correct_step, parent_solution_id）
+math_access_log            — 訪問權限記錄
+math_method_pool           — 方法池（method + AI 分析 + star 計數）
+math_method_pool_stars     — 方法 pool star 記錄（防雙重加星）
+math_step_stars            — 解法步驟 star 記錄
 ```
 
 **閘門機制：**
 ```
-用戶 → 運行 math-mine → 方法庫×問題 隨機組合 → AI 分析 → 自動授予訪問權
+用戶 → 運行 math-mine → 方法庫×問題 隨機組合 → AI 分析 →
+成功結果存入方法池 → 自動授予訪問權
 ```
 
 **層級結構：**
 ```
 Math Problem (e.g., Riemann Hypothesis)
+  ├── Method Pool ── 成功挖礦方法（含 AI 分析、star 評分）
   ├── Method Collection A (Complex Analysis)
+  │     ├── MCTS Tree Root
+  │     │     ├── [Auto] Contour Integration  (from method pool on submit)
+  │     │     └── [Auto] Cauchy Integral       (from method pool on submit)
   │     ├── Solution 1 (Alice) - max_correct_step: 15
   │     ├── Solution 2 (Bob, forked from #1) - max_correct_step: 18
   │     └── Solution 3 (Charlie) - max_correct_step: 5
@@ -429,14 +437,31 @@ Math Problem (e.g., Riemann Hypothesis)
         └── Solution 4 (Dave) - max_correct_step: 10
 ```
 
+**方法池與 Star 機制：**
+- 每個問題擁有獨立方法池，`add_to_method_pool()` 存入
+- 用戶可對方法池條目標星：`toggle_method_pool_star(pool_id, starrer)`
+- 用戶可對解法步驟標星：`toggle_step_star(solution_id, step_num, starrer)`
+- Star 為切換操作（再次執行取消 star）
+
+**自動樹擴展（Auto-Tree on Submit）：**
+- 提交解法時自動檢查方法池
+- 若方法存在於池中且尚未有對應樹節點，自動在根節點下創建第一層子節點
+- 避免重複創建，支援去重檢測
+
 **CLI 命令：**
 ```bash
-# 閘門解鎖
+# 閘門解鎖 + 方法池存入
 python3 -m src.cli.main math-mine \
   --problem-id 1 --methods-collection "Complex Analysis" \
   --address 0xMINER --batch 3
 
-# 提交解法
+# 列出方法池
+python3 -m src.cli.main math-pool-list 1
+
+# 查看方法池條目（含完整 AI 分析）
+python3 -m src.cli.main math-pool-show 1
+
+# 提交解法（自動樹擴展）
 python3 -m src.cli.main math-submit \
   --problem-id 1 --method-collection-id 3 \
   --steps-json '[{"step_num":1,"content":"Define zeta...","verified":true}]'
@@ -445,6 +470,12 @@ python3 -m src.cli.main math-submit \
 python3 -m src.cli.main math-submit \
   --problem-id 1 --method-collection-id 3 \
   --steps-json '[...]' --parent-id 5
+
+# 標星方法
+python3 -m src.cli.main math-star-method 1 --address 0xALICE
+
+# 標星步驟
+python3 -m src.cli.main math-star-step 1 3 --address 0xALICE
 ```
 
 ## 15. `src/blockchain/` — 區塊鏈緩衝區

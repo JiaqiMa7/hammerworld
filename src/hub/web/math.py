@@ -342,6 +342,50 @@ def _render_tree_recursive(db: LeaderboardDB, node_id: int, depth: int = 0,
 <div class="tree-child-list">{children_html}</div>"""
 
 
+def _render_method_pool(db: LeaderboardDB, pid: int, lang: str = "en") -> str:
+    """Render the method pool section for a problem page."""
+    pool = db.get_method_pool(pid)
+    if not pool:
+        return ""
+
+    rows = []
+    for e in pool:
+        mname = _esc(e["method_name"][:60])
+        star = f"★{e.get('stars', 0)}" if e.get("stars", 0) > 0 else "☆"
+        bdim = _esc(e.get("best_dimension", ""))
+        bscore = e.get("best_score", 0)
+        miner = _esc((e.get("miner_address") or "?")[:16])
+        # Decode analysis for a short insight
+        insight = ""
+        try:
+            analysis = json.loads(e.get("analysis_json", "{}"))
+            scores = analysis.get("scores", [])
+            if scores:
+                top = max(scores, key=lambda s: s.get("score", 0))
+                insight = _esc(f"{top.get('dimension', '')}={top.get('score', 0):.1f}")
+        except Exception:
+            pass
+        rows.append(f"""<tr>
+    <td>#{e['id']}</td>
+    <td><b>{mname}</b></td>
+    <td>{star}</td>
+    <td>{bscore:.1f} {bdim}</td>
+    <td style="color:#777;font-size:12px;">{insight}</td>
+    <td style="font-size:12px;">{miner}</td>
+</tr>""")
+
+    return f"""
+<h2 style="margin-top:24px;">Method Pool ({len(pool)})</h2>
+<p style="color:#777;font-size:13px;">Methods discovered via math-mining. Star a method to signal quality.</p>
+<table>
+<thead><tr><th>#</th><th>Method</th><th>Stars</th><th>Best Score</th><th>Insight</th><th>Miner</th></tr></thead>
+<tbody>{"".join(rows)}</tbody>
+</table>
+<p style="font-size:12px;color:#999;">
+  <a href="/web/math/{pid}/pool?lang={lang}">View pool details</a>
+</p>"""
+
+
 # -- Rendered page functions --------------------------------------------------
 
 
@@ -420,6 +464,8 @@ def render_math_problem(db: LeaderboardDB, pid: int, path: str, lang: str = "en"
     method_colls = db.get_collections("method", sort_by="stars", category="mathematics")
     rows, addr_form = _math_zone_table_rows(db, method_colls, pid, user_addr)
 
+    pool_html = _render_method_pool(db, pid, lang)
+
     content = f"""
     {header_card}
     {addr_form}
@@ -428,6 +474,7 @@ def render_math_problem(db: LeaderboardDB, pid: int, path: str, lang: str = "en"
     <thead><tr><th>Method Collection</th><th>Access</th><th>Top Step</th><th>Solutions</th></tr></thead>
     <tbody>{"".join(rows) if rows else '<tr><td colspan="4" class="empty">No math method collections yet. <a href="/web/collections/new">Create one</a> with category "mathematics".</td></tr>'}</tbody>
     </table>
+    {pool_html}
     <p style="margin-top:16px;"><a href="/web/math">&larr; Back to Math Zone</a></p>
     """
     return _base_page(_esc(problem["title"]), content, "math", lang=lang, viewer_addr=viewer_addr)

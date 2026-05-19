@@ -743,8 +743,10 @@ Math Problem (Top-level, e.g., Riemann Hypothesis)
 
 ```
 用戶 → math-mine → 加載問題 + 數學方法庫 → 隨機組合 → AI 分析 →
-保存到 leaderboard → 自動授予訪問權（math_access_log）→ 解鎖該 (problem, method) 區域
+成功結果存入方法池 → 自動授予訪問權（math_access_log）→ 解鎖該 (problem, method) 區域
 ```
+
+成功挖礦結果不再寫入全局排行榜 `combinations` 表，而是存入問題專屬的 `math_method_pool` 表。每個問題有獨立方法池，記錄方法名稱、完整 AI 分析 JSON、最佳分數/維度、礦工地址。
 
 Web unlock 頁面作為備用通道（手動輸入 combo_id 解鎖）。
 
@@ -757,7 +759,42 @@ math_solutions (id, problem_id, method_collection_id, user_address, parent_solut
                 created_at, updated_at)
 math_access_log (id, problem_id, method_collection_id, user_address, combo_id,
                  analysis_json, created_at)
+math_method_pool (id, problem_id, method_collection_id, method_name, method_data,
+                  analysis_json, best_score, best_dimension, miner_address, stars,
+                  created_at)
+math_method_pool_stars (method_pool_id, starrer, starred_at)
+math_step_stars (solution_id, step_num, starrer, starred_at)
 ```
+
+### 方法池（Method Pool）
+
+成功挖礦結果不再寫入全局 `combinations` 表，而是存入 `math_method_pool`：
+
+```
+成功挖礦 → add_to_method_pool(problem_id, method_collection_id, method, analysis_json,
+              best_score, best_dimension, miner_address)
+         → grant_math_access(...) 自動授予訪問權
+         → get_root_node(...) 自動創建根節點
+```
+
+方法池特點：
+- **每個問題獨立**：`get_method_pool(problem_id)` 返回該問題的所有成功挖礦方法
+- **含完整 AI 分析**：`get_method_pool_entry(pool_id)` 返回原始分析 JSON
+- **Star 評價**：`toggle_method_pool_star(pool_id, starrer)` 切換標星狀態
+
+### 自動樹擴展（Auto-Tree Expansion on Submit）
+
+提交解法時，若該方法存在於方法池中，自動在 MCTS 樹根節點下創建第一層子節點：
+
+```
+math-submit → 檢查方法池 → 是否存在已挖礦方法？
+  ├─ 是 → 檢查樹中是否已有同名 action_label？
+  │    ├─ 無 → create_tree_node + create_tree_edge (parent=root)
+  │    └─ 有 → 跳過（避免重複）
+  └─ 否 → 正常提交，不創建樹節點
+```
+
+這使得方法池與 MCTS 樹之間建立了自動連接：挖礦發現方法 → 使用該方法提交解法 → 方法自動成為樹的第一層子節點。
 
 ### 解法步驟格式
 
@@ -788,6 +825,15 @@ python3 -m src.cli.main math-mine --problem-id 1 --methods-collection "Complex A
 
 # 提交/Fork 解法
 python3 -m src.cli.main math-submit --problem-id 1 --method-collection-id 3 --steps-json '[...]' --parent-id 5
+
+# 列出方法池
+python3 -m src.cli.main math-pool-list 1
+
+# 標星方法
+python3 -m src.cli.main math-star-method 1 --address 0xALICE
+
+# 標星步驟
+python3 -m src.cli.main math-star-step 1 3 --address 0xALICE
 ```
 
 ---
@@ -802,5 +848,5 @@ python3 -m src.cli.main math-submit --problem-id 1 --method-collection-id 3 --st
 - 用投毒檢測 + 合規檢測讓算力貢獻多元化的價值
 - 用顆粒度排行榜 + 隨機抽取打破馬太效應
 - 用榮譽系統閉環（idea → 實現 → 追溯獎勵所有貢獻者）
-- 用數學專區 + 閘門機制讓未解難題獲得系統化的社區攻擊
+- 用數學專區 + 閘門機制讓未解難題獲得系統化的社區攻擊，方法池 + Star + 自動 MCTS 樹擴展連接挖礦、解法和證明搜索
 - 讓算力、創造力、判斷力在同一市場中各自定價

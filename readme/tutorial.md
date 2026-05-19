@@ -544,6 +544,103 @@ python3 -m src.cli.main math-submit \
 
 ---
 
+#### `math-pool-list` — 列出方法池 | List Method Pool
+
+列出問題的所有已挖礦成功方法。
+
+List all successfully mined methods for a problem.
+
+```bash
+python3 -m src.cli.main math-pool-list [options]
+```
+
+| 參數 | Parameter | 默認值 | Default | 說明 / Description |
+|------|-----------|---------|----------|--------------|
+| `problem_id` | (positional) | – | 問題 ID | Problem ID |
+| `--json` | | | | JSON 輸出 | JSON output |
+| `--db` | | `data/leaderboard.db` | 數據庫路徑 | Database path |
+
+**示例 | Example:**
+
+```bash
+python3 -m src.cli.main math-pool-list 1
+```
+
+---
+
+#### `math-pool-show` — 查看方法池條目 | Show Pool Entry
+
+顯示方法池條目的完整信息，包括原始 AI 分析 JSON。
+
+Show full pool entry details including raw AI analysis.
+
+```bash
+python3 -m src.cli.main math-pool-show [options]
+```
+
+| 參數 | Parameter | 默認值 | Default | 說明 / Description |
+|------|-----------|---------|----------|--------------|
+| `pool_id` | (positional) | – | 方法池條目 ID | Pool entry ID |
+| `--json` | | | | JSON 輸出 | JSON output |
+| `--db` | | `data/leaderboard.db` | 數據庫路徑 | Database path |
+
+**示例 | Example:**
+
+```bash
+python3 -m src.cli.main math-pool-show 1 --json
+```
+
+---
+
+#### `math-star-method` — 標星方法 | Star Method
+
+切換方法池條目的標星狀態。再次執行取消標星。
+
+Toggle star on a method pool entry. Running again removes the star.
+
+```bash
+python3 -m src.cli.main math-star-method [options]
+```
+
+| 參數 | Parameter | 默認值 | Default | 說明 / Description |
+|------|-----------|---------|----------|--------------|
+| `pool_id` | (positional) | – | 方法池條目 ID | Pool entry ID |
+| `--address` | (required) | – | 標星者地址 | Starrer address |
+| `--db` | | `data/leaderboard.db` | 數據庫路徑 | Database path |
+
+**示例 | Example:**
+
+```bash
+python3 -m src.cli.main math-star-method 1 --address 0xALICE
+```
+
+---
+
+#### `math-star-step` — 標星步驟 | Star Step
+
+切換解法步驟的標星狀態。再次執行取消標星。
+
+Toggle star on a solution step. Running again removes the star.
+
+```bash
+python3 -m src.cli.main math-star-step [options]
+```
+
+| 參數 | Parameter | 默認值 | Default | 說明 / Description |
+|------|-----------|---------|----------|--------------|
+| `solution_id` | (positional) | – | 解法 ID | Solution ID |
+| `step_num` | (positional) | – | 步驟編號 | Step number |
+| `--address` | (required) | – | 標星者地址 | Starrer address |
+| `--db` | | `data/leaderboard.db` | 數據庫路徑 | Database path |
+
+**示例 | Example:**
+
+```bash
+python3 -m src.cli.main math-star-step 1 3 --address 0xALICE
+```
+
+---
+
 ### 3.4 區塊鏈緩衝區命令 | Blockchain Buffer Zone Commands
 
 緩衝區管線：提交 AI 分析 → 社區分類員投票 → 共識達成 → 發布至排行榜。

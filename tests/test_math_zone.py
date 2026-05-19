@@ -16,6 +16,8 @@ from src.hub.web import (
     render_math_home, render_math_new, render_math_problem,
     render_math_method_zone, render_math_solution, render_math_unlock,
     render_math_tree, render_math_tree_node,
+)
+from src.hub.web.math import (
     _render_tree_stats, _render_tree_recursive,
 )
 
@@ -1040,6 +1042,278 @@ class TestNewMathCLI(unittest.TestCase):
         ]:
             out = self._run(cmd, json=True, **kwargs)
             data = json.loads(out)  # will raise if invalid JSON
+            self.assertIsNotNone(data)
+
+
+class TestMathMethodPool(unittest.TestCase):
+    """Tests for method pool CRUD and starring."""
+
+    def setUp(self):
+        self.db = LeaderboardDB(":memory:")
+        self.pid = self.db.create_math_problem("Pool Test", "desc", "algebra", "alice")
+        self.cid = self.db.create_collection(
+            "method", "Pool Tools", "desc", "mathematics", "bob",
+            [{"name": "PolyA", "domain": "mathematics", "level": 2, "description": "d"}])
+
+    def test_add_to_pool(self):
+        pid = self.db.add_to_method_pool(
+            self.pid, self.cid, {"name": "PolyA", "level": 2},
+            '{"scores": [{"dimension": "elegance", "score": 8.5}]}',
+            8.5, "elegance", "0xMINER",
+        )
+        self.assertGreater(pid, 0)
+        pool = self.db.get_method_pool(self.pid)
+        self.assertEqual(len(pool), 1)
+        self.assertEqual(pool[0]["method_name"], "PolyA")
+
+    def test_get_pool_empty(self):
+        pool = self.db.get_method_pool(self.pid)
+        self.assertEqual(pool, [])
+
+    def test_get_pool_entry(self):
+        pid = self.db.add_to_method_pool(self.pid, self.cid, {"name": "M"}, "{}", 7.0, "", "u1")
+        entry = self.db.get_method_pool_entry(pid)
+        self.assertEqual(entry["method_name"], "M")
+        self.assertEqual(entry["best_score"], 7.0)
+
+    def test_get_pool_entry_not_found(self):
+        self.assertIsNone(self.db.get_method_pool_entry(999))
+
+    def test_toggle_method_pool_star(self):
+        pid = self.db.add_to_method_pool(self.pid, self.cid, {"name": "M"}, "{}", 5.0, "", "u1")
+        # First toggle adds
+        self.assertEqual(self.db.toggle_method_pool_star(pid, "0xALICE"), 1)
+        entry = self.db.get_method_pool_entry(pid)
+        self.assertEqual(entry["stars"], 1)
+        # Second toggle removes
+        self.assertEqual(self.db.toggle_method_pool_star(pid, "0xALICE"), 0)
+        entry = self.db.get_method_pool_entry(pid)
+        self.assertEqual(entry["stars"], 0)
+
+    def test_toggle_step_star(self):
+        sid = self.db.submit_math_solution(
+            self.pid, self.cid, "0xSOLVER",
+            [{"step_num": 1, "content": "s1", "verified": True},
+             {"step_num": 2, "content": "s2", "verified": False}])
+        # Toggle on
+        self.assertEqual(self.db.toggle_step_star(sid, 1, "0xALICE"), 1)
+        self.assertEqual(self.db.get_step_star_count(sid, 1), 1)
+        # Toggle off
+        self.assertEqual(self.db.toggle_step_star(sid, 1, "0xALICE"), 0)
+        self.assertEqual(self.db.get_step_star_count(sid, 1), 0)
+
+    def test_multiple_pool_entries(self):
+        self.db.add_to_method_pool(self.pid, self.cid, {"name": "M1"}, "{}", 9.0, "", "u1")
+        self.db.add_to_method_pool(self.pid, self.cid, {"name": "M2"}, "{}", 7.0, "", "u2")
+        pool = self.db.get_method_pool(self.pid)
+        self.assertEqual(len(pool), 2)
+
+    def test_pool_per_problem_isolation(self):
+        pid2 = self.db.create_math_problem("Other", "desc")
+        self.db.add_to_method_pool(self.pid, self.cid, {"name": "M1"}, "{}", 9.0, "", "u1")
+        self.db.add_to_method_pool(pid2, self.cid, {"name": "M2"}, "{}", 8.0, "", "u2")
+        self.assertEqual(len(self.db.get_method_pool(self.pid)), 1)
+        self.assertEqual(len(self.db.get_method_pool(pid2)), 1)
+
+
+class TestMethodPoolCLI(unittest.TestCase):
+    """Tests for math-pool-list, math-pool-show, math-star-method, math-star-step."""
+
+    class _Args:
+        def __init__(self, **kwargs):
+            for k, v in kwargs.items():
+                setattr(self, k, v)
+
+    def setUp(self):
+        self.db_path = tempfile.mktemp(suffix=".db")
+        self.db = LeaderboardDB(self.db_path)
+        self.pid = self.db.create_math_problem("CLI Pool", "desc", "algebra", "alice")
+        self.cid = self.db.create_collection(
+            "method", "CLI Tools", "desc", "mathematics", "bob",
+            [{"name": "CLIMethod", "domain": "mathematics", "level": 2, "description": "d"}])
+        self.pool_id = self.db.add_to_method_pool(
+            self.pid, self.cid, {"name": "CLIMethod"},
+            '{"scores": [{"dimension": "novelty", "score": 9.0, "explanation": "Very novel"}]}',
+            9.0, "novelty", "0xMINER",
+        )
+        # Add a solution for step star test
+        self.sid = self.db.submit_math_solution(
+            self.pid, self.cid, "0xSOLVER",
+            [{"step_num": 1, "content": "s1", "verified": True}])
+
+    def tearDown(self):
+        if os.path.exists(self.db_path):
+            os.unlink(self.db_path)
+
+    def _run(self, cmd_func, **kwargs):
+        merged = dict(db=self.db_path)
+        merged.update(kwargs)
+        args = self._Args(**merged)
+        old = sys.stdout
+        sys.stdout = buf = io.StringIO()
+        try:
+            cmd_func(args)
+            return buf.getvalue()
+        finally:
+            sys.stdout = old
+
+    def test_pool_list(self):
+        from src.cli.main import cmd_math_pool_list
+        out = self._run(cmd_math_pool_list, problem_id=self.pid)
+        self.assertIn("CLIMethod", out)
+        self.assertIn("0xMINER", out)
+
+    def test_pool_list_json(self):
+        from src.cli.main import cmd_math_pool_list
+        out = self._run(cmd_math_pool_list, problem_id=self.pid, json=True)
+        data = json.loads(out)
+        self.assertEqual(len(data), 1)
+        self.assertEqual(data[0]["method_name"], "CLIMethod")
+
+    def test_pool_list_empty(self):
+        from src.cli.main import cmd_math_pool_list
+        db_path2 = tempfile.mktemp(suffix=".db")
+        LeaderboardDB(db_path2)
+        out = self._run(cmd_math_pool_list, problem_id=999, db=db_path2)
+        self.assertIn("empty", out)
+        os.unlink(db_path2)
+
+    def test_pool_show(self):
+        from src.cli.main import cmd_math_pool_show
+        out = self._run(cmd_math_pool_show, pool_id=self.pool_id)
+        self.assertIn("CLIMethod", out)
+        self.assertIn("novelty", out)
+        self.assertIn("9.0", out)
+
+    def test_pool_show_json(self):
+        from src.cli.main import cmd_math_pool_show
+        out = self._run(cmd_math_pool_show, pool_id=self.pool_id, json=True)
+        data = json.loads(out)
+        self.assertEqual(data["id"], self.pool_id)
+        self.assertEqual(data["best_score"], 9.0)
+
+    def test_pool_show_not_found(self):
+        from src.cli.main import cmd_math_pool_show
+        with self.assertRaises(SystemExit):
+            self._run(cmd_math_pool_show, pool_id=999)
+
+    def test_star_method(self):
+        from src.cli.main import cmd_math_star_method
+        out = self._run(cmd_math_star_method, pool_id=self.pool_id, address="0xALICE")
+        self.assertIn("★1", out)
+        self.assertIn("CLIMethod", out)
+
+    def test_star_step(self):
+        from src.cli.main import cmd_math_star_step
+        out = self._run(cmd_math_star_step, solution_id=self.sid, step_num=1, address="0xALICE")
+        self.assertIn("1 star(s)", out)
+
+    def test_star_step_not_found(self):
+        from src.cli.main import cmd_math_star_step
+        with self.assertRaises(SystemExit):
+            self._run(cmd_math_star_step, solution_id=999, step_num=1)
+
+
+class TestAutoTreeOnSubmit(unittest.TestCase):
+    """Tests that submitting a solution auto-creates tree node from method pool."""
+
+    class _Args:
+        def __init__(self, **kwargs):
+            for k, v in kwargs.items():
+                setattr(self, k, v)
+
+    def setUp(self):
+        self.db_path = tempfile.mktemp(suffix=".db")
+        self.db = LeaderboardDB(self.db_path)
+        self.pid = self.db.create_math_problem("AutoTree", "desc", "algebra", "alice")
+        self.cid = self.db.create_collection(
+            "method", "AT Tools", "desc", "mathematics", "bob",
+            [{"name": "ATMethod", "domain": "mathematics", "level": 2, "description": "d"}])
+        # Add method to pool (simulating successful mining)
+        self.pool_id = self.db.add_to_method_pool(
+            self.pid, self.cid, {"name": "ATMethod"},
+            '{"scores": [{"dimension": "elegance", "score": 8.0}]}',
+            8.0, "elegance", "0xMINER",
+        )
+        # Ensure root exists
+        self.root = self.db.get_root_node(self.pid, self.cid)
+
+    def tearDown(self):
+        if os.path.exists(self.db_path):
+            os.unlink(self.db_path)
+
+    def _run(self, cmd_func, **kwargs):
+        merged = dict(db=self.db_path)
+        merged.update(kwargs)
+        args = self._Args(**merged)
+        old = sys.stdout
+        sys.stdout = buf = io.StringIO()
+        try:
+            cmd_func(args)
+            return buf.getvalue()
+        finally:
+            sys.stdout = old
+
+    def test_auto_adds_tree_node_on_submit(self):
+        from src.cli.main import cmd_math_submit
+        # Submit a solution
+        out = self._run(
+            cmd_math_submit,
+            problem_id=self.pid, method_collection_id=self.cid,
+            steps_json=json.dumps([{"step_num": 1, "content": "s1", "verified": True}]),
+            address="0xAGENT", parent_id=None,
+        )
+        self.assertIn("Solution submitted", out)
+
+        # Verify tree node was auto-created
+        children = self.db.get_children(self.root["id"])
+        method_nodes = [c for c in children if c.get("action_label") == "AT Tools"]
+        self.assertEqual(len(method_nodes), 1,
+                         "Method should have been auto-added as tree child")
+
+    def test_no_duplicate_tree_node(self):
+        from src.cli.main import cmd_math_submit
+        steps = json.dumps([{"step_num": 1, "content": "s1", "verified": True}])
+
+        self._run(cmd_math_submit, problem_id=self.pid,
+                  method_collection_id=self.cid, steps_json=steps, address="0xA1", parent_id=None)
+        self._run(cmd_math_submit, problem_id=self.pid,
+                  method_collection_id=self.cid, steps_json=steps, address="0xA2", parent_id=None)
+
+        children = self.db.get_children(self.root["id"])
+        method_nodes = [c for c in children if c.get("action_label") == "AT Tools"]
+        self.assertEqual(len(method_nodes), 1,
+                         "Should not duplicate tree node for same method")
+
+    def test_no_auto_tree_if_not_in_pool(self):
+        from src.cli.main import cmd_math_submit
+        # Create another collection with a method not in pool
+        cid2 = self.db.create_collection(
+            "method", "Other Tools", "desc", "mathematics", "bob",
+            [{"name": "Other", "domain": "mathematics", "level": 1, "description": "d"}])
+
+        self._run(
+            cmd_math_submit,
+            problem_id=self.pid, method_collection_id=cid2,
+            steps_json=json.dumps([{"step_num": 1, "content": "s1", "verified": True}]),
+            address="0xAGENT", parent_id=None,
+        )
+        children = self.db.get_children(self.root["id"])
+        other_nodes = [c for c in children if c.get("action_label") == "Other Tools"]
+        self.assertEqual(len(other_nodes), 0,
+                         "Should not create tree node for method not in pool")
+
+    def test_all_cli_json_output(self):
+        """Verify all new CLI commands produce valid JSON."""
+        from src.cli.main import (
+            cmd_math_pool_list, cmd_math_pool_show,
+        )
+        for cmd, kwargs in [
+            (cmd_math_pool_list, {"problem_id": self.pid, "json": True}),
+            (cmd_math_pool_show, {"pool_id": self.pool_id, "json": True}),
+        ]:
+            out = self._run(cmd, **kwargs)
+            data = json.loads(out)
             self.assertIsNotNone(data)
 
 

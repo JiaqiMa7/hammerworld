@@ -713,12 +713,109 @@ def cmd_hub(args):
         server.stop()
 
 
-def cmd_math_mine(args):
-    """Run mining for math zone gate unlock — auto-grants access."""
-    from src.engine.config import HammerConfig
-    from src.engine.loader import load_methods
-    from src.engine.combiner import generate_combinations
+def _eval_math_combinations(
+    args, combos, provider, threshold, model_name,
+) -> list:
+    """Evaluate mined combinations in parallel. Returns sorted results list."""
     from src.evaluation.scorer import EvaluationPipeline
+    from concurrent.futures import ThreadPoolExecutor, as_completed
+
+    pipeline = EvaluationPipeline(provider, threshold=threshold,
+                                  model_name=model_name, model_version="api")
+
+    results_by_index: dict[int, object] = {}
+    with ThreadPoolExecutor(max_workers=args.parallel) as executor:
+        future_to_index = {
+            executor.submit(pipeline.evaluate, combo): i
+            for i, combo in enumerate(combos)
+        }
+        for future in as_completed(future_to_index):
+            i = future_to_index[future]
+            combo = combos[i]
+            label = f"{combo.method.name[:30]} × {combo.problem.title[:35]}"
+            try:
+                result = future.result()
+                best = result.combination.best_dimension
+                bscore = result.combination.best_score or 0
+                print(f"  [{i+1}/{len(combos)}] {label} → best={best.value if best else '?'}={bscore:.1f}")
+                results_by_index[i] = result
+            except Exception as exc:
+                print(f"  [{i+1}/{len(combos)}] {label} → FAILED: {exc}")
+    return [results_by_index[i] for i in sorted(results_by_index)]
+
+
+def _save_math_mine_results(
+    db, results, problem_entry, coll, address,
+) -> tuple[int, bool]:
+    """Save mined methods to the problem's method pool and grant access."""
+    saved = 0
+    access_granted = False
+    for r in results:
+        combo = r.combination
+        method_dict = {
+            "name": combo.method.name,
+            "domain": combo.method.domain,
+            "level": combo.method.level.value,
+            "description": combo.method.description,
+        }
+        best_dim = str(combo.best_dimension.value) if combo.best_dimension else ""
+        bscore = combo.best_score or 0
+
+        try:
+            analysis = combo.analyses[-1] if combo.analyses else None
+            if analysis:
+                analysis_json = json.dumps({
+                    "analysis_text": analysis.analysis_text,
+                    "model_name": analysis.model_name,
+                    "model_version": analysis.model_version,
+                    "scores": [{
+                        "dimension": s.dimension.value,
+                        "score": s.score,
+                        "explanation": s.explanation,
+                    } for s in analysis.scores],
+                }, ensure_ascii=False)
+            else:
+                analysis_json = "{}"
+            db.add_to_method_pool(
+                problem_id=problem_entry["id"],
+                method_collection_id=coll["id"],
+                method=method_dict,
+                analysis_json=analysis_json,
+                best_score=bscore,
+                best_dimension=best_dim,
+                miner_address=address,
+            )
+            saved += 1
+            print(f"  [{saved}] {combo.method.name[:40]}  best={bscore:.1f} ({best_dim})")
+
+            # Auto-grant access on first successful save
+            if not access_granted:
+                access_summary = json.dumps({
+                    "analysis_text": combo.analyses[-1].analysis_text if combo.analyses else "",
+                    "best_dimension": best_dim,
+                    "best_score": bscore,
+                }, ensure_ascii=False)
+                db.grant_math_access(
+                    problem_entry["id"], coll["id"],
+                    address, combo.id, access_summary,
+                )
+                access_granted = True
+                print(f"  Access granted! /web/math/{problem_entry['id']}/{coll['id']}")
+                # Ensure root tree node exists
+                try:
+                    db.get_root_node(problem_entry["id"], coll["id"])
+                except Exception:
+                    pass
+        except Exception as exc:
+            print(f"  error saving {combo.method.name}: {exc}")
+
+    return saved, access_granted
+
+
+def cmd_math_mine(args):
+    """Run mining for math zone gate unlock — saves to method pool."""
+    from src.engine.config import HammerConfig
+    from src.engine.combiner import generate_combinations
     from src.evaluation.providers import OpenAIProvider, get_api_key
     from src.hub.leaderboard import LeaderboardDB
     from src.engine.models import Method, MethodLevel, Problem, Domain, ProblemMaturity, ConstraintType
@@ -758,7 +855,7 @@ def cmd_math_mine(args):
         for i, m in enumerate(methods_data)
     ]
 
-    # Wrap problem as Problem object
+    # Wrap problem as Problem object for the combiner
     problem = Problem(
         id=str(problem_entry["id"]),
         title=problem_entry["title"],
@@ -774,7 +871,7 @@ def cmd_math_mine(args):
     combos = generate_combinations(
         methods, [problem],
         block_height=args.block_height,
-        user_address=_get_user_address(args, "0xMINER"),
+        user_address=address,
         nonce=args.nonce,
         batch_size=args.batch,
         method_step=args.method_step,
@@ -784,70 +881,68 @@ def cmd_math_mine(args):
     )
     print(f"Generated {len(combos)} combination(s)")
 
-    # Evaluate
+    # Evaluate in parallel
     cfg = HammerConfig.load()
     api_base = args.api_base or cfg.api_base
     model = args.model or cfg.get_model("mining")
-    workers = args.parallel
     provider = OpenAIProvider(api_key=api_key, api_base=api_base, model=model)
-    print(f"API: {api_base}  model: {model}  workers: {workers}")
+    print(f"API: {api_base}  model: {model}  workers: {args.parallel}")
 
-    pipeline = EvaluationPipeline(provider, threshold=args.threshold, model_name=model, model_version="api")
+    results = _eval_math_combinations(args, combos, provider, args.threshold, model)
 
-    from concurrent.futures import ThreadPoolExecutor, as_completed
-    results_by_index: dict[int, object] = {}
-    with ThreadPoolExecutor(max_workers=workers) as executor:
-        future_to_index = {
-            executor.submit(pipeline.evaluate, combo): i
-            for i, combo in enumerate(combos)
-        }
-        for future in as_completed(future_to_index):
-            i = future_to_index[future]
-            combo = combos[i]
-            label = f"{combo.method.name[:30]} × {combo.problem.title[:35]}"
-            try:
-                result = future.result()
-                best = result.combination.best_dimension
-                print(f"  [{i+1}/{len(combos)}] {label} → best={best.value if best else '?'}={result.combination.best_score or 0:.1f}")
-                results_by_index[i] = result
-            except Exception as exc:
-                print(f"  [{i+1}/{len(combos)}] {label} → FAILED: {exc}")
+    # Save to method pool (not leaderboard)
+    saved, access_granted = _save_math_mine_results(db, results, problem_entry, coll, address)
 
-    results = [results_by_index[i] for i in sorted(results_by_index)]
-
-    # Save to leaderboard
-    saved = 0
-    access_granted = False
-    for r in results:
-        try:
-            entry = db.insert(r.combination, miner_addr=address)
-            saved += 1
-            print(f"  [{saved}] combo_id: {entry.run_id}  best={r.combination.best_score:.1f}  {r.combination.method.name[:40]}")
-            # Auto-grant access on first successful save
-            if not access_granted:
-                analysis_json = json.dumps({
-                    "analysis_text": r.combination.analyses[-1].analysis_text if r.combination.analyses else "",
-                    "best_dimension": str(r.combination.best_dimension.value) if r.combination.best_dimension else "",
-                    "best_score": r.combination.best_score,
-                }, ensure_ascii=False)
-                db.grant_math_access(
-                    problem_entry["id"], coll["id"],
-                    address, r.combination.id, analysis_json,
-                )
-                access_granted = True
-                print(f"  Access granted! You can now view: /web/math/{problem_entry['id']}/{coll['id']}")
-                # Auto-create root tree node
-                try:
-                    db.get_root_node(problem_entry["id"], coll["id"])
-                except Exception:
-                    pass  # root creation is best-effort
-        except Exception as exc:
-            print(f"  error saving: {exc}")
-
-    print(f"Saved {saved}/{len(combos)} combinations to {args.db}")
+    print(f"Saved {saved}/{len(combos)} methods to pool for problem #{args.problem_id}")
     if not access_granted and saved == 0:
-        print("WARNING: No combinations were saved. Access was NOT granted.")
-    db.increment_import("method", coll["id"])
+        print("WARNING: No methods were saved. Access was NOT granted.")
+
+
+def _auto_add_method_to_tree(db, problem_id, method_collection_id, method_name):
+    """If the method is in the pool, add it as a first-level tree child under root.
+
+    Skips if a child with the same action_label already exists.
+    """
+    pool = db.get_method_pool(problem_id)
+    match = [e for e in pool if e["method_collection_id"] == method_collection_id]
+    if not match:
+        return
+
+    root = db.get_root_node(problem_id, method_collection_id)
+    if not root:
+        return
+
+    # Check if a child with this action_label already exists
+    existing = db.get_children(root["id"])
+    if any(c.get("action_label") == method_name for c in existing):
+        return
+
+    # Summarize AI insight from the best pool entry
+    entry = match[0]
+    try:
+        analysis = json.loads(entry.get("analysis_json", "{}"))
+        scores = analysis.get("scores", [])
+        if scores:
+            top = max(scores, key=lambda s: s.get("score", 0))
+            insight = f"{entry['method_name']} — {top.get('dimension', '')} ({top.get('score', 0):.1f})"
+        else:
+            insight = entry["method_name"]
+    except Exception:
+        insight = entry["method_name"]
+
+    node_id = db.create_tree_node(
+        problem_id=problem_id,
+        method_collection_id=method_collection_id,
+        user_address="system",
+        content=insight[:200],
+        node_type="normal",
+    )
+    db.create_tree_edge(
+        parent_node_id=root["id"],
+        child_node_id=node_id,
+        action_label=method_name[:100],
+        action_description=f"Auto-added from method pool (entry #{entry['id']})",
+    )
 
 
 def cmd_math_submit(args):
@@ -890,6 +985,9 @@ def cmd_math_submit(args):
     print(f"  Method: {coll['name']}")
     print(f"  Steps: {len(steps)}")
     print(f"  Max correct step: {db._calc_max_correct_step(steps)}")
+
+    # Auto-add method to MCTS tree if it's in the pool
+    _auto_add_method_to_tree(db, args.problem_id, args.method_collection_id, coll["name"])
 
 
 def cmd_math_tree_add(args):
@@ -1605,6 +1703,111 @@ def cmd_math_search(args):
                 print(f"  #{it['id']}  \"{content}\"  Q={it.get('q_value', 0):.2f}  N={it.get('visit_count', 0)}  {ntype}")
 
 
+def cmd_math_pool_list(args):
+    """List methods in a problem's method pool."""
+    from src.hub.leaderboard import LeaderboardDB
+
+    db = LeaderboardDB(args.db)
+    pool = db.get_method_pool(args.problem_id)
+    problem = db.get_math_problem(args.problem_id)
+    title = problem["title"] if problem else f"#{args.problem_id}"
+
+    if getattr(args, "json", False):
+        data = [{
+            "id": e["id"], "method_name": e["method_name"],
+            "stars": e.get("stars", 0), "best_score": e.get("best_score", 0),
+            "best_dimension": e.get("best_dimension", ""),
+            "miner_address": e.get("miner_address", ""),
+            "created_at": e.get("created_at", 0),
+        } for e in pool]
+        print(json.dumps(data, ensure_ascii=False, indent=2, default=str))
+        return
+
+    if not pool:
+        print(f'Method pool for "{title}" is empty.')
+        return
+    print(f'Method Pool for "{title}" ({len(pool)} methods):')
+    for e in pool:
+        star = f"★{e.get('stars', 0)}" if e.get("stars", 0) > 0 else "  "
+        miner = (e.get("miner_address") or "?")[:16]
+        bdim = e.get("best_dimension", "")
+        bscore = e.get("best_score", 0)
+        print(f"  #{e['id']}  {e['method_name'][:40]:<40} {star}  best={bscore:.1f} {bdim}  by {miner}")
+
+
+def cmd_math_pool_show(args):
+    """Show full details of a method pool entry including AI analysis."""
+    from src.hub.leaderboard import LeaderboardDB
+
+    db = LeaderboardDB(args.db)
+    entry = db.get_method_pool_entry(args.pool_id)
+    if not entry:
+        print(f"ERROR: Pool entry #{args.pool_id} not found.", file=sys.stderr)
+        sys.exit(1)
+
+    if getattr(args, "json", False):
+        print(json.dumps(entry, ensure_ascii=False, indent=2, default=str))
+        return
+
+    print(f"Method: {entry['method_name']}")
+    print(f"  Pool ID: #{entry['id']}")
+    print(f"  Problem ID: #{entry['problem_id']}")
+    print(f"  Collection ID: #{entry['method_collection_id']}")
+    print(f"  Mined by: {(entry.get('miner_address') or '?')[:16]}")
+    print(f"  Stars: ★{entry.get('stars', 0)}")
+    print(f"  Best score: {entry.get('best_score', 0):.1f} ({entry.get('best_dimension', '')})")
+
+    # Parse and display AI analysis
+    try:
+        analysis = json.loads(entry.get("analysis_json", "{}"))
+        scores = analysis.get("scores", [])
+        if scores:
+            print(f"\nAI Analysis:")
+            for s in scores:
+                dim = s.get("dimension", "?")
+                score = s.get("score", 0)
+                expl = s.get("explanation", "")
+                print(f"  {dim:<20} {score:.1f}  — {expl[:80]}")
+        if analysis.get("analysis_text"):
+            text = analysis["analysis_text"]
+            print(f"\nFull text: {text[:500]}")
+    except Exception:
+        print(f"\nAnalysis JSON: {entry.get('analysis_json', '')[:300]}")
+
+
+def cmd_math_star_method(args):
+    """Toggle a star on a method pool entry."""
+    from src.hub.leaderboard import LeaderboardDB
+
+    db = LeaderboardDB(args.db)
+    from_address = _get_user_address(args, "0xSTARGAZER")
+    entry = db.get_method_pool_entry(args.pool_id)
+    if not entry:
+        print(f"ERROR: Pool entry #{args.pool_id} not found.", file=sys.stderr)
+        sys.exit(1)
+
+    new_count = db.toggle_method_pool_star(args.pool_id, from_address)
+    print(f"Method '{entry['method_name']}' now has ★{new_count} star(s).")
+
+
+def cmd_math_star_step(args):
+    """Toggle a star on a specific solution step."""
+    from src.hub.leaderboard import LeaderboardDB
+
+    db = LeaderboardDB(args.db)
+    from_address = _get_user_address(args, "0xSTARGAZER")
+    solution = db.get_math_solution(args.solution_id)
+    if not solution:
+        print(f"ERROR: Solution #{args.solution_id} not found.", file=sys.stderr)
+        sys.exit(1)
+    if args.step_num < 1:
+        print("ERROR: --step-num must be >= 1.", file=sys.stderr)
+        sys.exit(1)
+
+    new_count = db.toggle_step_star(args.solution_id, args.step_num, from_address)
+    print(f"Step #{args.step_num} in solution #{args.solution_id} now has {new_count} star(s).")
+
+
 def cmd_buffer_submit(args):
     """Submit an AI analysis to the blockchain buffer zone."""
     from src.hub.leaderboard import LeaderboardDB
@@ -2172,6 +2375,27 @@ def main():
     p.add_argument("--json", action="store_true", help="JSON output")
     p.add_argument("--db", default="data/leaderboard.db")
 
+    p = sub.add_parser("math-pool-list", help="List methods in a problem's method pool")
+    p.add_argument("--problem-id", type=int, required=True)
+    p.add_argument("--json", action="store_true", help="JSON output")
+    p.add_argument("--db", default="data/leaderboard.db")
+
+    p = sub.add_parser("math-pool-show", help="Show method pool entry with AI analysis")
+    p.add_argument("--pool-id", type=int, required=True)
+    p.add_argument("--json", action="store_true", help="JSON output")
+    p.add_argument("--db", default="data/leaderboard.db")
+
+    p = sub.add_parser("math-star-method", help="Toggle star on a method pool entry")
+    p.add_argument("--pool-id", type=int, required=True)
+    p.add_argument("--address", default=None, help="Stargazer address (reads from config if not set)")
+    p.add_argument("--db", default="data/leaderboard.db")
+
+    p = sub.add_parser("math-star-step", help="Toggle star on a solution step")
+    p.add_argument("--solution-id", type=int, required=True)
+    p.add_argument("--step-num", type=int, required=True)
+    p.add_argument("--address", default=None, help="Stargazer address (reads from config if not set)")
+    p.add_argument("--db", default="data/leaderboard.db")
+
     p_buf_submit = sub.add_parser("buffer-submit", help="Submit an AI analysis to the blockchain buffer zone")
     p_buf_submit.add_argument("--combo-id", required=True, help="Combination ID")
     p_buf_submit.add_argument("--method-id", default="", help="Method ID")
@@ -2308,6 +2532,14 @@ def main():
         cmd_math_pull(args)
     elif args.command == "math-search":
         cmd_math_search(args)
+    elif args.command == "math-pool-list":
+        cmd_math_pool_list(args)
+    elif args.command == "math-pool-show":
+        cmd_math_pool_show(args)
+    elif args.command == "math-star-method":
+        cmd_math_star_method(args)
+    elif args.command == "math-star-step":
+        cmd_math_star_step(args)
     elif args.command == "buffer-submit":
         cmd_buffer_submit(args)
     elif args.command == "buffer-classify":
