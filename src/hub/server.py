@@ -94,11 +94,14 @@ class _HubHandler(BaseHTTPRequestHandler):
 
     def _send_html(self, html: str, status: int = 200):
         body = html.encode()
-        self.send_response(status)
-        self.send_header("Content-Type", "text/html; charset=utf-8")
-        self.send_header("Content-Length", str(len(body)))
-        self.end_headers()
-        self.wfile.write(body)
+        try:
+            self.send_response(status)
+            self.send_header("Content-Type", "text/html; charset=utf-8")
+            self.send_header("Content-Length", str(len(body)))
+            self.end_headers()
+            self.wfile.write(body)
+        except (BrokenPipeError, ConnectionResetError):
+            pass  # client disconnected, ignore
 
     def _send_json(self, data: dict | list, status: int = 200):
         body = json.dumps(data, ensure_ascii=False).encode()
